@@ -29,6 +29,8 @@ export type DraftDeal = {
   email_subject: string | null;
   email_received_at: string | null;
   email_excerpt: string | null;
+  /** How many documents arrived with this deal. Counted server-side. */
+  file_count: number;
   created_at: string;
 };
 

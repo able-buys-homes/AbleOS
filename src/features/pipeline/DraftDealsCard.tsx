@@ -5,7 +5,7 @@
 import { useEffect, useState } from "react";
 import { apiFetch } from "../../lib/apiFetch";
 import { AnimatePresence, motion } from "framer-motion";
-import { InboxIcon, XIcon } from "lucide-react";
+import { InboxIcon, PaperclipIcon, XIcon } from "lucide-react";
 import { NavCard } from "../../components/NavCard";
 import { BuyBoxBadge } from "./BuyBoxBadge";
 import { DEAL_STAGES, STAGE_LABELS, type DealStage } from "./types";
@@ -271,10 +271,30 @@ export function DraftDealsCard({
                                 ? `${draft.contact_name ?? "Someone"} · from the website`
                                 : draft.email_from || "Added by hand"}
                             </span>
-                            <span className="mt-1.5 block text-[14px] text-[#7A8AA3]">
-                              {new Date(
-                                draft.email_received_at || draft.created_at,
-                              ).toLocaleString()}
+                            <span className="mt-1.5 flex items-center justify-between gap-3 text-[14px] text-[#7A8AA3]">
+                              <span className="truncate">
+                                {new Date(
+                                  draft.email_received_at || draft.created_at,
+                                ).toLocaleString()}
+                              </span>
+
+                              {/* Only when there is something to open, so the
+                                  badge means "documents here" at a glance. */}
+                              {draft.file_count > 0 && (
+                                <span
+                                  className="inline-flex shrink-0 items-center gap-1 rounded-full bg-[#EEF5FF] px-2 py-0.5 font-semibold text-[#2465B5]"
+                                  title={`${draft.file_count} document${
+                                    draft.file_count === 1 ? "" : "s"
+                                  }`}
+                                >
+                                  <PaperclipIcon
+                                    aria-hidden="true"
+                                    size={11}
+                                    strokeWidth={2.5}
+                                  />
+                                  {draft.file_count}
+                                </span>
+                              )}
                             </span>
                           </button>
                         ))}

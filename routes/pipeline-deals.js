@@ -92,7 +92,32 @@ export default async function handler(req, res) {
 
             if (error) throw new Error(error.message);
 
-            return res.status(200).json({ drafts: data ?? [] });
+            const drafts = data ?? [];
+
+            // One extra query rather than 200. Raj needs to see at a glance
+            // which emails arrived with documents attached.
+            const ids = drafts.map((draft) => draft.id);
+            const counts = new Map();
+
+            if (ids.length) {
+                const { data: files, error: filesError } = await supabase
+                    .from("deal_submission_files")
+                    .select("deal_id")
+                    .in("deal_id", ids);
+
+                if (filesError) throw new Error(filesError.message);
+
+                for (const row of files ?? []) {
+                    counts.set(row.deal_id, (counts.get(row.deal_id) ?? 0) + 1);
+                }
+            }
+
+            return res.status(200).json({
+                drafts: drafts.map((draft) => ({
+                    ...draft,
+                    file_count: counts.get(draft.id) ?? 0,
+                })),
+            });
         }
 
         /* ---- CONFIRM OR DISMISS ---- */
