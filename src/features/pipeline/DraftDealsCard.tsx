@@ -5,7 +5,26 @@
 import { useEffect, useState } from "react";
 import { apiFetch } from "../../lib/apiFetch";
 import { AnimatePresence, motion } from "framer-motion";
-import { InboxIcon, PaperclipIcon, XIcon } from "lucide-react";
+import {
+  ExternalLinkIcon,
+  FileIcon,
+  FileSpreadsheetIcon,
+  FileTextIcon,
+  ImageIcon,
+  InboxIcon,
+  PaperclipIcon,
+  XIcon,
+} from "lucide-react";
+
+/** A glance at the icon should tell you what kind of document it is. */
+function fileIcon(mime: string) {
+  if (mime.startsWith("image/")) return ImageIcon;
+  if (mime.includes("spreadsheet") || mime.includes("excel") || mime === "text/csv") {
+    return FileSpreadsheetIcon;
+  }
+  if (mime === "application/pdf" || mime.includes("word")) return FileTextIcon;
+  return FileIcon;
+}
 import { NavCard } from "../../components/NavCard";
 import { BuyBoxBadge } from "./BuyBoxBadge";
 import { DEAL_STAGES, STAGE_LABELS, type DealStage } from "./types";
@@ -395,40 +414,51 @@ export function DraftDealsCard({
                       </div>
                     )}
 
-                    {dealFiles.length > 0 && (
+                                      {dealFiles.length > 0 && (
                       <div className="rounded-2xl border border-[#DCE4EE] bg-white p-4">
-                        <div className="text-[14px] font-semibold uppercase tracking-wide text-[#7A8AA3]">
-                          Attachments
+                        <div className="flex items-baseline justify-between gap-3">
+                          <div className="text-[14px] font-semibold uppercase tracking-wide text-[#7A8AA3]">
+                            Documents
+                          </div>
+                          <span className="shrink-0 text-[14px] text-[#8291A5]">
+                            {dealFiles.length}{" "}
+                            {dealFiles.length === 1 ? "file" : "files"} · tap to open
+                          </span>
                         </div>
+
                         <ul className="mt-2 space-y-2">
-                          {dealFiles.map((file) => (
-                            <li
-                              key={file.id}
-                              className="flex items-center justify-between gap-3"
-                            >
-                              <span className="min-w-0 flex-1 truncate text-[16px] text-[#0F1E33]">
-                                {file.url ? (
-                                  <a
-                                    className="font-medium text-[#418BFF] underline"
-                                    href={file.url}
-                                    rel="noreferrer"
-                                    target="_blank"
-                                  >
+                          {dealFiles.map((file) => {
+                            const Icon = fileIcon(file.mime_type ?? "");
+                            const rowStyle = file.url
+                              ? "hover:border-[#B9C7DB] hover:bg-[#F8FAFC]"
+                              : "cursor-default opacity-60";
+
+                            return (
+                              <li key={file.id}>
+                                <a href={file.url ?? undefined} rel="noreferrer" target={file.url ? "_blank" : undefined} className={`flex items-center gap-3 rounded-xl border border-[#DCE4EE] px-3 py-2.5 transition-colors ${rowStyle}`}>
+                                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-[#EEF5FF] text-[#418BFF]">
+                                    <Icon aria-hidden="true" size={16} strokeWidth={2.25} />
+                                  </span>
+
+                                  <span className="min-w-0 flex-1 truncate text-[16px] font-medium text-[#0F1E33]">
                                     {file.file_name}
-                                  </a>
-                                ) : (
-                                  file.file_name
-                                )}
-                              </span>
-                              {/* Email attachments often arrive without a size.
-                                  Better blank than a wrong number. */}
-                              {file.size_bytes > 0 && (
-                                <span className="shrink-0 text-[14px] text-[#7A8AA3]">
-                                  {prettySize(file.size_bytes)}
-                                </span>
-                              )}
-                            </li>
-                          ))}
+                                  </span>
+
+                                  {/* Email attachments often arrive without a
+                                      size. Better blank than a wrong number. */}
+                                  {file.size_bytes > 0 && (
+                                    <span className="shrink-0 text-[14px] text-[#7A8AA3]">
+                                      {prettySize(file.size_bytes)}
+                                    </span>
+                                  )}
+
+                                  {file.url && (
+                                    <ExternalLinkIcon aria-hidden="true" className="shrink-0 text-[#93A3B8]" size={14} strokeWidth={2.5} />
+                                  )}
+                                </a>
+                              </li>
+                            );
+                          })}
                         </ul>
                       </div>
                     )}
