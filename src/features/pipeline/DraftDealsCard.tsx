@@ -400,9 +400,13 @@ export function DraftDealsCard({
                                   file.file_name
                                 )}
                               </span>
-                              <span className="shrink-0 text-[14px] text-[#7A8AA3]">
-                                {prettySize(file.size_bytes)}
-                              </span>
+                              {/* Email attachments often arrive without a size.
+                                  Better blank than a wrong number. */}
+                              {file.size_bytes > 0 && (
+                                <span className="shrink-0 text-[14px] text-[#7A8AA3]">
+                                  {prettySize(file.size_bytes)}
+                                </span>
+                              )}
                             </li>
                           ))}
                         </ul>
