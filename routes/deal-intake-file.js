@@ -95,8 +95,13 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: `Unsupported file type: ${mime}` });
     }
 
-    const size = Number(req.body?.size_bytes);
-    if (!Number.isFinite(size) || size <= 0 || size > MAX_BYTES) {
+    // Gmail does not reliably report a size, so a missing one is recorded as 0
+    // rather than refused. The bucket still enforces the hard 15 MB limit at
+    // upload time - this number is only ever shown to a person.
+    const rawSize = Number(req.body?.size_bytes);
+    const size = Number.isFinite(rawSize) && rawSize > 0 ? rawSize : 0;
+
+    if (size > MAX_BYTES) {
         return res.status(400).json({ error: "Files must be under 15 MB" });
     }
 
