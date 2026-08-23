@@ -51,6 +51,7 @@ export function PipelineBoard() {
       { value: "direct", label: "Direct / inbound" },
       { value: "direct_message", label: "Direct Message" },
       { value: "website", label: "From the Website" },
+      { value: "underwriting", label: "From Underwriting Email" },
       { value: "other", label: "Other" },
       { value: "none", label: "Not set" },
     ],

@@ -493,6 +493,9 @@ export function DraftDealsCard({
                           <option value="direct">Direct / inbound</option>
                           <option value="direct_message">Direct Message</option>
                           <option value="website">From the Website</option>
+                          <option value="underwriting">
+                            From Underwriting Email
+                          </option>
                           <option value="other">Other</option>
                         </select>
                       </label>

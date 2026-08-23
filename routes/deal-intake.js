@@ -263,6 +263,7 @@ export default async function handler(req, res) {
                         num(read?.monthly_cash_flow),
                     ),
                     dscr: fill(match.dscr, num(read?.dscr)),
+                    bird_dog: fill(match.bird_dog, "underwriting"),
                     address_key: fill(match.address_key, addressKey),
                     name_key: fill(match.name_key, nameKey),
                     email_thread_id: fill(match.email_thread_id, threadId),
@@ -306,6 +307,9 @@ export default async function handler(req, res) {
                 extracted: read ?? null,
                 stage: "docs_submitted",
                 origin: "email",
+                // Pre-attributed so nobody has to set it by hand. The review
+                // screen can still change it.
+                bird_dog: "underwriting",
                 email_message_id: messageId,
                 email_thread_id: threadId,
                 email_from: from,
