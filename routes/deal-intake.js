@@ -99,6 +99,50 @@ function nameKeyFor(name) {
     return key.length >= 12 ? key : null;
 }
 
+/**
+ * underwriting@ is not a dedicated deal inbox - it also receives SaaS
+ * notifications, newsletters and billing mail. These never become deals, so
+ * they are filed on arrival rather than put in front of Raj. The row is still
+ * stored, so nothing is lost and the filter can be audited.
+ */
+const NOISE_SENDERS = [
+    "gallup.com",
+    "e.gallup.com",
+    "mail.gallup.com",
+    "slack.com",
+    "openai.com",
+    "email.openai.com",
+    "claude.com",
+    "email.claude.com",
+    "anthropic.com",
+    "mail.anthropic.com",
+    "otter.ai",
+    "high5insights.com",
+    "enneagramuniverse.com",
+    "accounts.google.com",
+    "padmission.com",
+];
+
+/** Machine senders, whatever the domain. */
+const NOISE_LOCAL_PARTS = ["no-reply", "noreply", "notification", "notifications"];
+
+function isNoise(from) {
+    if (typeof from !== "string") return false;
+
+    // "Name <someone@example.com>" or a bare address.
+    const match = from.toLowerCase().match(/<([^>]+)>/);
+    const address = (match ? match[1] : from.toLowerCase()).trim();
+
+    const [local, domain] = address.split("@");
+    if (!domain) return false;
+
+    if (NOISE_SENDERS.some((d) => domain === d || domain.endsWith(`.${d}`))) {
+        return true;
+    }
+
+    return NOISE_LOCAL_PARTS.some((p) => (local ?? "").startsWith(p));
+}
+
 /** Keep what we already had; only fill gaps. */
 function fill(existing, incoming) {
     if (existing !== null && existing !== undefined && existing !== "") {
@@ -240,8 +284,11 @@ export default async function handler(req, res) {
 
         // Confidently not a deal? File it rather than putting it in front of
         // Raj. The row stays so you can audit what the model binned.
+        const noisySender = isNoise(from);
+
         const autoDismissed =
-            read && read.is_deal === false && (read.confidence ?? 0) >= 0.8;
+            noisySender ||
+            (read && read.is_deal === false && (read.confidence ?? 0) >= 0.8);
 
         const { data: created, error } = await supabase
             .from("pipeline_deals")
@@ -268,7 +315,9 @@ export default async function handler(req, res) {
                 email_count: 1,
                 confirmed: false,
                 dismissed_at: autoDismissed ? now : null,
-                dismissed_by: autoDismissed ? "claude" : null,
+                // Distinguish the two, so the denylist can be audited separately
+                // from the model's judgement.
+                dismissed_by: autoDismissed ? (noisySender ? "filter" : "claude") : null,
             })
             .select("id")
             .single();
