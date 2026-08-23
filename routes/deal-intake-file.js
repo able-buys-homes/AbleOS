@@ -15,7 +15,9 @@ import { randomUUID, timingSafeEqual } from "node:crypto";
 const BUCKET = "deal-submissions";
 const MAX_BYTES = 15 * 1024 * 1024;
 const MAX_FILES_PER_DEAL = 60;
-const UPLOAD_TTL_SECONDS = 600;
+// A backfill mints every URL before uploading any of them, so a short window
+// expires the tail of a large batch. An hour covers a few hundred files.
+const UPLOAD_TTL_SECONDS = 3600;
 
 /** Wider than the public form: an emailed rent roll is usually a spreadsheet. */
 const MIME_EXTENSIONS = {
@@ -117,6 +119,20 @@ export default async function handler(req, res) {
 
         if (dealError) throw dealError;
         if (!deal) return res.status(404).json({ error: "Deal not found" });
+
+        // Already have this file on this deal? Say so and stop. Without this,
+        // re-running the backfill would duplicate every document.
+        const { data: existing, error: existingError } = await supabase
+            .from("deal_submission_files")
+            .select("id")
+            .eq("deal_id", dealId)
+            .eq("file_name", safeDisplayName(req.body?.file_name))
+            .maybeSingle();
+
+        if (existingError) throw existingError;
+        if (existing) {
+            return res.status(200).json({ alreadyHave: true, id: existing.id });
+        }
 
         // A runaway loop in n8n shouldn't be able to fill the bucket.
         const { count, error: countError } = await supabase
