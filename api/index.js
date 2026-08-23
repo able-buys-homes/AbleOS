@@ -8,8 +8,10 @@
 
 import approveStage from "../routes/approve-stage.js";
 import criticalDates from "../routes/critical-dates.js";
+import dailyTaskItems from "../routes/daily-task-items.js";
 import dailyTasks from "../routes/daily-tasks.js";
 import dealIntake from "../routes/deal-intake.js";
+import dealIntakeFile from "../routes/deal-intake-file.js";
 import dealSubmission from "../routes/deal-submission.js";
 import dealUploadUrl from "../routes/deal-upload-url.js";
 import dealFiles from "../routes/deal-files.js";
@@ -37,8 +39,10 @@ export const config = { maxDuration: 60 };
 const ROUTES = {
     "approve-stage": approveStage,
     "critical-dates": criticalDates,
+    "daily-task-items": dailyTaskItems,
     "daily-tasks": dailyTasks,
     "deal-intake": dealIntake,
+    "deal-intake-file": dealIntakeFile,
     "deal-submission": dealSubmission,
     "deal-upload-url": dealUploadUrl,
     "deal-files": dealFiles,

@@ -105,17 +105,36 @@ export function useDailyTasks({ owner }: Options = {}) {
        * the backlog. The server decides - the caller does not pass a state.
        */
       due_on?: string;
+      /** Checklist lines to create once the task exists. */
+      items?: string[];
     }) => {
+      const { items, ...fields } = input;
+
       const res = await apiFetch("/api/daily-tasks", {
         method: "POST",
-        body: JSON.stringify(input),
+        body: JSON.stringify(fields),
       });
       const body = await res.json().catch(() => ({}));
 
       if (!res.ok) throw new Error(body?.error || "Could not create the task");
 
-      setTasks((current) => [body.task, ...current]);
-      return body.task as DailyTask;
+      const task = body.task as DailyTask;
+
+      // Items need the task id, so they can only be written after it exists.
+      // A failure here leaves the task standing rather than losing the lot.
+      for (const label of items ?? []) {
+        try {
+          await apiFetch("/api/daily-task-items", {
+            method: "POST",
+            body: JSON.stringify({ task_id: task.id, label }),
+          });
+        } catch (err) {
+          console.error("Could not add a checklist item:", err);
+        }
+      }
+
+      setTasks((current) => [task, ...current]);
+      return task;
     },
     [],
   );

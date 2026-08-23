@@ -13,6 +13,7 @@ type CreateDailyTaskModalProps = {
     description: string;
     priority: DailyTaskPriority;
     due_on?: string;
+    items?: string[];
   }) => Promise<unknown>;
 };
 
@@ -26,6 +27,8 @@ export function CreateDailyTaskModal({
   const [priority, setPriority] =
     React.useState<DailyTaskPriority>("Not urgent");
   const [dueOn, setDueOn] = React.useState("");
+  const [items, setItems] = React.useState<string[]>([]);
+  const [itemDraft, setItemDraft] = React.useState("");
   const [saving, setSaving] = React.useState(false);
   const [error, setError] = React.useState("");
 
@@ -35,8 +38,17 @@ export function CreateDailyTaskModal({
     setDescription("");
     setPriority("Not urgent");
     setDueOn("");
+    setItems([]);
+    setItemDraft("");
     setError("");
   }, [open]);
+
+  function addItem() {
+    const label = itemDraft.trim();
+    if (!label) return;
+    setItems((current) => [...current, label]);
+    setItemDraft("");
+  }
 
   React.useEffect(() => {
     if (!open) return;
@@ -67,6 +79,7 @@ export function CreateDailyTaskModal({
         // No state is sent on purpose. The server puts a dated task in To Do
         // and an undated one in the backlog.
         ...(dueOn ? { due_on: dueOn } : {}),
+        ...(items.length ? { items } : {}),
       });
       onClose();
     } catch (err) {
@@ -198,6 +211,67 @@ export function CreateDailyTaskModal({
                   value={dueOn}
                 />
               </label>
+              <div>
+                <span className="text-[16px] font-semibold tracking-[0.08em] text-[#8291A5]">
+                  Checklist <span className="font-normal">(optional)</span>
+                </span>
+
+                {items.length > 0 && (
+                  <ul className="mt-1.5 space-y-1.5">
+                    {items.map((label, index) => (
+                      <li
+                        className="flex items-start gap-2.5 rounded-xl bg-[#F8FAFC] px-3 py-2"
+                        key={`${label}-${index}`}
+                      >
+                        <span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-md border border-[#CBD5E1] bg-white" />
+                        <span className="min-w-0 flex-1 text-[16px] leading-[1.5] text-[#1A1A2E]">
+                          {label}
+                        </span>
+                        <button
+                          aria-label={`Remove ${label}`}
+                          className="shrink-0 px-1 text-[18px] leading-none text-[#A3B0C0] transition-colors hover:text-[#DC2626]"
+                          disabled={saving}
+                          onClick={() =>
+                            setItems((current) =>
+                              current.filter((_, i) => i !== index),
+                            )
+                          }
+                          type="button"
+                        >
+                          ×
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+
+                <div className="mt-1.5 flex gap-2">
+                  <input
+                    className="min-w-0 flex-1 rounded-xl border border-[#DCE4EE] bg-white px-3 py-2.5 text-[16px] font-medium text-[#1A1A2E] placeholder:text-[#A3B0C0] outline-none transition-colors focus:border-[#418BFF]"
+                    disabled={saving}
+                    onChange={(event) => setItemDraft(event.target.value)}
+                    onKeyDown={(event) => {
+                      // Enter adds a line rather than submitting the form.
+                      if (event.key === "Enter") {
+                        event.preventDefault();
+                        addItem();
+                      }
+                    }}
+                    placeholder="Add a step"
+                    type="text"
+                    value={itemDraft}
+                  />
+                  <button
+                    className="shrink-0 rounded-xl border border-[#DCE4EE] px-3.5 py-2.5 text-[16px] font-semibold text-[#526176] transition-colors hover:bg-[#F1F5F9] disabled:opacity-40"
+                    disabled={saving || !itemDraft.trim()}
+                    onClick={addItem}
+                    type="button"
+                  >
+                    Add
+                  </button>
+                </div>
+              </div>
+
               <p className="rounded-xl border border-dashed border-[#DCE4EE] bg-[#F8FAFC] px-3 py-2.5 text-[16px] font-medium leading-snug text-[#8291A5]">
                 With a due date this goes straight to To Do and Raj is told.
                 Without one it waits in the backlog until you give it a date.

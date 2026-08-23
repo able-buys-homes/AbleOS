@@ -719,6 +719,7 @@ export function DaneCockpit() {
 
       <DailyTaskDetailModal
         busy={daily.busyId === dailyDetailId}
+        checklist
         onClose={() => setDailyDetailId(null)}
         onComplete={(task) => {
           // Completing needs a note and proof, which lives in its own modal.

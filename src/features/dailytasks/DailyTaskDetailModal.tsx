@@ -7,11 +7,13 @@ import {
   FileTextIcon,
   LoaderIcon,
   PlayIcon,
+  PlusIcon,
   RotateCcwIcon,
   Trash2Icon,
   XIcon,
 } from "lucide-react";
 import { loadEvidenceUrls, type EvidenceFile } from "./evidence";
+import { useTaskItems } from "./useTaskItems";
 import type { DailyTask, DailyTaskState } from "./useDailyTasks";
 
 const STATE_LABELS: Record<DailyTaskState, string> = {
@@ -55,6 +57,9 @@ type DailyTaskDetailModalProps = {
   onSchedule?: (task: DailyTask, dueOn: string) => void;
   /** Soft delete. Never offered on completed work. */
   onDelete?: (task: DailyTask) => void;
+  /** Show the checklist. Only where the viewer owns the task - the API
+   *  refuses items on someone else's task, so Raj's read-only view omits it. */
+  checklist?: boolean;
 };
 
 export function DailyTaskDetailModal({
@@ -67,10 +72,31 @@ export function DailyTaskDetailModal({
   onStart,
   onSchedule,
   onDelete,
+  checklist = false,
 }: DailyTaskDetailModalProps) {
   const [files, setFiles] = React.useState<EvidenceFile[]>([]);
   const [dueDraft, setDueDraft] = React.useState("");
   const [confirmDelete, setConfirmDelete] = React.useState(false);
+  const [newItem, setNewItem] = React.useState("");
+  const [addingItem, setAddingItem] = React.useState(false);
+
+  // Passing null keeps the hook quiet when the checklist isn't shown.
+  const list = useTaskItems(checklist && task ? task.id : null);
+
+  async function submitItem() {
+    const label = newItem.trim();
+    if (!label || addingItem) return;
+
+    setAddingItem(true);
+    try {
+      await list.addItem(label);
+      setNewItem("");
+    } catch {
+      // The hook keeps the old list; leaving the text in place lets them retry.
+    } finally {
+      setAddingItem(false);
+    }
+  }
 
   // Reset whenever a different task opens, so a date typed for one task
   // never carries over to the next.
@@ -254,6 +280,110 @@ export function DailyTaskDetailModal({
                   <p className="mt-1.5 whitespace-pre-line text-[18px] font-normal leading-[1.6] text-[#1A1A2E]">
                     {task.description}
                   </p>
+                </div>
+              )}
+
+              {checklist && (
+                <div className="rounded-2xl border border-[#DCE4EE] bg-white p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-[16px] font-medium text-[#5B6B82]">
+                      Checklist
+                    </p>
+                    {list.total > 0 && (
+                      <span className="shrink-0 rounded-full bg-[#F1F5F9] px-2.5 py-1 text-[14px] font-semibold text-[#5B6B82]">
+                        {list.doneCount} of {list.total} done
+                      </span>
+                    )}
+                  </div>
+
+                  {list.total > 0 && (
+                    <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-[#F1F5F9]">
+                      <div
+                        className="h-full rounded-full bg-[#16A34A] transition-all"
+                        style={{
+                          width: `${(list.doneCount / list.total) * 100}%`,
+                        }}
+                      />
+                    </div>
+                  )}
+
+                  <ul className="mt-3 space-y-1.5">
+                    {list.items.map((item) => (
+                      <li
+                        key={item.id}
+                        className="group flex items-start gap-2.5"
+                      >
+                        <button
+                          aria-label={item.done ? "Mark not done" : "Mark done"}
+                          className={`mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-md border transition-colors ${
+                            item.done
+                              ? "border-[#16A34A] bg-[#16A34A] text-white"
+                              : "border-[#CBD5E1] bg-white hover:border-[#94A3B8]"
+                          }`}
+                          onClick={() => list.toggleItem(item.id, !item.done)}
+                          type="button"
+                        >
+                          {item.done && <CheckIcon size={13} strokeWidth={3} />}
+                        </button>
+
+                        <span
+                          className={`min-w-0 flex-1 text-[16px] leading-[1.5] ${
+                            item.done
+                              ? "text-[#94A3B8] line-through"
+                              : "text-[#1A1A2E]"
+                          }`}
+                        >
+                          {item.label}
+                        </span>
+
+                        <button
+                          aria-label="Remove"
+                          className="shrink-0 rounded p-1 text-[#C3CEDC] opacity-0 transition-opacity hover:text-[#DC2626] focus:opacity-100 group-hover:opacity-100"
+                          onClick={() => list.removeItem(item.id)}
+                          type="button"
+                        >
+                          <Trash2Icon size={14} strokeWidth={2.25} />
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+
+                  {list.total === 0 && !list.loading && (
+                    <p className="mt-2 text-[14px] text-[#8291A5]">
+                      Break this into smaller steps.
+                    </p>
+                  )}
+
+                  <div className="mt-3 flex gap-2">
+                    <input
+                      className="min-w-0 flex-1 rounded-xl border border-[#DCE4EE] px-3 py-2 text-[16px] text-[#0F1E33] placeholder:text-[#A3B0C0] focus:border-[#418BFF] focus:outline-none"
+                      onChange={(event) => setNewItem(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") {
+                          event.preventDefault();
+                          submitItem();
+                        }
+                      }}
+                      placeholder="Add an item"
+                      type="text"
+                      value={newItem}
+                    />
+                    <button
+                      aria-label="Add item"
+                      className="grid h-[38px] w-[38px] shrink-0 place-items-center rounded-xl bg-[#0F1E33] text-white transition-colors hover:bg-[#1E3A8A] disabled:opacity-40"
+                      disabled={!newItem.trim() || addingItem}
+                      onClick={submitItem}
+                      type="button"
+                    >
+                      <PlusIcon size={16} strokeWidth={2.5} />
+                    </button>
+                  </div>
+
+                  {list.error && (
+                    <p className="mt-2 text-[14px] text-[#DC2626]">
+                      {list.error}
+                    </p>
+                  )}
                 </div>
               )}
 
