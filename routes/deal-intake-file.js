@@ -124,14 +124,33 @@ export default async function handler(req, res) {
         // re-running the backfill would duplicate every document.
         const { data: existing, error: existingError } = await supabase
             .from("deal_submission_files")
-            .select("id")
+            .select("id, storage_path")
             .eq("deal_id", dealId)
             .eq("file_name", safeDisplayName(req.body?.file_name))
             .maybeSingle();
 
         if (existingError) throw existingError;
         if (existing) {
-            return res.status(200).json({ alreadyHave: true, id: existing.id });
+            // The row is written before the upload, so a failed upload leaves a
+            // row with no object behind it. Hand back a fresh URL for the same
+            // path with upsert, so a re-run repairs it instead of skipping it
+            // forever. No second row is ever created.
+            const { data: signed, error: signError } = await supabase.storage
+                .from(BUCKET)
+                .createSignedUploadUrl(existing.storage_path, {
+                    expiresIn: UPLOAD_TTL_SECONDS,
+                    upsert: true,
+                });
+
+            if (signError) throw signError;
+
+            return res.status(200).json({
+                alreadyHave: true,
+                id: existing.id,
+                path: existing.storage_path,
+                signedUrl: signed.signedUrl,
+                uploadToken: signed.token,
+            });
         }
 
         // A runaway loop in n8n shouldn't be able to fill the bucket.
