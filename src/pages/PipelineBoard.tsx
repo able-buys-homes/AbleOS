@@ -14,6 +14,7 @@ import { PofCard } from "../features/pof/PofCard";
 import { AskAble } from "../features/assistant/AskAble";
 import { NotificationBell } from "../components/NotificationBell";
 import { DealDetail } from "../features/pipeline/DealDetail";
+import { IntakeStatus } from "../features/pipeline/IntakeStatus";
 import { KpiTile } from "../features/pipeline/KpiTile";
 import { StageBrowserModal } from "../features/pipeline/StageBrowserModal";
 import { stages } from "../features/pipeline/data";
@@ -203,6 +204,8 @@ export function PipelineBoard() {
           value={docCount === null ? "..." : String(docCount)}
         />
       </section>
+
+      <IntakeStatus />
 
       {error ? (
         <p className="pt-3 text-[16px] font-medium text-[#DC2626]">{error}</p>
