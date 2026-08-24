@@ -11,6 +11,7 @@
 //   - it can only ever create an unconfirmed draft
 
 import { createClient } from "@supabase/supabase-js";
+import { tryRaiseIntakeAlert } from "../lib/intakeAlert.js";
 import { createHash } from "node:crypto";
 
 /** Submissions allowed from one address per hour. */
@@ -216,6 +217,20 @@ export default async function handler(req, res) {
         return res.status(201).json({ ok: true });
     } catch (err) {
         console.error("deal-submission error:", err);
+
+        // A seller filled in the form and it failed to save. Without this,
+        // nobody would ever know - the seller sees an error and gives up.
+        // Wrapped again because getClient() itself can throw on bad config,
+        // and alerting must never make a failure worse.
+        try {
+            await tryRaiseIntakeAlert(getClient(), {
+                title: "Website deal form failed",
+                body: "A seller submitted the form and it did not save. Check the Vercel logs for deal-submission.",
+            });
+        } catch (alertError) {
+            console.error("Could not alert on submission failure:", alertError);
+        }
+
         return res
             .status(500)
             .json({ error: "Something went wrong. Please try again." });

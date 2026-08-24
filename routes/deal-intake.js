@@ -15,6 +15,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { timingSafeEqual } from "node:crypto";
 import { extractDeal } from "../lib/extractDeal.js";
+import { tryRaiseIntakeAlert } from "../lib/intakeAlert.js";
 
 const MAX_EXCERPT = 2000;
 
@@ -340,6 +341,18 @@ export default async function handler(req, res) {
         });
     } catch (err) {
         console.error("deal-intake error:", err);
+
+        // Belt and braces. n8n's error workflow should catch this too, but a
+        // server-side alert still fires if that workflow is ever misconfigured.
+        try {
+            await tryRaiseIntakeAlert(getClient(), {
+                title: "Deal intake failed",
+                body: "An email reached the intake endpoint and could not be recorded. Check the Vercel logs for deal-intake.",
+            });
+        } catch (alertError) {
+            console.error("Could not alert on intake failure:", alertError);
+        }
+
         return res.status(500).json({ error: "Could not record the email" });
     }
 }

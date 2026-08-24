@@ -12,6 +12,7 @@ import dailyTaskItems from "../routes/daily-task-items.js";
 import dailyTasks from "../routes/daily-tasks.js";
 import dealIntake from "../routes/deal-intake.js";
 import dealIntakeFile from "../routes/deal-intake-file.js";
+import intakeHealth from "../routes/intake-health.js";
 import dealSubmission from "../routes/deal-submission.js";
 import dealUploadUrl from "../routes/deal-upload-url.js";
 import dealFiles from "../routes/deal-files.js";
@@ -43,6 +44,7 @@ const ROUTES = {
     "daily-tasks": dailyTasks,
     "deal-intake": dealIntake,
     "deal-intake-file": dealIntakeFile,
+    "intake-health": intakeHealth,
     "deal-submission": dealSubmission,
     "deal-upload-url": dealUploadUrl,
     "deal-files": dealFiles,
