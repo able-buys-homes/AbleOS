@@ -379,6 +379,10 @@ export function ZoInspect() {
   const occupied = Object.values(draft.occupancy_flags).some(Boolean);
   const pendingPhotos = queue.filter((p) => p.state !== "done").length;
   const failedPhotos = queue.filter((p) => p.state === "failed").length;
+  const doneCount = queue.filter((p) => p.state === "done").length;
+  const uploadsRunning = queue.some(
+    (p) => p.state === "uploading" || p.state === "waiting",
+  );
 
   /* ---------- small building blocks ---------- */
 
@@ -526,12 +530,23 @@ export function ZoInspect() {
             </div>
           )}
 
+          {/* Held shut while photos are still moving, so he cannot walk away
+              mid-upload. Released once they have all settled - a permanently
+              failed photo must never trap him on this screen. */}
           <button
-            className="mt-4 w-full rounded-xl bg-[#1E3A8A] px-4 py-4 text-[18px] font-semibold text-white"
+            className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-[#1E3A8A] px-4 py-4 text-[18px] font-semibold text-white disabled:opacity-50"
+            disabled={uploadsRunning}
             onClick={startNextUnit}
             type="button"
           >
-            Start the next unit
+            {uploadsRunning ? (
+              <>
+                <LoaderIcon className="animate-spin" size={16} strokeWidth={2.5} />
+                Uploading {doneCount} of {queue.length}…
+              </>
+            ) : (
+              "Start the next unit"
+            )}
           </button>
         </div>
       </MobileScreenShell>

@@ -16,6 +16,7 @@ import { ApprovedGatesModal } from "../features/approvals/ApprovedGatesModal";
 import { DriveLinksModal } from "../components/DriveLinksModal";
 import { QuickTiles } from "../components/QuickTiles";
 import { NavCard } from "../components/NavCard";
+import { UnitInspectionsCard } from "../features/inspections/UnitInspectionsCard";
 import {
   CameraIcon,
   FileTextIcon,
@@ -613,6 +614,13 @@ export function RajCockpit() {
               title="Dane's Progress"
               tone="blue"
             />
+          </section>
+
+          <section aria-labelledby="inspections-heading" className="pt-3">
+            <h2 className="sr-only" id="inspections-heading">
+              Unit inspections
+            </h2>
+            <UnitInspectionsCard />
           </section>
 
           <DriveLinksModal
