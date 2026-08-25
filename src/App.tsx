@@ -9,6 +9,7 @@ import { DaneCockpit } from "./pages/DaneCockpit";
 import { JeremiahCockpit } from "./pages/JeremiahCockpit";
 import { ColtonCockpit } from "./pages/ColtonCockpit";
 import { ZoCockpit } from "./pages/ZoCockpit";
+import { ZoInspect } from "./pages/ZoInspect";
 import { KarenCockpit } from "./pages/KarenCockpit";
 import { RexCockpit } from "./pages/RexCockpit";
 import { ElleryCockpit } from "./pages/ElleryCockpit";
@@ -19,7 +20,9 @@ import { PipelineBoard } from "./pages/PipelineBoard";
 export function App() {
   const isMarketingDomain =
     typeof window !== "undefined" &&
-    ["ablebuyshomes.com", "www.ablebuyshomes.com"].includes(window.location.hostname);
+    ["ablebuyshomes.com", "www.ablebuyshomes.com"].includes(
+      window.location.hostname,
+    );
 
   useEffect(() => {
     // Only the cockpit app (and the Vercel preview fallback) should ever
@@ -79,6 +82,16 @@ export function App() {
               </ProtectedRoute>
             }
           />
+          {/* Unit inspections. A separate capability from the rehab photo lane -
+              deliberately not bolted onto the stage flow. */}
+          <Route
+            path="/zo/inspect"
+            element={
+              <ProtectedRoute cockpit="zo">
+                <ZoInspect />
+              </ProtectedRoute>
+            }
+          />
           <Route
             path="/karen"
             element={
@@ -121,7 +134,10 @@ export function App() {
               </ProtectedRoute>
             }
           />
-          <Route path="/" element={isMarketingDomain ? <LandingPage /> : <HomeRedirect />} />
+          <Route
+            path="/"
+            element={isMarketingDomain ? <LandingPage /> : <HomeRedirect />}
+          />
           <Route path="*" element={<Navigate replace to="/" />} />
         </Routes>
       </BrowserRouter>

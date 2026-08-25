@@ -4,6 +4,7 @@ import {
   useNotificationTarget,
 } from "../lib/useNotificationTarget";
 import { motion } from "framer-motion";
+import { Link } from "react-router-dom";
 import { UserMenu } from "../components/UserMenu";
 import { NotificationBell } from "../components/NotificationBell";
 import { apiFetch } from "../lib/apiFetch";
@@ -300,6 +301,23 @@ export function ZoCockpit() {
               src="/able-logo.png"
             />
             <div className="flex items-center gap-3">
+              <nav
+                aria-label="Workspace pages"
+                className="flex items-center gap-1 rounded-full bg-white/15 p-1"
+              >
+                <span
+                  aria-current="page"
+                  className="rounded-full bg-white px-3 py-2 text-[16px] font-medium text-[#1E3A8A]"
+                >
+                  Cockpit
+                </span>
+                <Link
+                  className="rounded-full px-3 py-2 text-[16px] font-medium text-white/80 transition-colors hover:text-white focus:outline-none focus:ring-2 focus:ring-white"
+                  to="/zo/inspect"
+                >
+                  Inspect
+                </Link>
+              </nav>
               <NotificationBell />
               <UserMenu />
             </div>
