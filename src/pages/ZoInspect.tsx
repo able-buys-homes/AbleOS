@@ -184,6 +184,99 @@ async function shrink(file: File): Promise<File> {
   }
 }
 
+/* ---------- small building blocks ---------- */
+// Defined at module scope on purpose. Nested inside ZoInspect these were a new
+// component type on every render, so React unmounted and remounted the subtree
+// each keystroke - the input lost focus and the phone keyboard closed.
+function Section({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="mt-4 overflow-hidden rounded-2xl border border-[#DCE4EE] bg-white">
+      <h2 className="bg-[#1E3A8A] px-4 py-3 text-[15px] font-bold uppercase tracking-[0.08em] text-white">
+        {title}
+      </h2>
+      <div className="divide-y divide-[#F1F5F9]">{children}</div>
+    </section>
+  );
+}
+
+function Check({
+  on,
+  label,
+  hint,
+  onClick,
+}: {
+  on: boolean;
+  label: string;
+  hint?: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      className="flex w-full items-start gap-3 px-4 py-3.5 text-left active:bg-[#F8FAFC]"
+      onClick={onClick}
+      type="button"
+    >
+      <span
+        className={`mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-md border-2 transition-colors ${
+          on
+            ? "border-[#16A34A] bg-[#16A34A] text-white"
+            : "border-[#CBD5E1] bg-white"
+        }`}
+      >
+        {on && <CheckIcon size={15} strokeWidth={3} />}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-[17px] leading-snug text-[#1A1A2E]">
+          {label}
+        </span>
+        {hint ? (
+          <span className="mt-0.5 block text-[14px] text-[#8291A5]">
+            {hint}
+          </span>
+        ) : null}
+      </span>
+    </button>
+  );
+}
+
+function Field({
+  label,
+  value,
+  onChange,
+  placeholder,
+  type = "text",
+  mode,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+  type?: string;
+  mode?: "numeric" | "decimal";
+}) {
+  return (
+    <label className="block">
+      <span className="text-[13px] font-bold uppercase tracking-[0.07em] text-[#7A8AA3]">
+        {label}
+      </span>
+      <input
+        className="mt-1 w-full rounded-xl border border-[#DCE4EE] bg-white px-3 py-3 text-[17px] text-[#0F1E33] placeholder:text-[#A3B0C0] focus:border-[#418BFF] focus:outline-none"
+        inputMode={mode}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        type={type}
+        value={value}
+      />
+    </label>
+  );
+}
+
 export function ZoInspect() {
   const { profile } = useAuth();
 
@@ -393,99 +486,6 @@ export function ZoInspect() {
   const uploadsRunning = queue.some(
     (p) => p.state === "uploading" || p.state === "waiting",
   );
-
-  /* ---------- small building blocks ---------- */
-
-  function Section({
-    title,
-    children,
-  }: {
-    title: string;
-    children: React.ReactNode;
-  }) {
-    return (
-      <section className="mt-4 overflow-hidden rounded-2xl border border-[#DCE4EE] bg-white">
-        <h2 className="bg-[#1E3A8A] px-4 py-3 text-[15px] font-bold uppercase tracking-[0.08em] text-white">
-          {title}
-        </h2>
-        <div className="divide-y divide-[#F1F5F9]">{children}</div>
-      </section>
-    );
-  }
-
-  function Check({
-    on,
-    label,
-    hint,
-    onClick,
-  }: {
-    on: boolean;
-    label: string;
-    hint?: string;
-    onClick: () => void;
-  }) {
-    return (
-      <button
-        className="flex w-full items-start gap-3 px-4 py-3.5 text-left active:bg-[#F8FAFC]"
-        onClick={onClick}
-        type="button"
-      >
-        <span
-          className={`mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-md border-2 transition-colors ${
-            on
-              ? "border-[#16A34A] bg-[#16A34A] text-white"
-              : "border-[#CBD5E1] bg-white"
-          }`}
-        >
-          {on && <CheckIcon size={15} strokeWidth={3} />}
-        </span>
-        <span className="min-w-0 flex-1">
-          <span className="block text-[17px] leading-snug text-[#1A1A2E]">
-            {label}
-          </span>
-          {hint ? (
-            <span className="mt-0.5 block text-[14px] text-[#8291A5]">
-              {hint}
-            </span>
-          ) : null}
-        </span>
-      </button>
-    );
-  }
-
-  function Field({
-    label,
-    value,
-    onChange,
-    placeholder,
-    type = "text",
-    mode,
-  }: {
-    label: string;
-    value: string;
-    onChange: (v: string) => void;
-    placeholder?: string;
-    type?: string;
-    mode?: "numeric" | "decimal";
-  }) {
-    return (
-      <label className="block">
-        <span className="text-[13px] font-bold uppercase tracking-[0.07em] text-[#7A8AA3]">
-          {label}
-        </span>
-        <input
-          className="mt-1 w-full rounded-xl border border-[#DCE4EE] bg-white px-3 py-3 text-[17px] text-[#0F1E33] placeholder:text-[#A3B0C0] focus:border-[#418BFF] focus:outline-none"
-          inputMode={mode}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder={placeholder}
-          type={type}
-          value={value}
-        />
-      </label>
-    );
-  }
-
-  /* ---------- filed confirmation ---------- */
 
   if (filedId) {
     return (

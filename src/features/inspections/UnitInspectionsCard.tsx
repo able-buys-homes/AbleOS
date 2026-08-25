@@ -20,6 +20,7 @@ import { apiFetch } from "../../lib/apiFetch";
 type Inspection = {
   id: string;
   unit_number: string;
+  drive_folder_id?: string | null;
   property: string;
   inspected_at: string;
   status: "rent_ready" | "needs_work" | "not_habitable";
@@ -548,6 +549,23 @@ export function UnitInspectionsCard({
                         </div>
                       );
                     })}
+
+                    {/* Drive holds the same photos, filed under the unit as
+                        condition/ and marketing/. Only rendered once the mirror
+                        has actually created the folder, so a dead link is
+                        impossible. Opening it needs a Google account with
+                        access to the shared drive. */}
+                    {active.drive_folder_id && (
+                      <a
+                        className="flex items-center justify-between rounded-2xl border border-[#DCE4EE] bg-white px-4 py-3.5 text-[16px] font-semibold text-[#1E3A8A] active:bg-[#F8FAFC]"
+                        href={`https://drive.google.com/drive/folders/${active.drive_folder_id}`}
+                        rel="noreferrer"
+                        target="_blank"
+                      >
+                        <span>Open Unit {active.unit_number} in Google Drive</span>
+                        <span aria-hidden="true">↗</span>
+                      </a>
+                    )}
 
                     {photosLoading && (
                       <p className="text-[15px] text-[#8291A5]">Loading photos…</p>
