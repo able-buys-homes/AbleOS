@@ -33,6 +33,7 @@ import subscriptions from "../routes/subscriptions.js";
 import taskComments from "../routes/task-comments.js";
 import taskEvidence from "../routes/task-evidence.js";
 import tasks from "../routes/tasks.js";
+import unitInspectionDrive from "../routes/unit-inspection-drive.js";
 import unitInspections from "../routes/unit-inspections.js";
 
 /** Longest job is the rehab reset, which purges Drive and Notion. */
@@ -66,6 +67,7 @@ const ROUTES = {
     "task-comments": taskComments,
     "task-evidence": taskEvidence,
     tasks,
+    "unit-inspection-drive": unitInspectionDrive,
     "unit-inspections": unitInspections,
 };
 

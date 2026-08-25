@@ -270,6 +270,16 @@ export function ZoInspect() {
 
       if (!put.ok) throw new Error(`Upload failed (${put.status})`);
 
+      // Copy into Drive on the server's bandwidth, not the phone's. Fire and
+      // forget - Supabase already has it, and a Drive failure must never hold
+      // up the walk.
+      apiFetch("/api/unit-inspection-drive", {
+        method: "POST",
+        body: JSON.stringify({ photo_id: body.id }),
+      }).catch(() => {
+        // Recorded server-side in drive_error. Nothing for Zo to do about it.
+      });
+
       setQueue((q) =>
         q.map((p) => (p.id === item.id ? { ...p, state: "done" } : p)),
       );
