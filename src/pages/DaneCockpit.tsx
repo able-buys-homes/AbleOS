@@ -676,7 +676,7 @@ export function DaneCockpit() {
                 {!ordersLoading && !ordersError && orders.length === 0 && (
                   <div className="rounded-2xl border border-dashed border-[#DCE4EE] bg-[#F8FAFC] px-5 py-4">
                     <p className="text-[16px] font-medium leading-snug text-[#8A99AC]">
-                      No orders yet — use Add Order to send one to Raj.
+                      No orders yet — use Add Order to send one to Raj..
                     </p>
                   </div>
                 )}
