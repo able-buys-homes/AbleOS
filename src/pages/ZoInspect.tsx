@@ -261,12 +261,12 @@ function Field({
   mode?: "numeric" | "decimal";
 }) {
   return (
-    <label className="block">
+    <label className="block min-w-0">
       <span className="text-[13px] font-bold uppercase tracking-[0.07em] text-[#7A8AA3]">
         {label}
       </span>
       <input
-        className="mt-1 w-full rounded-xl border border-[#DCE4EE] bg-white px-3 py-3 text-[17px] text-[#0F1E33] placeholder:text-[#A3B0C0] focus:border-[#418BFF] focus:outline-none"
+        className="mt-1 w-full min-w-0 rounded-xl border border-[#DCE4EE] bg-white px-3 py-3 text-[17px] text-[#0F1E33] placeholder:text-[#A3B0C0] focus:border-[#418BFF] focus:outline-none"
         inputMode={mode}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
