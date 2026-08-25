@@ -69,15 +69,20 @@ function money(value) {
     return Number.isFinite(n) && n >= 0 ? n : null;
 }
 
-/** Only ever store a plain object of booleans, whatever the client sends. */
+/**
+ * Checkbox groups are booleans, but a couple of fields riding along with them
+ * are short free text - the water heater fuel and the A/C unit count. Keep
+ * strings as strings; coerce everything else to a boolean.
+ */
 function flags(value) {
     if (!value || typeof value !== "object" || Array.isArray(value)) return {};
 
     const out = {};
     for (const [key, raw] of Object.entries(value)) {
-        if (typeof key === "string" && key.length <= 60) {
-            out[key.slice(0, 60)] = Boolean(raw);
-        }
+        if (typeof key !== "string" || key.length > 60) continue;
+
+        out[key.slice(0, 60)] =
+            typeof raw === "string" ? raw.trim().slice(0, 60) : Boolean(raw);
     }
     return out;
 }

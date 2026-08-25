@@ -740,8 +740,15 @@ export function ZoInspect() {
             />
           ))}
           <div className="p-4">
-            {occupied && (
-              <p className="mb-3 flex items-start gap-2 rounded-xl border-l-4 border-[#D95717] bg-[#FFF8F4] px-3 py-2.5 text-[15px] font-medium leading-snug text-[#733614]">
+            {/* Always visible - he needs this before he touches anything, not
+                after. Emphasised once something is actually ticked. */}
+            <p
+              className={`mb-3 flex items-start gap-2 rounded-xl border-l-4 px-3 py-2.5 text-[15px] font-medium leading-snug ${
+                occupied
+                  ? "border-[#D95717] bg-[#FFE9DC] text-[#8A3A10]"
+                  : "border-[#D95717] bg-[#FFF8F4] text-[#733614]"
+              }`}
+            >
                 <TriangleAlertIcon
                   className="mt-0.5 shrink-0"
                   size={16}
@@ -750,8 +757,7 @@ export function ZoInspect() {
                 If you check anything above: take a picture of it, leave
                 everything exactly where it is, and text Raj before anyone else
                 goes in. Do not clean the unit out.
-              </p>
-            )}
+            </p>
             <div className="space-y-3">
               <Field
                 label="Last tenant, if you know"
