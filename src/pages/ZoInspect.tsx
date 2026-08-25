@@ -266,7 +266,7 @@ function Field({
         {label}
       </span>
       <input
-        className="mt-1 w-full min-w-0 rounded-xl border border-[#DCE4EE] bg-white px-3 py-3 text-[17px] text-[#0F1E33] placeholder:text-[#A3B0C0] focus:border-[#418BFF] focus:outline-none"
+        className="mt-1 w-full min-w-0 appearance-none rounded-xl border border-[#DCE4EE] bg-white px-3 py-3 text-[17px] text-[#0F1E33] placeholder:text-[#A3B0C0] focus:border-[#418BFF] focus:outline-none [&::-webkit-date-and-time-value]:w-full [&::-webkit-date-and-time-value]:text-left"
         inputMode={mode}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
