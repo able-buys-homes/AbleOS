@@ -87,7 +87,11 @@ function getJwtClient() {
     const b64 = process.env.GOOGLE_SA_KEY_B64;
     if (!b64) throw new Error("GOOGLE_SA_KEY_B64 is not set");
 
-    const creds = JSON.parse(Buffer.from(b64, "base64").toString("utf8"));
+    // Accept raw JSON or base64 - the value differs between deployments.
+    const text = b64.trim().startsWith("{")
+        ? b64
+        : Buffer.from(b64, "base64").toString("utf8");
+    const creds = JSON.parse(text);
 
     cachedClient = new JWT({
         email: creds.client_email,
