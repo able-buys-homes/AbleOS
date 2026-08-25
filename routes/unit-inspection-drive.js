@@ -52,11 +52,14 @@ function getJwtClient() {
         ? b64
         : Buffer.from(b64, "base64").toString("utf8");
     const creds = JSON.parse(text);
+    // No `subject` on purpose. Impersonation requires domain-wide delegation,
+    // which would let this key act as any user in the domain. The service
+    // account is a Content manager on the shared drive instead - narrower,
+    // and sufficient to create folders and upload files.
     cachedJwt = new JWT({
         email: creds.client_email,
         key: creds.private_key,
         scopes: ["https://www.googleapis.com/auth/drive"],
-        subject: process.env.GOOGLE_IMPERSONATE_EMAIL,
     });
     return cachedJwt;
 }
