@@ -58,7 +58,6 @@ async function purgeStageFolder(side, stageName) {
         email: creds.client_email,
         key: creds.private_key,
         scopes: ["https://www.googleapis.com/auth/drive"],
-        subject: process.env.GOOGLE_IMPERSONATE_EMAIL,
     });
 
     const { token } = await jwt.getAccessToken();
