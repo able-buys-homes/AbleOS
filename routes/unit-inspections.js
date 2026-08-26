@@ -23,6 +23,13 @@ const DOWNLOAD_TTL_SECONDS = 600;
 const ALLOWED_COCKPITS = ["zo", "raj"];
 
 const STATUSES = ["rent_ready", "needs_work", "not_habitable"];
+
+/** What Raj reads in the notification, not the raw column value. */
+const STATUS_LABELS = {
+    rent_ready: "Rent ready",
+    needs_work: "Needs work",
+    not_habitable: "Not habitable",
+};
 const PHOTO_SETS = ["condition", "marketing"];
 const ROOM_TAGS = [
     "living", "kitchen", "bedroom", "bathroom", "exterior", "lot", "other",
@@ -337,6 +344,30 @@ export default async function handler(req, res) {
                 .single();
 
             if (error) throw error;
+
+            // Raj hears about the walk the moment it is filed. occupancy_flagged
+            // is computed by the database, so this cannot disagree with the row.
+            // A notification failure is logged and swallowed - the inspection is
+            // already saved and must not be lost to a messaging problem.
+            const flagged = data.occupancy_flagged;
+
+            const { error: notifyError } = await supabase
+                .from("notifications")
+                .insert({
+                    recipient: "raj",
+                    type: flagged ? "inspection_occupancy_flag" : "inspection_filed",
+                    title: flagged
+                        ? `Unit ${data.unit_number} may still be occupied`
+                        : `Zo filed Unit ${data.unit_number}`,
+                    body: flagged
+                        ? `Filed as ${STATUS_LABELS[data.status] ?? data.status} - signs someone is still living there.`
+                        : (STATUS_LABELS[data.status] ?? data.status),
+                    link: `/raj?inspection=${data.id}`,
+                });
+
+            if (notifyError) {
+                console.error("Could not notify Raj of inspection", data.id, notifyError);
+            }
 
             return res.status(201).json({ inspection: data });
         }

@@ -15,6 +15,8 @@ export type NotificationTarget = {
   order: string | null;
   stage: string | null;
   daneTask: string | null;
+  /** A filed unit inspection to open in Raj's Unit Inspections card. */
+  inspection: string | null;
 };
 
 /** Bring a section heading into view once a notification lands on the page. */
@@ -36,13 +38,12 @@ export function useNotificationTarget() {
   const order = params.get("order");
   const stage = params.get("stage");
   const daneTask = params.get("danetask");
-
+  const inspection = params.get("inspection");
   const target: NotificationTarget = React.useMemo(
-    () => ({ task, chat, order, stage, daneTask }),
-    [chat, daneTask, order, stage, task],
+    () => ({ task, chat, order, stage, daneTask, inspection }),
+    [chat, daneTask, inspection, order, stage, task],
   );
-
-  const hasTarget = Boolean(task || order || stage || daneTask);
+  const hasTarget = Boolean(task || order || stage || daneTask || inspection);
 
   /**
    * Call once the cockpit has opened the right thing, so the param does not

@@ -16,6 +16,7 @@ import {
 import { NavCard } from "../../components/NavCard";
 import { FilterMenu } from "../../components/FilterMenu";
 import { apiFetch } from "../../lib/apiFetch";
+import { useNotificationTarget } from "../../lib/useNotificationTarget";
 
 type Inspection = {
   id: string;
