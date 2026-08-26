@@ -14,7 +14,9 @@ type Notification = {
   created_at: string;
 };
 
-const POLL_MS = 30_000;
+// 5s so a filed inspection reaches Raj almost immediately. Only fires while the
+// tab is visible, so a backgrounded phone costs nothing.
+const POLL_MS = 5_000;
 
 function timeAgo(iso: string) {
   const then = new Date(iso).getTime();

@@ -18,6 +18,10 @@ import { FilterMenu } from "../../components/FilterMenu";
 import { apiFetch } from "../../lib/apiFetch";
 import { useNotificationTarget } from "../../lib/useNotificationTarget";
 
+// 5s, matching the notification bell: the bell and the card should not
+// disagree about whether a walk exists.
+const POLL_MS = 5_000;
+
 type Inspection = {
   id: string;
   unit_number: string;
@@ -139,6 +143,37 @@ export function UnitInspectionsCard({
   React.useEffect(() => {
     load();
   }, [load]);
+
+  // Poll while visible so a walk Zo files appears without Raj refreshing.
+  // No timer runs on a hidden tab, and returning to the tab refetches at once.
+  React.useEffect(() => {
+    const timer = setInterval(() => {
+      if (!document.hidden) load();
+    }, POLL_MS);
+
+    function handleVisibility() {
+      if (!document.hidden) load();
+    }
+
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
+  }, [load]);
+
+  // A notification deep-links straight to the walk it is about. Held until the
+  // list has loaded, otherwise the panel opens onto a row that is not there yet.
+  const { clear, target } = useNotificationTarget();
+
+  React.useEffect(() => {
+    if (!target.inspection) return;
+    if (!inspections.some((r) => r.id === target.inspection)) return;
+
+    setOpen(true);
+    setActiveId(target.inspection);
+    clear();
+  }, [clear, inspections, target.inspection]);
 
   // Signed photo links expire, so they are fetched when a unit is opened.
   React.useEffect(() => {
