@@ -79,6 +79,12 @@ export function SocialQueueCard({
   const [saving, setSaving] = React.useState(false);
   const [problem, setProblem] = React.useState("");
 
+  // Browsing every stage folder, rather than only what is waiting in the queue.
+  const [browsing, setBrowsing] = React.useState(false);
+  const [stages, setStages] = React.useState <
+    { side: string; stage_name: string }[]
+  >([]);
+
   const load = React.useCallback(async () => {
     try {
       const res = await apiFetch("/api/social-queue");
@@ -101,10 +107,51 @@ export function SocialQueueCard({
     };
   }, [thumbs]);
 
-  const active = queue.find((q) => q.id === activeId) ?? null;
+  // A browsed stage is not in the pending queue, so it is held separately.
+  const [browsedRow, setBrowsedRow] = React.useState<QueueRow | null>(null);
 
-  async function openStage(id: string) {
-    const row = queue.find((q) => q.id === id) ?? null;
+  const active =
+    queue.find((q) => q.id === activeId) ??
+    (activeId && browsedRow?.id === activeId ? browsedRow : null);
+
+  async function startBrowsing() {
+    setBrowsing(true);
+    if (stages.length) return;
+
+    const res = await apiFetch("/api/social-queue?stages=1");
+    const body = await res.json().catch(() => ({}));
+    setStages(body?.stages ?? []);
+  }
+
+  /** Opens a stage that was never queued, creating its row on demand. */
+  async function openBrowsed(side: string, stageName: string) {
+    const res = await apiFetch("/api/social-queue?browse=1", {
+      method: "POST",
+      body: JSON.stringify({ side, stage_name: stageName }),
+    });
+
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok || !body?.id) {
+      setProblem(body?.error || "Could not open that stage");
+      return;
+    }
+
+    setBrowsing(false);
+    await load();
+    await openStage(body.id, { side, stage_name: stageName });
+  }
+
+  async function openStage(
+    id: string,
+    fallback?: { side: string; stage_name: string },
+  ) {
+    const row =
+      queue.find((q) => q.id === id) ??
+      (fallback
+        ? ({ id, status: "pending", created_at: "", ...fallback } as QueueRow)
+        : null);
+
+    if (row) setBrowsedRow(row);
 
     setActiveId(id);
     setPicked(new Set());
@@ -229,7 +276,43 @@ export function SocialQueueCard({
               </div>
 
               <div className="grid gap-3 overflow-y-auto p-4">
+                {!active && browsing && (
+                  <>
+                    <button
+                      className="text-left text-[15px] font-semibold text-[#418BFF]"
+                      onClick={() => setBrowsing(false)}
+                      type="button"
+                    >
+                      ← Back to the queue
+                    </button>
+                    {stages.map((s) => (
+                      <button
+                        className="rounded-2xl border border-[#DCE4EE] bg-white p-4 text-left active:bg-[#F8FAFC]"
+                        key={`${s.side}-${s.stage_name}`}
+                        onClick={() => openBrowsed(s.side, s.stage_name)}
+                        type="button"
+                      >
+                        <p className="text-[17px] font-semibold text-[#0F1E33]">
+                          {s.stage_name}
+                        </p>
+                        <p className="text-[15px] text-[#7A8AA3]">{s.side}</p>
+                      </button>
+                    ))}
+                  </>
+                )}
+
+                {!active && !browsing && (
+                  <button
+                    className="rounded-2xl border border-dashed border-[#B9C7DB] bg-white p-4 text-left text-[16px] font-semibold text-[#418BFF] active:bg-[#F8FAFC]"
+                    onClick={startBrowsing}
+                    type="button"
+                  >
+                    Pick from any stage folder
+                  </button>
+                )}
+
                 {!active &&
+                  !browsing &&
                   (queue.length === 0 ? (
                     <p className="rounded-2xl bg-white p-4 text-[15px] text-[#8291A5]">
                       Nothing waiting. Stages appear here once you approve them.

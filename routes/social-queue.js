@@ -11,6 +11,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { JWT } from "google-auth-library";
 import { requireUser } from "../lib/apiAuth.js";
+import { SIDE_A, SIDE_B } from "./drive-upload-url.js";
 
 const ALLOWED_COCKPITS = ["raj"];
 
@@ -91,6 +92,50 @@ export default async function handler(req, res) {
 
     try {
         const supabase = getSupabase();
+
+        /* ---- EVERY STAGE FOLDER, FOR BROWSING ---- */
+        // The queue only holds stages just approved. This lets Raj go back to
+        // any finished stage and post from it whenever he likes.
+        if (req.method === "GET" && req.query?.stages) {
+            const stages = [
+                ...Object.keys(SIDE_A).map((name) => ({ side: "Side A", stage_name: name })),
+                ...Object.keys(SIDE_B).map((name) => ({ side: "Side B", stage_name: name })),
+            ];
+            return res.status(200).json({ stages });
+        }
+
+        /* ---- OPEN A STAGE THAT IS NOT IN THE QUEUE ---- */
+        // Creates the queue row on demand. notion_page_id is unique, so
+        // browsing the same stage twice reuses the row rather than duplicating.
+        if (req.method === "POST" && req.query?.browse) {
+            const side = String(req.body?.side || "");
+            const stageName = String(req.body?.stage_name || "");
+
+            const map = side === "Side B" ? SIDE_B : side === "Side A" ? SIDE_A : null;
+            if (!map) return res.status(400).json({ error: "Unknown side" });
+
+            const folderId = map[stageName];
+            if (!folderId) return res.status(400).json({ error: "Unknown stage" });
+
+            const { data, error: upsertError } = await supabase
+                .from("social_queue")
+                .upsert(
+                    {
+                        notion_page_id: `manual:${side}:${stageName}`,
+                        side,
+                        stage_name: stageName,
+                        drive_folder_id: folderId,
+                        status: "pending",
+                    },
+                    { onConflict: "notion_page_id" },
+                )
+                .select("id")
+                .single();
+
+            if (upsertError) throw upsertError;
+
+            return res.status(200).json({ id: data.id });
+        }
 
         /* ---- RAJ'S DECISION ---- */
         // Queues the photos he picked. Still does not publish - posting is a
