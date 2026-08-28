@@ -17,6 +17,7 @@ import { DriveLinksModal } from "../components/DriveLinksModal";
 import { QuickTiles } from "../components/QuickTiles";
 import { NavCard } from "../components/NavCard";
 import { UnitInspectionsCard } from "../features/inspections/UnitInspectionsCard";
+import { SocialQueueCard } from "../features/social/SocialQueueCard";
 import {
   CameraIcon,
   FileTextIcon,
@@ -621,6 +622,7 @@ export function RajCockpit() {
               Unit inspections
             </h2>
             <UnitInspectionsCard />
+            <SocialQueueCard />
           </section>
 
           <DriveLinksModal

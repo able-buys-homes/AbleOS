@@ -71,8 +71,8 @@ function isDriveId(value) {
 }
 
 export default async function handler(req, res) {
-    if (req.method !== "GET") {
-        res.setHeader("Allow", "GET");
+    if (req.method !== "GET" && req.method !== "POST") {
+        res.setHeader("Allow", "GET, POST");
         return res.status(405).json({ error: "Method not allowed" });
     }
 
@@ -91,6 +91,66 @@ export default async function handler(req, res) {
 
     try {
         const supabase = getSupabase();
+
+        /* ---- RAJ'S DECISION ---- */
+        // Queues the photos he picked. Still does not publish - posting is a
+        // separate step, so a mis-click here cannot put anything on the Page.
+        if (req.method === "POST") {
+            const queueId = String(req.body?.queue_id || "");
+            if (!isUuid(queueId)) {
+                return res.status(400).json({ error: "queue_id is required" });
+            }
+
+            const { data: queue, error: queueError } = await supabase
+                .from("social_queue")
+                .select("id")
+                .eq("id", queueId)
+                .maybeSingle();
+
+            if (queueError) throw queueError;
+            if (!queue) return res.status(404).json({ error: "Not found" });
+
+            const picks = Array.isArray(req.body?.picks) ? req.body.picks : [];
+
+            const rows = picks
+                .filter((p) => isDriveId(p?.drive_file_id))
+                .slice(0, 20)
+                .map((p) => ({
+                    queue_id: queueId,
+                    drive_file_id: p.drive_file_id,
+                    caption:
+                        typeof p.caption === "string"
+                            ? p.caption.trim().slice(0, 2000) || null
+                            : null,
+                    approved_by: auth.profile.cockpit,
+                    status: "queued",
+                }));
+
+            if (rows.length) {
+                // Ignored on conflict, so submitting twice cannot double-post.
+                const { error: insertError } = await supabase
+                    .from("social_posts")
+                    .upsert(rows, {
+                        onConflict: "queue_id,drive_file_id,platform",
+                        ignoreDuplicates: true,
+                    });
+
+                if (insertError) throw insertError;
+            }
+
+            const { error: markError } = await supabase
+                .from("social_queue")
+                .update({
+                    status: rows.length ? "reviewed" : "skipped",
+                    reviewed_by: auth.profile.cockpit,
+                    reviewed_at: new Date().toISOString(),
+                })
+                .eq("id", queueId);
+
+            if (markError) throw markError;
+
+            return res.status(200).json({ queued: rows.length });
+        }
 
         /* ---- STREAM ONE PHOTO ---- */
         // Proxied rather than linked, so the Drive folder stays private and a
