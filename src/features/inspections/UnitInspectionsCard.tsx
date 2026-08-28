@@ -22,6 +22,86 @@ import { useNotificationTarget } from "../../lib/useNotificationTarget";
 // disagree about whether a walk exists.
 const POLL_MS = 5_000;
 
+// Lifted verbatim from ZoInspect so Raj reads the same words Zo ticked.
+const APPLIANCE_LABELS: [string, string][] = [
+  ["stove", "Stove / range"],
+  ["refrigerator", "Refrigerator"],
+  ["dishwasher", "Dishwasher"],
+  ["washer_dryer_hookups", "Washer / dryer hookups"],
+  ["water_heater", "Water heater"],
+  ["hvac", "HVAC or window A/C units"],
+];
+
+const SYSTEM_LABELS: [string, string][] = [
+  ["power_on", "Power is on at the panel"],
+  ["water_on", "Water is on"],
+  ["hot_water", "Hot water works"],
+  ["toilets", "Every toilet flushes and refills"],
+  ["heat", "Heat runs"],
+  ["ac", "Air conditioning runs"],
+  ["no_leaks", "No leaks under sinks or water heater"],
+  ["smoke_detectors", "Smoke detectors tested"],
+];
+
+const CONDITION_LABELS: [string, string][] = [
+  ["floors", "Floors are solid"],
+  ["walls", "Walls and ceilings are clean"],
+  ["windows", "Every window opens and locks"],
+  ["doors", "Every door latches and locks"],
+  ["roof", "No roof leaks"],
+  ["skirting", "Skirting intact all the way around"],
+  ["steps", "Steps and handrails solid"],
+  ["smell", "No smell of mold, smoke, or animals"],
+];
+
+const KEY_LABELS: [string, string][] = [
+  ["have_key", "Has a key to this unit"],
+  ["no_key", "No key — needs a re-key"],
+  ["changed_locks", "Locks changed on the walk"],
+];
+
+// Unticked is not blank - it means Zo checked and it failed. Shown in red so
+// the absent items read as findings rather than as missing data.
+function ChecklistBlock({
+  title,
+  items,
+  flags,
+}: {
+  title: string;
+  items: [string, string][];
+  flags?: Record<string, boolean | string> | null;
+}) {
+  const map = flags ?? {};
+  return (
+    <div className="rounded-2xl border border-[#DCE4EE] bg-white p-4">
+      <p className="text-[14px] font-semibold uppercase tracking-wide text-[#7A8AA3]">
+        {title}
+      </p>
+      <ul className="mt-2 grid gap-1.5">
+        {items.map(([key, label]) => {
+          const on = Boolean(map[key]);
+          return (
+            <li className="flex items-start gap-2 text-[15px]" key={key}>
+              <span
+                className={`mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded border text-[12px] font-bold ${
+                  on
+                    ? "border-[#16A34A] bg-[#16A34A] text-white"
+                    : "border-[#E4B9B9] bg-[#FDF2F2] text-[#B91C1C]"
+                }`}
+              >
+                {on ? "✓" : "✕"}
+              </span>
+              <span className={on ? "text-[#3A4A62]" : "text-[#B91C1C]"}>
+                {label}
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
 type Inspection = {
   id: string;
   unit_number: string;
@@ -541,6 +621,27 @@ export function UnitInspectionsCard({
                         </p>
                       </div>
                     )}
+
+                    <ChecklistBlock
+                      flags={active.appliances}
+                      items={APPLIANCE_LABELS}
+                      title="Appliances that stay"
+                    />
+                    <ChecklistBlock
+                      flags={active.systems}
+                      items={SYSTEM_LABELS}
+                      title="Systems"
+                    />
+                    <ChecklistBlock
+                      flags={active.condition}
+                      items={CONDITION_LABELS}
+                      title="Condition"
+                    />
+                    <ChecklistBlock
+                      flags={active.keys}
+                      items={KEY_LABELS}
+                      title="Keys"
+                    />
 
                     {/* Sets stay visually apart here too. */}
                     {(["condition", "marketing"] as const).map((set) => {
