@@ -63,3 +63,5 @@ coverage/
 .vercel
 .env*
 supabase/.temp/
+supabase/.branches/
+supabase/snippets/
