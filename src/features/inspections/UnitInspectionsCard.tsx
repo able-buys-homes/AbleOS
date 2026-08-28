@@ -66,19 +66,27 @@ function ChecklistBlock({
   title,
   items,
   flags,
+  hideUnticked = false,
 }: {
   title: string;
   items: [string, string][];
   flags?: Record<string, boolean | string> | null;
+  /** For groups where unticked means "not present" rather than "it failed". */
+  hideUnticked?: boolean;
 }) {
   const map = flags ?? {};
+  const shown = hideUnticked  
+    ? items.filter(([key]) => Boolean(map[key]))
+    : items;
+
+  if (!shown.length) return null;
   return (
     <div className="rounded-2xl border border-[#DCE4EE] bg-white p-4">
       <p className="text-[14px] font-semibold uppercase tracking-wide text-[#7A8AA3]">
         {title}
       </p>
       <ul className="mt-2 grid gap-1.5">
-        {items.map(([key, label]) => {
+        {shown.map(([key, label]) => {
           const on = Boolean(map[key]);
           return (
             <li className="flex items-start gap-2 text-[15px]" key={key}>
@@ -624,6 +632,7 @@ export function UnitInspectionsCard({
 
                     <ChecklistBlock
                       flags={active.appliances}
+                      hideUnticked
                       items={APPLIANCE_LABELS}
                       title="Appliances that stay"
                     />
@@ -639,6 +648,7 @@ export function UnitInspectionsCard({
                     />
                     <ChecklistBlock
                       flags={active.keys}
+                      hideUnticked
                       items={KEY_LABELS}
                       title="Keys"
                     />
