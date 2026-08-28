@@ -54,6 +54,14 @@ const CONDITION_LABELS: [string, string][] = [
   ["smell", "No smell of mold, smoke, or animals"],
 ];
 
+const OCCUPANCY_LABELS: Record<string, string> = {
+  belongings: "Belongings left behind",
+  food: "Food in the fridge or cabinets",
+  power_on: "Power still on or meter running",
+  water_on: "Water still on",
+  mail: "Mail or paperwork left inside",
+};
+
 const KEY_LABELS: [string, string][] = [
   ["have_key", "Has a key to this unit"],
   ["no_key", "No key — needs a re-key"],
@@ -67,19 +75,23 @@ function ChecklistBlock({
   items,
   flags,
   hideUnticked = false,
+  extras = [],
 }: {
   title: string;
   items: [string, string][];
   flags?: Record<string, boolean | string> | null;
   /** For groups where unticked means "not present" rather than "it failed". */
   hideUnticked?: boolean;
+  /** Free-text values stored alongside the flags, e.g. water heater fuel. */
+  extras?: [string, unknown][];
 }) {
   const map = flags ?? {};
   const shown = hideUnticked  
     ? items.filter(([key]) => Boolean(map[key]))
     : items;
 
-  if (!shown.length) return null;
+  const filledExtras = extras.filter(([, value]) => Boolean(value));
+  if (!shown.length && !filledExtras.length) return null;
   return (
     <div className="rounded-2xl border border-[#DCE4EE] bg-white p-4">
       <p className="text-[14px] font-semibold uppercase tracking-wide text-[#7A8AA3]">
@@ -106,6 +118,16 @@ function ChecklistBlock({
           );
         })}
       </ul>
+      {filledExtras.length ? (
+        <dl className="mt-3 grid gap-1 border-t border-[#F1F5F9] pt-3">
+          {filledExtras.map(([label, value]) => (
+            <div className="flex justify-between gap-3 text-[15px]" key={label}>
+              <dt className="text-[#7A8AA3]">{label}</dt>
+              <dd className="text-right text-[#0F1E33]">{String(value)}</dd>
+            </div>
+          ))}
+        </dl>
+      ) : null}
     </div>
   );
 }
@@ -164,16 +186,23 @@ function money(value: string | number | null) {
   return `$${n.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
 }
 
-/** "3 bed / 2 bath" - only what he actually recorded. */
+/**
+ * "3 bed / 2 full / 1 half" - full and half baths kept apart. A half bath is
+ * toilet and sink only, so collapsing them into "2.5 bath" hides what is
+ * actually there.
+ */
 function beds(row: Inspection) {
   const parts: string[] = [];
   if (row.beds !== null) parts.push(`${row.beds} bed`);
+  if (row.baths_full) parts.push(`${row.baths_full} full`);
+  if (row.baths_half) parts.push(`${row.baths_half} half`);
 
-  const baths =
-    (row.baths_full ?? 0) + (row.baths_half ?? 0) * 0.5;
-  if (baths > 0) parts.push(`${baths} bath`);
+  const specs = parts.join(" / ");
+  const extra: string[] = [];
+  if (row.approx_sqft) extra.push(`${row.approx_sqft.toLocaleString()} sq ft`);
+  if (row.home_width) extra.push(row.home_width);
 
-  return parts.join(" / ");
+  return [specs, ...extra].filter(Boolean).join(" · ");
 }
 
 function when(iso: string) {
@@ -588,7 +617,7 @@ export function UnitInspectionsCard({
                           {Object.entries(active.occupancy_flags)
                             .filter(([, v]) => v === true)
                             .map(([k]) => (
-                              <li key={k}>· {k.replace(/_/g, " ")}</li>
+                              <li key={k}>· {OCCUPANCY_LABELS[k] ?? k.replace(/_/g, " ")}</li>
                             ))}
                         </ul>
                       </div>
@@ -599,9 +628,7 @@ export function UnitInspectionsCard({
                         {[
                           ["Status", STATUS_LABELS[active.status]],
                           ["Walked", new Date(active.inspected_at).toLocaleDateString()],
-                          ["Size", beds(active)],
-                          ["Sq ft", active.approx_sqft],
-                          ["Width", active.home_width],
+                          ["Unit specs", beds(active)],
                           ["Cost to ready", money(active.est_cost_to_ready)],
                           ["Days to ready", active.days_to_ready],
                           ["Last tenant", active.last_tenant],
@@ -631,6 +658,10 @@ export function UnitInspectionsCard({
                     )}
 
                     <ChecklistBlock
+                      extras={[
+                        ["Water heater", active.appliances?.water_heater_fuel],
+                        ["A/C units", active.appliances?.ac_units],
+                      ]}
                       flags={active.appliances}
                       hideUnticked
                       items={APPLIANCE_LABELS}

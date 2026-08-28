@@ -261,12 +261,12 @@ function Field({
   mode?: "numeric" | "decimal";
 }) {
   return (
-    <label className="block min-w-0">
-      <span className="text-[13px] font-bold uppercase tracking-[0.07em] text-[#7A8AA3]">
+    <label className="flex h-full min-w-0 flex-col">
+      <span className="mb-1 text-[13px] font-bold uppercase tracking-[0.07em] text-[#7A8AA3]">
         {label}
       </span>
       <input
-        className="mt-1 w-full min-w-0 appearance-none rounded-xl border border-[#DCE4EE] bg-white px-3 py-3 text-[17px] text-[#0F1E33] placeholder:text-[#A3B0C0] focus:border-[#418BFF] focus:outline-none [&::-webkit-date-and-time-value]:w-full [&::-webkit-date-and-time-value]:text-left"
+        className="mt-auto w-full min-w-0 appearance-none rounded-xl border border-[#DCE4EE] bg-white px-3 py-3 text-[17px] text-[#0F1E33] placeholder:text-[#A3B0C0] focus:border-[#418BFF] focus:outline-none [&::-webkit-date-and-time-value]:w-full [&::-webkit-date-and-time-value]:text-left"
         inputMode={mode}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
