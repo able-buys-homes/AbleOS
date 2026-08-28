@@ -318,6 +318,17 @@ export function ZoInspect() {
     });
   }
 
+  /**
+   * Keys are mutually exclusive - having a key and needing a re-key cannot
+   * both be true. Picking one clears the rest.
+   */
+  function pickOne(group: keyof Draft, key: string) {
+    setDraft((d) => ({
+      ...d,
+      [group]: (d[group] as Flags)?.[key] ? {} : { [key]: true },
+    }));
+  }
+
   function addPhotos(
     files: FileList | null,
     photoSet: "condition" | "marketing",
@@ -805,7 +816,7 @@ export function ZoInspect() {
               key={key}
               label={label}
               on={Boolean(draft.keys[key])}
-              onClick={() => toggle("keys", key)}
+              onClick={() => pickOne("keys", key)}
             />
           ))}
         </Section>

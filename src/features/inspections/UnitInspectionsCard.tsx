@@ -119,11 +119,15 @@ function ChecklistBlock({
         })}
       </ul>
       {filledExtras.length ? (
-        <dl className="mt-3 grid gap-1 border-t border-[#F1F5F9] pt-3">
+        <dl className="mt-3 grid grid-cols-2 gap-2 border-t border-[#F1F5F9] pt-3">
           {filledExtras.map(([label, value]) => (
-            <div className="flex justify-between gap-3 text-[15px]" key={label}>
-              <dt className="text-[#7A8AA3]">{label}</dt>
-              <dd className="text-right text-[#0F1E33]">{String(value)}</dd>
+            <div className="rounded-xl bg-[#F8FAFC] px-3 py-2" key={label}>
+              <dt className="text-[12px] font-semibold uppercase tracking-wide text-[#7A8AA3]">
+                {label}
+              </dt>
+              <dd className="mt-0.5 text-[16px] text-[#0F1E33]">
+                {String(value)}
+              </dd>
             </div>
           ))}
         </dl>
