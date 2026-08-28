@@ -76,8 +76,14 @@ export default async function handler(req, res) {
         return res.status(405).json({ error: "Method not allowed" });
     }
 
-    const auth = await requireUser(req, res);
-    if (!auth) return;
+    let auth;
+    try {
+        auth = await requireUser(req);
+    } catch (err) {
+        return res
+            .status(err?.status || 401)
+            .json({ error: err?.message || "Not authorised" });
+    }
 
     if (!ALLOWED_COCKPITS.includes(auth.profile.cockpit)) {
         return res.status(403).json({ error: "No access to the posting queue" });
