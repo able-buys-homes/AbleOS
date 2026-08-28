@@ -238,13 +238,38 @@ export default async function handler(req, res) {
 
         /* ---- APPROVE ---- */
         const step = CHAIN[profile.cockpit];
-
         const properties = { [step.field]: { checkbox: true } };
         if (profile.cockpit === "raj") {
             properties.Status = { select: { name: "Done" } };
         }
-
         await notion.pages.update({ page_id: notionPageId, properties });
+
+        // Raj is the last gate, so his approval is the earliest point these
+        // photos could legitimately be advertised. This only makes the stage
+        // eligible for review - nothing is posted, and nothing becomes public.
+        if (profile.cockpit === "raj") {
+            const socialFolderId = getFolderId(stage.side, stage.stageName);
+
+            if (socialFolderId) {
+                const { error: queueError } = await supabase
+                    .from("social_queue")
+                    .upsert(
+                        {
+                            notion_page_id: notionPageId,
+                            side: stage.side,
+                            stage_name: stage.stageName,
+                            drive_folder_id: socialFolderId,
+                            status: "pending",
+                        },
+                        { onConflict: "notion_page_id" },
+                    );
+
+                // Queueing is a convenience. It must never fail the approval.
+                if (queueError) {
+                    console.error("Could not queue the stage for social:", queueError);
+                }
+            }
+        }
 
         await clearGateNotice(supabase, profile.cockpit, notionPageId);
 

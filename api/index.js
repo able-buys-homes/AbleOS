@@ -33,6 +33,7 @@ import subscriptions from "../routes/subscriptions.js";
 import taskComments from "../routes/task-comments.js";
 import taskEvidence from "../routes/task-evidence.js";
 import tasks from "../routes/tasks.js";
+import socialQueue from "../routes/social-queue.js";
 import unitInspectionDrive from "../routes/unit-inspection-drive.js";
 import unitInspections from "../routes/unit-inspections.js";
 
@@ -67,6 +68,7 @@ const ROUTES = {
     "task-comments": taskComments,
     "task-evidence": taskEvidence,
     tasks,
+    "social-queue": socialQueue,
     "unit-inspection-drive": unitInspectionDrive,
     "unit-inspections": unitInspections,
 };
