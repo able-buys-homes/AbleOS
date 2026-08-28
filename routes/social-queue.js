@@ -110,35 +110,38 @@ export default async function handler(req, res) {
                 })),
             ];
 
-            // One query across every folder rather than 42 round trips. Asking
-            // which folders contain an image is cheaper than asking each folder
-            // what it holds.
+            // One tiny query per folder, asking only "is there a photo here",
+            // run in parallel. A single combined query proved unreliable across
+            // this many parents.
             const token = await driveToken();
-            const parents = all
-                .map((s) => `'${s.folderId}' in parents`)
-                .join(" or ");
 
-            const q = encodeURIComponent(
-                `(${parents}) and trashed = false and mimeType contains 'image/'`,
+            const checked = await Promise.all(
+                all.map(async (s) => {
+                    const q = encodeURIComponent(
+                        `'${s.folderId}' in parents and trashed = false and mimeType contains 'image/'`,
+                    );
+
+                    try {
+                        const r = await fetch(
+                            `https://www.googleapis.com/drive/v3/files?q=${q}` +
+                            `&fields=files(id)&pageSize=1` +
+                            `&supportsAllDrives=true&includeItemsFromAllDrives=true`,
+                            { headers: { Authorization: `Bearer ${token}` } },
+                        );
+
+                        if (!r.ok) return null;
+                        const { files = [] } = await r.json();
+                        return files.length ? s : null;
+                    } catch {
+                        // One unreadable folder should not empty the whole list.
+                        return null;
+                    }
+                }),
             );
-
-            const listRes = await fetch(
-                `https://www.googleapis.com/drive/v3/files?q=${q}` +
-                `&fields=files(parents)&pageSize=1000` +
-                `&supportsAllDrives=true&includeItemsFromAllDrives=true`,
-                { headers: { Authorization: `Bearer ${token}` } },
-            );
-
-            if (!listRes.ok) {
-                throw new Error(`Drive stage scan failed (${listRes.status})`);
-            }
-
-            const { files = [] } = await listRes.json();
-            const withPhotos = new Set(files.flatMap((f) => f.parents ?? []));
 
             return res.status(200).json({
-                stages: all 
-                    .filter((s) => withPhotos.has(s.folderId))
+                stages: checked
+                    .filter(Boolean)
                     .map(({ side, stage_name }) => ({ side, stage_name })),
             });
         }
