@@ -622,7 +622,9 @@ export function RajCockpit() {
               Unit inspections
             </h2>
             <UnitInspectionsCard />
-            <SocialQueueCard />
+            <div className="mt-4">
+              <SocialQueueCard />
+            </div>
           </section>
 
           <DriveLinksModal
