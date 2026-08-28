@@ -97,11 +97,50 @@ export default async function handler(req, res) {
         // The queue only holds stages just approved. This lets Raj go back to
         // any finished stage and post from it whenever he likes.
         if (req.method === "GET" && req.query?.stages) {
-            const stages = [
-                ...Object.keys(SIDE_A).map((name) => ({ side: "Side A", stage_name: name })),
-                ...Object.keys(SIDE_B).map((name) => ({ side: "Side B", stage_name: name })),
+            const all = [
+                ...Object.entries(SIDE_A).map(([stage_name, folderId]) => ({
+                    side: "Side A",
+                    stage_name,
+                    folderId,
+                })),
+                ...Object.entries(SIDE_B).map(([stage_name, folderId]) => ({
+                    side: "Side B",
+                    stage_name,
+                    folderId,
+                })),
             ];
-            return res.status(200).json({ stages });
+
+            // One query across every folder rather than 42 round trips. Asking
+            // which folders contain an image is cheaper than asking each folder
+            // what it holds.
+            const token = await driveToken();
+            const parents = all
+                .map((s) => `'${s.folderId}' in parents`)
+                .join(" or ");
+
+            const q = encodeURIComponent(
+                `(${parents}) and trashed = false and mimeType contains 'image/'`,
+            );
+
+            const listRes = await fetch(
+                `https://www.googleapis.com/drive/v3/files?q=${q}` +
+                `&fields=files(parents)&pageSize=1000` +
+                `&supportsAllDrives=true&includeItemsFromAllDrives=true`,
+                { headers: { Authorization: `Bearer ${token}` } },
+            );
+
+            if (!listRes.ok) {
+                throw new Error(`Drive stage scan failed (${listRes.status})`);
+            }
+
+            const { files = [] } = await listRes.json();
+            const withPhotos = new Set(files.flatMap((f) => f.parents ?? []));
+
+            return res.status(200).json({
+                stages: all 
+                    .filter((s) => withPhotos.has(s.folderId))
+                    .map(({ side, stage_name }) => ({ side, stage_name })),
+            });
         }
 
         /* ---- OPEN A STAGE THAT IS NOT IN THE QUEUE ---- */
