@@ -55,13 +55,32 @@ export function setupPwaUpdates() {
       });
     },
 
-    onNeedRefresh() {
+        onNeedRefresh() {
       applyUpdate = () => updateSW(true);
-
       // In the background already - just take it.
       if (document.hidden) {
         updateSW(true);
         return;
+      }
+
+      // The public site has no update button, so it takes updates silently.
+      // The cockpit keeps the prompt: a crew lead mid-upload should decide
+      // when the page reloads, not the service worker.
+      const publicPaths = ["/", "/sell", "/login"];
+      const onPublicSite = publicPaths.includes(window.location.pathname);
+
+      if (onPublicSite) {
+        // Unless they are part-way through the deal form. Reloading over a
+        // half-typed submission loses a lead, which is worse than being a
+        // version behind for another minute.
+        const typing = Array.from(
+          document.querySelectorAll("input, textarea"),
+        ).some((el) => (el as HTMLInputElement).value?.trim());
+
+        if (!typing) {
+          updateSW(true);
+          return;
+        }
       }
 
       // In use. Offer it, and take it the moment they switch away and back,
