@@ -16,6 +16,7 @@ import { ElleryCockpit } from "./pages/ElleryCockpit";
 import { CorneliusCockpit } from "./pages/CorneliusCockpit";
 import { LandingPage } from "./pages/LandingPage";
 import { PipelineBoard } from "./pages/PipelineBoard";
+import { DocumentTitle } from "./lib/DocumentTitle";
 
 export function App() {
   const isMarketingDomain =
@@ -37,6 +38,7 @@ export function App() {
     <AuthProvider>
       <UpdateBanner />
       <BrowserRouter>
+        <DocumentTitle />
         <Routes>
           {/* Public. No ProtectedRoute - a customer must never meet a login. */}
           <Route path="/sell" element={<LandingPage />} />
