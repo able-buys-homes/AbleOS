@@ -657,7 +657,7 @@ export function RajCockpit() {
             waitingLabel="Waiting on you"
           />
           <footer className="pt-10 text-center text-[16px] font-normal text-[#8291A5]">
-            Able OS · V1 Build
+            Able OS
           </footer>
         </main>
       </div>

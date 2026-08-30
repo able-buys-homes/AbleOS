@@ -59,7 +59,7 @@ export function Login() {
             src="/able-logo.png"
           />
           <p className="mt-4 text-[16px] font-medium tracking-[0.14em] text-white/85">
-            Able OS · Executive workspace
+            Executive workspace
           </p>
           <h1 className="mt-1 text-[30px] font-semibold leading-tight tracking-[-0.04em] text-white">
             Sign in
@@ -144,7 +144,7 @@ export function Login() {
         </form>
 
         <p className="mt-6 text-center text-[16px] font-medium tracking-[0.12em] text-white/70">
-          Able OS · V1 Build
+          Able OS
         </p>
       </motion.div>
     </div>

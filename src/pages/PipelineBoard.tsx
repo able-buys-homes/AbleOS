@@ -273,7 +273,7 @@ export function PipelineBoard() {
       </section>
 
       <footer className="pt-10 text-center text-[16px] font-medium tracking-[0.12em] text-[#8291A5]">
-        Able OS · V1 Build
+        Able OS
       </footer>
 
       <AskAble
