@@ -47,7 +47,7 @@ const APPLIANCES = [
   ["dishwasher", "Dishwasher"],
   ["washer_dryer_hookups", "Washer / dryer hookups"],
   ["water_heater", "Water heater"],
-  ["hvac", "HVAC or window A/C units"],
+  ["hvac", "HVAC or Mini Split A/C units"],
 ] as const;
 
 const SYSTEMS = [
