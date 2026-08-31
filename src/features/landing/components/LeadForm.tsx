@@ -388,7 +388,7 @@ export function LeadForm({
                   Documents <span className="font-normal">(required)</span>
                 </label>
                 <input
-                  accept="image/jpeg,image/png,image/webp,image/heic,image/heif,application/pdf"
+                  accept="*/*"
                   className="w-full cursor-pointer rounded-xl border border-brand-ink/10 bg-brand-cream px-4 py-3 text-[0.88rem] text-brand-ink/70 file:mr-3 file:rounded-lg file:border-0 file:bg-brand-ink file:px-3 file:py-1.5 file:text-[0.82rem] file:font-semibold file:text-white hover:file:bg-brand-deep"
                   id="f-docs"
                   multiple

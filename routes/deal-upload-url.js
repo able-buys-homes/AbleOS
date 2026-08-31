@@ -12,14 +12,32 @@ const MAX_FILES_PER_TOKEN = 10;
 const RATE_LIMIT_PER_HOUR = 40; // generous: one submission can be 10 files
 const UPLOAD_TTL_SECONDS = 600;
 
-const MIME_EXTENSIONS = {
-    "image/jpeg": "jpg",
-    "image/png": "png",
-    "image/webp": "webp",
-    "image/heic": "heic",
-    "image/heif": "heif",
-    "application/pdf": "pdf",
-};
+/**
+ * Anything except what can execute. A seller might send a ZIP of photos, a
+ * CSV rent roll, a Pages file - guessing at an allowlist just loses deals.
+ *
+ * The bucket is private and reached only through signed links, so the real
+ * risk is someone downloading one of these and running it. SVG is here
+ * because it can carry script and would run on the storage origin if a
+ * signed link were opened in a browser.
+ */
+const BLOCKED_EXTENSIONS = new Set([
+    "exe", "dll", "com", "scr", "pif", "msi", "msp", "cpl", "jar",
+    "bat", "cmd", "vbs", "vbe", "js", "jse", "ws", "wsf", "wsh",
+    "ps1", "psm1", "sh", "bash", "zsh", "run", "bin",
+    "app", "dmg", "pkg", "deb", "rpm", "apk", "ipa",
+    "hta", "lnk", "reg", "scf", "inf", "svg", "html", "htm", "xhtml",
+]);
+
+/**
+ * Taken from the file name, not the MIME type. Browsers report inconsistent
+ * or empty MIME types for anything unusual, and the extension is what
+ * actually matters for what a person can run.
+ */
+function extensionOf(fileName) {
+    const match = String(fileName || "").toLowerCase().match(/\.([a-z0-9]{1,8})$/);
+    return match ? match[1] : "";
+}
 
 let cachedClient = null;
 function getClient() {
@@ -61,10 +79,17 @@ export default async function handler(req, res) {
         return res.status(405).json({ error: "Method not allowed" });
     }
 
-    const mime = String(req.body?.mime_type || "");
-    const ext = MIME_EXTENSIONS[mime];
+    const mime = String(req.body?.mime_type || "").slice(0, 120);
+    const ext = extensionOf(req.body?.file_name);
+
     if (!ext) {
-        return res.status(400).json({ error: "Only images and PDFs are accepted" });
+        return res.status(400).json({ error: "That file needs a file extension" });
+    }
+
+    if (BLOCKED_EXTENSIONS.has(ext)) {
+        return res
+            .status(400)
+            .json({ error: `.${ext} files can't be accepted. Zip it, or send another format.` });
     }
 
     const size = Number(req.body?.size_bytes);
