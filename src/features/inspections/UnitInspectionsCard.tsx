@@ -29,7 +29,7 @@ const APPLIANCE_LABELS: [string, string][] = [
   ["dishwasher", "Dishwasher"],
   ["washer_dryer_hookups", "Washer / dryer hookups"],
   ["water_heater", "Water heater"],
-  ["hvac", "HVAC or window A/C units"],
+  ["hvac", "HVAC or Mini Split A/C units"],
 ];
 
 const SYSTEM_LABELS: [string, string][] = [
