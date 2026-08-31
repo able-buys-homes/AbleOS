@@ -110,26 +110,19 @@ export default async function handler(req, res) {
             });
         }
 
-        // Fold the dropdown answers into the notes. One readable block beats
-        // four more columns nobody queries, and nothing the seller told us
-        // gets dropped.
-        const extras = [
-            ["Submitted as", clean(req.body?.role, 60)],
-            ["Property type", clean(req.body?.assetType, 80)],
-            ["Current financing", clean(req.body?.currentFinancing, 60)],
-            ["Seller open to", clean(req.body?.sellerOpenTo, 60)],
-        ].filter(([, value]) => Boolean(value));
+        // Kept as structured answers rather than folded into the notes text,
+        // so the review screen can show them as fields and they stay
+        // queryable. The notes column holds only what the seller actually
+        // typed.
+        const submission = {
+            role: clean(req.body?.role, 60),
+            asset_type: clean(req.body?.assetType, 80),
+            current_financing: clean(req.body?.currentFinancing, 60),
+            seller_open_to: clean(req.body?.sellerOpenTo, 60),
+        };
 
-        const typed = clean(req.body?.notes, 2000);
-
-        const composed = [
-            ...extras.map(([label, value]) => `${label}: ${value}`),
-            typed ? `\n${typed}` : null,
-        ]
-            .filter(Boolean)
-            .join("\n");
-
-        const notes = composed || null;
+        const hasAnswers = Object.values(submission).some(Boolean);
+        const notes = clean(req.body?.notes, 2000);
         const askingPrice = num(req.body?.askingPrice);
         /* ---- Documents are required ---- */
         // Trust only rows this server issued: the upload endpoint recorded them.
@@ -159,6 +152,7 @@ export default async function handler(req, res) {
                 address,
                 purchase_price: askingPrice,
                 notes,
+                submission: hasAnswers ? submission : null,
                 contact_name: contactName,
                 contact_email: email,
                 contact_phone: phone,

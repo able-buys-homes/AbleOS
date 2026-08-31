@@ -17,6 +17,13 @@ export type DraftDeal = {
   monthly_cash_flow: string | number | null;
   dscr: string | number | null;
   origin: string;
+  /** Structured answers from the website form. Null for email drafts. */
+  submission: {
+    role?: string | null;
+    asset_type?: string | null;
+    current_financing?: string | null;
+    seller_open_to?: string | null;
+  } | null;
   contact_name: string | null;
   contact_phone: string | null;
   contact_email: string | null;

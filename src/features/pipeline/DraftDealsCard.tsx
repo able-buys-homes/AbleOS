@@ -134,6 +134,18 @@ export function DraftDealsCard({
   const [form, setForm] = useState<Form | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
+
+  // Email and website drafts carry different information, and Raj works them
+  // differently, so they are separable.
+  const [source, setSource] = useState<"all" | "website" | "email">("all");
+
+  const shown = drafts.filter((d) =>
+    source === "all"
+      ? true
+      : source === "website"
+        ? d.origin === "website"
+        : d.origin !== "website",
+  );
   const dealFiles = useDealFiles(active?.id ?? null);
 
   function openDraft(draft: DraftDeal) {
@@ -187,8 +199,8 @@ export function DraftDealsCard({
     <>
       <NavCard
         icon={<InboxIcon aria-hidden="true" size={17} strokeWidth={2.5} />}
-        title="From the inbox"
-        subtitle="Emails waiting to become deals"
+        title="Deals to review"
+        subtitle="Not confirmed yet — needs your decision"
         count={loading ? null : drafts.length}
         tone="orange"
         variant="row"
@@ -219,11 +231,13 @@ export function DraftDealsCard({
               <div className="flex shrink-0 items-start justify-between gap-3 border-b border-[#DCE4EE] bg-white px-5 pb-4 pt-5">
                 <div className="min-w-0">
                   <p className="text-[16px] font-semibold tracking-[0.13em] text-[#5B6B82]">
-                    Underwriting inbox
+                    Deals to review
                   </p>
                   <h2 className="mt-1 text-[20px] font-bold text-[#0F1E33]">
                     {active
-                      ? "Review this email"
+                      ? active.origin === "website"
+                        ? "Review this submission"
+                        : "Review this email"
                       : `${drafts.length} waiting for you`}
                   </h2>
                 </div>
@@ -262,7 +276,36 @@ export function DraftDealsCard({
                       </div>
                     )}
 
-                    {!loading && !error && drafts.length === 0 && (
+                    {!loading && !error && drafts.length > 0 && (
+                      <div className="mb-3 flex gap-2">
+                        {([
+                          ["all", `All (${drafts.length})`],
+                          [
+                            "website",
+                            `Website form (${drafts.filter((d) => d.origin === "website").length})`,
+                          ],
+                          [
+                            "email",
+                            `Email (${drafts.filter((d) => d.origin !== "website").length})`,
+                          ],
+                        ] as const).map(([key, label]) => (
+                          <button
+                            className={`rounded-full px-3 py-1.5 text-[14px] font-semibold transition-colors ${
+                              source === key
+                                ? "bg-[#1E3A8A] text-white"
+                                : "bg-white text-[#5A6B85] hover:bg-[#F1F5F9]"
+                            }`}
+                            key={key}
+                            onClick={() => setSource(key)}
+                            type="button"
+                          >
+                            {label}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                    {!loading && !error && shown.length === 0 && (
                       <div className="rounded-2xl border border-dashed border-[#CBD5E1] bg-white px-5 py-10 text-center">
                         <p className="text-[18px] font-semibold text-[#526176]">
                           Inbox clear
@@ -273,9 +316,9 @@ export function DraftDealsCard({
                       </div>
                     )}
 
-                    {!loading && !error && drafts.length > 0 && (
+                    {!loading && !error && shown.length > 0 && (
                       <div className="space-y-3">
-                        {drafts.map((draft) => (
+                        {shown.map((draft) => (
                           <button
                             key={draft.id}
                             type="button"
@@ -381,6 +424,37 @@ export function DraftDealsCard({
                               </dd>
                             </div>
                           )}
+                        </dl>
+                      </div>
+                    )}
+
+                    {active.origin === "website" && active.submission && (
+                      <div className="rounded-2xl border border-[#DCE4EE] bg-white p-4">
+                        <div className="text-[14px] font-semibold uppercase tracking-wide text-[#7A8AA3]">
+                          What they answered on the form
+                        </div>
+
+                        <dl className="mt-2 space-y-2 text-[16px]">
+                          {(
+                            [
+                              ["Submitted as", active.submission.role],
+                              ["Property type", active.submission.asset_type],
+                              [
+                                "Current financing",
+                                active.submission.current_financing,
+                              ],
+                              ["Seller open to", active.submission.seller_open_to],
+                            ] as const
+                          )
+                            .filter(([, value]) => Boolean(value))
+                            .map(([label, value]) => (
+                              <div className="flex justify-between gap-4" key={label}>
+                                <dt className="text-[#7A8AA3]">{label}</dt>
+                                <dd className="text-right font-medium text-[#0F1E33]">
+                                  {value}
+                                </dd>
+                              </div>
+                            ))}
                         </dl>
                       </div>
                     )}
