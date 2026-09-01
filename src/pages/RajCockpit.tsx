@@ -345,7 +345,7 @@ export function RajCockpit() {
             </div>
 
             <p className="mt-6 text-[16px] font-medium tracking-[0.01em] text-white/85">
-              ABLE OS · Executive workspace
+              Executive workspace
             </p>
             <h1 className="mt-1 text-[32px] font-extrabold leading-tight tracking-[-0.045em] sm:text-[38px] lg:text-[44px]">
               Raj&apos;s Cockpit

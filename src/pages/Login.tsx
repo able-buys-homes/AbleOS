@@ -144,7 +144,7 @@ export function Login() {
         </form>
 
         <p className="mt-6 text-center text-[16px] font-medium tracking-[0.12em] text-white/70">
-          Able OS
+          Able OS, LLC
         </p>
       </motion.div>
     </div>
