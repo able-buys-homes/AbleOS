@@ -51,6 +51,14 @@ export type ConfirmInput = {
   monthlyCashFlow?: string;
   dscr?: string;
   stage: DealStage;
+  /** Mirrors the public website form, editable during review. */
+  contactName?: string;
+  contactEmail?: string;
+  contactPhone?: string;
+  role?: string;
+  assetType?: string;
+  currentFinancing?: string;
+  sellerOpenTo?: string;
 };
 
 async function readError(res: Response, fallback: string) {

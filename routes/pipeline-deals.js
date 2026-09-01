@@ -26,7 +26,15 @@ const ALLOWED_COCKPITS = ["raj", "dane"];
 
 // Fixed list on purpose. Chirag is paid on attribution, so this is a
 // money field - it gets chosen, never inferred from an email.
-const BIRD_DOGS = ["rex", "chirag", "direct", "other"];
+const BIRD_DOGS = [
+    "rex",
+    "chirag",
+    "direct",
+    "direct_message",
+    "website",
+    "underwriting",
+    "other",
+];
 
 let cachedClient = null;
 
@@ -168,6 +176,17 @@ export default async function handler(req, res) {
                     return res.status(400).json({ error: "Unknown bird dog" });
                 }
 
+                // The website form's own answers, editable on review. Held
+                // together so a correction to one does not blank the others.
+                const submission = {
+                    role: clean(req.body?.role, 60),
+                    asset_type: clean(req.body?.assetType, 80),
+                    current_financing: clean(req.body?.currentFinancing, 60),
+                    seller_open_to: clean(req.body?.sellerOpenTo, 60),
+                };
+
+                const hasAnswers = Object.values(submission).some(Boolean);
+
                 const { data, error } = await supabase
                     .from("pipeline_deals")
                     .update({
@@ -179,6 +198,10 @@ export default async function handler(req, res) {
                         purchase_price: money(req.body?.purchasePrice),
                         monthly_cash_flow: money(req.body?.monthlyCashFlow),
                         dscr: money(req.body?.dscr),
+                        contact_name: clean(req.body?.contactName, 120),
+                        contact_email: clean(req.body?.contactEmail, 200),
+                        contact_phone: clean(req.body?.contactPhone, 40),
+                        submission: hasAnswers ? submission : null,
                         stage,
                         stage_changed_at: now,
                         moved_by: profile.cockpit,
