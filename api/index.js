@@ -23,6 +23,7 @@ import documents from "../routes/documents.js";
 import driveUploadUrl from "../routes/drive-upload-url.js";
 import leads from "../routes/leads.js";
 import notifications from "../routes/notifications.js";
+import opsAlert from "../routes/ops-alert.js";
 import orders from "../routes/orders.js";
 import pipelineDeals from "../routes/pipeline-deals.js";
 import pof from "../routes/pof.js";
