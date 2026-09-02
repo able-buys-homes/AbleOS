@@ -577,6 +577,30 @@ export function DraftDealsCard({
                       </div>
                     )}
 
+                    {/* A website submission is already complete - it is read
+                        as a record, not filled in. Bird dog and stage are
+                        shown because they decide where it lands, but they
+                        arrive pre-set from the form. */}
+                    {active.origin === "website" && (
+                      <div className="rounded-2xl border border-[#DCE4EE] bg-white p-4">
+                        <dl className="space-y-2 text-[16px]">
+                          <div className="flex justify-between gap-4">
+                            <dt className="text-[#7A8AA3]">Bird dog</dt>
+                            <dd className="text-right font-medium text-[#0F1E33]">
+                              From the website
+                            </dd>
+                          </div>
+                          <div className="flex justify-between gap-4">
+                            <dt className="text-[#7A8AA3]">Starting stage</dt>
+                            <dd className="text-right font-medium text-[#0F1E33]">
+                              {STAGE_LABELS[form.stage]}
+                            </dd>
+                          </div>
+                        </dl>
+                      </div>
+                    )}
+
+                    {active.origin !== "website" && (
                     <div className="space-y-3 rounded-2xl border border-[#DCE4EE] bg-white p-4">
                       <Field
                         label="Deal name"
@@ -674,6 +698,7 @@ export function DraftDealsCard({
                         />
                       </label>
                     </div>
+                    )}
 
                     {problem && (
                       <div className="rounded-xl bg-[#FEF2F2] px-4 py-3 text-[16px] text-[#B91C1C]">
