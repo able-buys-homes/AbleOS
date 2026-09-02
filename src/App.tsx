@@ -6,11 +6,9 @@ import { UpdateBanner } from "./components/UpdateBanner";
 import { Login } from "./pages/Login";
 import { RajCockpit } from "./pages/RajCockpit";
 import { DaneCockpit } from "./pages/DaneCockpit";
-import { JeremiahCockpit } from "./pages/JeremiahCockpit";
 import { ColtonCockpit } from "./pages/ColtonCockpit";
 import { ZoCockpit } from "./pages/ZoCockpit";
 import { ZoInspect } from "./pages/ZoInspect";
-import { KarenCockpit } from "./pages/KarenCockpit";
 import { RexCockpit } from "./pages/RexCockpit";
 import { ElleryCockpit } from "./pages/ElleryCockpit";
 import { CorneliusCockpit } from "./pages/CorneliusCockpit";
@@ -60,14 +58,7 @@ export function App() {
               </ProtectedRoute>
             }
           />
-          <Route
-            path="/jeremiah"
-            element={
-              <ProtectedRoute cockpit="jeremiah">
-                <JeremiahCockpit />
-              </ProtectedRoute>
-            }
-          />
+          <Route path="/jeremiah" element={<Navigate replace to="/" />} />
           <Route
             path="/colton"
             element={
@@ -94,14 +85,11 @@ export function App() {
               </ProtectedRoute>
             }
           />
-          <Route
-            path="/karen"
-            element={
-              <ProtectedRoute cockpit="karen">
-                <KarenCockpit />
-              </ProtectedRoute>
-            }
-          />
+          {/* Retired 1 Sep 2026. The route and the screen are kept, not
+              deleted, so the role can be handed to someone else - but nobody
+              reaches it today. The API denies these cockpits as well, in
+              lib/apiAuth.js, so this is the second lock and not the only one. */}
+          <Route path="/karen" element={<Navigate replace to="/" />} />
 
           <Route
             path="/rex"

@@ -22,11 +22,15 @@ const CREW_LEAD = { "Side A": "colton", "Side B": "zo" };
  * Stages that skip Jeremiah and Karen and go straight to Raj. Must match the
  * same set in api/rehab-stages.js.
  */
+// Kept so api/rehab-stages.js, which imports the same idea, still agrees.
+// Every stage goes straight to Raj now, so this no longer distinguishes
+// anything - remove it once rehab-stages.js is updated too.
 const DIRECT_TO_RAJ = new Set(["Before Teardown Photos"]);
 
+// Rewired 1 Sep 2026. Jeremiah and Karen are gone, so the chain is one gate:
+// the crew uploads, Raj signs off. Their Notion checkbox fields are left in
+// place - clearing them would rewrite the history of stages they did approve.
 const CHAIN = {
-    jeremiah: { field: "Jeremiah Approved", next: "karen" },
-    karen: { field: "Karen Approved", next: "raj" },
     raj: { field: "Raj Approved", next: null },
 };
 
@@ -95,28 +99,17 @@ function readStage(page) {
     };
 }
 
-/** Is it this person's turn? */
+/**
+ * One gate now. The photo is still mandatory - that was never Jeremiah's or
+ * Karen's rule, it is the rule.
+ */
 function canAct(cockpit, stage) {
     if (!stage.photoUploaded) return "No photo has been uploaded yet";
 
-    // Before Teardown Photos goes straight to Raj, so the usual order does
-    // not apply and the other two have no business approving it.
-    if (DIRECT_TO_RAJ.has(stage.stageName)) {
-        if (cockpit !== "raj") return "This stage goes straight to Raj";
+    if (cockpit === "raj") {
         return stage.rajApproved ? "You already approved this stage" : null;
     }
 
-    if (cockpit === "jeremiah") {
-        return stage.jeremiahApproved ? "You already approved this stage" : null;
-    }
-    if (cockpit === "karen") {
-        if (!stage.jeremiahApproved) return "Waiting on Jeremiah first";
-        return stage.karenApproved ? "You already approved this stage" : null;
-    }
-    if (cockpit === "raj") {
-        if (!stage.karenApproved) return "Waiting on Karen first";
-        return stage.rajApproved ? "You already approved this stage" : null;
-    }
     return "You don't have permission to approve stages";
 }
 
@@ -145,7 +138,7 @@ export default async function handler(req, res) {
     let caller;
     try {
         caller = await requireUser(req);
-        requireCockpit(caller.profile, ["jeremiah", "karen", "raj"]);
+        requireCockpit(caller.profile, ["raj"]);
     } catch (err) {
         return res
             .status(err?.status || 401)

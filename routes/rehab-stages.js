@@ -2,7 +2,7 @@
 // The Able Builds rehab checklist in Notion, including where each stage sits
 // in the approval chain.
 //
-// GET  /api/rehab-stages              both sides (Jeremiah, Karen, Raj)
+// GET  /api/rehab-stages              both sides (Raj)
 // GET  /api/rehab-stages?side=Side A  one side (crew leads)
 // POST /api/rehab-stages              save a Drive folder link to a stage and
 //                                     put it into the right approval queue
@@ -85,29 +85,16 @@ export default async function handler(req, res) {
             const side = props["Side"]?.select?.name || "";
             const phase = props["Phase"]?.select?.name || "";
 
-            const skipsChain = DIRECT_TO_RAJ.has(stageName);
             const alreadySubmitted = props["Photo Uploaded"]?.checkbox === true;
 
-            // Adding shots to a stage already through the chain must not
-            // drag it back through approval. The folder is the same, the
-            // link is the same - only the contents grew.
+            // Adding shots to a stage already approved must not drag it back
+            // through the gate. The folder is the same, the link is the same -
+            // only the contents grew.
             const topUp = Boolean(addOnly) && alreadySubmitted;
 
-            const jeremiahOk = props["Jeremiah Approved"]?.checkbox === true;
-            const karenOk = props["Karen Approved"]?.checkbox === true;
-
-            // A top-up tells whoever currently holds the stage. A real
-            // submission starts at the top of the chain.
-            let approver;
-            if (!topUp) {
-                approver = skipsChain ? "raj" : "jeremiah";
-            } else if (!jeremiahOk && !skipsChain) {
-                approver = "jeremiah";
-            } else if (!karenOk && !skipsChain) {
-                approver = "karen";
-            } else {
-                approver = "raj";
-            }
+            // One gate since 1 Sep 2026. Every stage, top-up or not, goes to
+            // Raj - there is nobody else in the chain to route to.
+            const approver = "raj";
 
             await notion.pages.update({
                 page_id: notionPageId,
@@ -118,11 +105,11 @@ export default async function handler(req, res) {
                     : {
                           "Drive Photo Link": { url: driveUrl },
                           "Photo Uploaded": { checkbox: true },
-                          // A re-upload after a decline starts the chain
-                          // over. Stages that skip the chain keep Jeremiah
-                          // and Karen ticked.
-                          "Jeremiah Approved": { checkbox: skipsChain },
-                          "Karen Approved": { checkbox: skipsChain },
+                          // Ticked because those approvals no longer exist as
+                          // steps. Left as fields so historic stages still read
+                          // correctly, but nothing waits on them.
+                          "Jeremiah Approved": { checkbox: true },
+                          "Karen Approved": { checkbox: true },
                           "Raj Approved": { checkbox: false },
                           Status: { select: { name: "In Progress" } },
                       },
