@@ -88,66 +88,6 @@ type Form = {
   sellerOpenTo: string;
 };
 
-/** Verbatim from LeadForm, so a corrected value still matches the form. */
-const ROLES = ["Property Owner", "Broker / Agent", "Wholesaler", "Other"];
-
-const ASSET_TYPES = [
-  "Mobile Home Park",
-  "RV Park",
-  "Multifamily / Apartment",
-  "SFH Portfolio",
-  "Single-Family Home",
-  "Care Facility (ALF / Sober Living / Care)",
-  "Other",
-];
-
-const FINANCING = ["Free & clear", "Existing mortgage", "Not sure"];
-
-const OPEN_TO = [
-  "Seller financing",
-  "Subject-to",
-  "Hybrid / creative structure",
-  "Cash / conventional only",
-  "Not sure yet",
-];
-
-function Select({
-  label,
-  value,
-  options,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  options: string[];
-  onChange: (v: string) => void;
-}) {
-  return (
-    <label className="block">
-      <span className="text-[14px] font-semibold uppercase tracking-wide text-[#7A8AA3]">
-        {label}
-      </span>
-      <select
-        className="mt-1 w-full rounded-xl border border-[#DCE4EE] bg-white px-3 py-2.5 text-[18px] text-[#0F1E33] focus:border-[#418BFF] focus:outline-none"
-        onChange={(e) => onChange(e.target.value)}
-        value={value}
-      >
-        <option value="">Not set</option>
-        {/* A value the seller entered that is no longer an option still shows,
-            rather than silently resetting to blank on save. */}
-        {!options.includes(value) && value && (
-          <option value={value}>{value}</option>
-        )}
-        {options.map((o) => (
-          <option key={o} value={o}>
-            {o}
-          </option>
-        ))}
-      </select>
-    </label>
-  );
-}
-
 function formFor(draft: DraftDeal): Form {
   const str = (v: string | number | null) => (v === null ? "" : String(v));
 
@@ -504,6 +444,61 @@ export function DraftDealsCard({
                       </div>
                     )}
 
+                    {/* Read-only on purpose. This is what the seller actually
+                        submitted - correcting it here would quietly rewrite
+                        their words. Raj's own fields are below and editable. */}
+                    {active.origin === "website" && (
+                      <div className="rounded-2xl border border-[#DCE4EE] bg-white p-4">
+                        <div className="text-[14px] font-semibold uppercase tracking-wide text-[#7A8AA3]">
+                          What they submitted
+                        </div>
+
+                        <dl className="mt-2 space-y-2 text-[16px]">
+                          {(
+                            [
+                              ["Name", active.contact_name],
+                              ["I am the", active.submission?.role],
+                              ["Email", active.contact_email],
+                              ["Phone", active.contact_phone],
+                              ["Property type", active.submission?.asset_type],
+                              [
+                                "Asking price",
+                                active.purchase_price
+                                  ? `$${Number(active.purchase_price).toLocaleString()}`
+                                  : null,
+                              ],
+                              ["Property address", active.address],
+                              [
+                                "Current financing",
+                                active.submission?.current_financing,
+                              ],
+                              ["Seller open to", active.submission?.seller_open_to],
+                            ] as const
+                          )
+                            .filter(([, value]) => Boolean(value))
+                            .map(([label, value]) => (
+                              <div className="flex justify-between gap-4" key={label}>
+                                <dt className="shrink-0 text-[#7A8AA3]">{label}</dt>
+                                <dd className="min-w-0 break-words text-right font-medium text-[#0F1E33]">
+                                  {value}
+                                </dd>
+                              </div>
+                            ))}
+                        </dl>
+
+                        {active.notes && (
+                          <div className="mt-3 border-t border-[#F1F5F9] pt-3">
+                            <div className="text-[14px] font-semibold uppercase tracking-wide text-[#7A8AA3]">
+                              Deal notes
+                            </div>
+                            <p className="mt-1 whitespace-pre-line text-[16px] leading-relaxed text-[#3A4A62]">
+                              {active.notes}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
                     {active.extracted?.reasoning && (
                       <div className="rounded-2xl border border-[#DCE4EE] bg-white p-4">
                         <div className="flex items-center justify-between gap-3">
@@ -624,61 +619,6 @@ export function DraftDealsCard({
                         value={form.source}
                         onChange={set("source")}
                       />
-
-                      {/* Only for website submissions - an email draft has no
-                          form behind it, and blank dropdowns would imply the
-                          seller was asked and declined to answer. */}
-                      {active.origin === "website" && (
-                        <>
-                          <Field
-                            label="Their name"
-                            value={form.contactName}
-                            onChange={set("contactName")}
-                          />
-
-                          <div className="grid grid-cols-2 gap-3">
-                            <Field
-                              label="Email"
-                              value={form.contactEmail}
-                              onChange={set("contactEmail")}
-                            />
-                            <Field
-                              label="Phone"
-                              value={form.contactPhone}
-                              onChange={set("contactPhone")}
-                            />
-                          </div>
-
-                          <Select
-                            label="They are the"
-                            onChange={set("role")}
-                            options={ROLES}
-                            value={form.role}
-                          />
-
-                          <Select
-                            label="Property type"
-                            onChange={set("assetType")}
-                            options={ASSET_TYPES}
-                            value={form.assetType}
-                          />
-
-                          <div className="grid grid-cols-2 gap-3">
-                            <Select
-                              label="Current financing"
-                              onChange={set("currentFinancing")}
-                              options={FINANCING}
-                              value={form.currentFinancing}
-                            />
-                            <Select
-                              label="Seller open to"
-                              onChange={set("sellerOpenTo")}
-                              options={OPEN_TO}
-                              value={form.sellerOpenTo}
-                            />
-                          </div>
-                        </>
-                      )}
 
                       <div className="grid grid-cols-2 gap-3">
                         <Field
