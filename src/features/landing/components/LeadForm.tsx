@@ -392,9 +392,25 @@ export function LeadForm({
                   className="w-full cursor-pointer rounded-xl border border-brand-ink/10 bg-brand-cream px-4 py-3 text-[0.88rem] text-brand-ink/70 file:mr-3 file:rounded-lg file:border-0 file:bg-brand-ink file:px-3 file:py-1.5 file:text-[0.82rem] file:font-semibold file:text-white hover:file:bg-brand-deep"
                   id="f-docs"
                   multiple
-                  onChange={(event) =>
-                    setFiles(Array.from(event.target.files ?? []))
-                  }
+                  onChange={(event) => {
+                    // Append rather than replace. Picking files one at a time
+                    // is normal, and replacing silently dropped the earlier
+                    // ones - the seller saw three, we received the last.
+                    const picked = Array.from(event.target.files ?? []);
+                    setFiles((current) => {
+                      const seen = new Set(
+                        current.map((f) => `${f.name}:${f.size}`),
+                      );
+                      return [
+                        ...current,
+                        ...picked.filter(
+                          (f) => !seen.has(`${f.name}:${f.size}`),
+                        ),
+                      ];
+                    });
+                    // Clear the input so re-picking the same file still fires.
+                    event.target.value = "";
+                  }}
                   type="file"
                 />
                 <p className="text-[0.8rem] text-brand-ink/55">
