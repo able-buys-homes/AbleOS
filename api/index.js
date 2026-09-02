@@ -60,6 +60,7 @@ const ROUTES = {
     "drive-upload-url": driveUploadUrl,
     leads,
     notifications,
+    "ops-alert": opsAlert,
     orders,
     "pipeline-deals": pipelineDeals,
     pof,
