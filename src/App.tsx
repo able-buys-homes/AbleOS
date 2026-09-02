@@ -6,7 +6,6 @@ import { UpdateBanner } from "./components/UpdateBanner";
 import { Login } from "./pages/Login";
 import { RajCockpit } from "./pages/RajCockpit";
 import { DaneCockpit } from "./pages/DaneCockpit";
-import { ColtonCockpit } from "./pages/ColtonCockpit";
 import { ZoCockpit } from "./pages/ZoCockpit";
 import { ZoInspect } from "./pages/ZoInspect";
 import { RexCockpit } from "./pages/RexCockpit";
@@ -59,14 +58,7 @@ export function App() {
             }
           />
           <Route path="/jeremiah" element={<Navigate replace to="/" />} />
-          <Route
-            path="/colton"
-            element={
-              <ProtectedRoute cockpit="colton">
-                <ColtonCockpit />
-              </ProtectedRoute>
-            }
-          />
+          <Route path="/colton" element={<Navigate replace to="/" />} />
           <Route
             path="/zo"
             element={

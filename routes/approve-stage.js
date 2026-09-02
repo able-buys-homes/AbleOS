@@ -15,7 +15,11 @@ import { getFolderId } from "./drive-upload-url.js";
 
 const REHAB_DATABASE_ID = "39f97b1c96b680dd9a77d8d83da4793c";
 
-const CREW_LEAD = { "Side A": "colton", "Side B": "zo" };
+// Zo covers both sides since Colton left on 3 Sep 2026. The reporting line did
+// not change - Colton always answered to Zo on HTM work - only the cockpit
+// mapping did. When a replacement lead is hired they get their own cockpit and
+// Side A moves back; not built for now.
+const CREW_LEAD = { "Side A": "zo", "Side B": "zo" };
 
 // Who approves at each step, and what must already be true for them to act.
 /**
@@ -209,6 +213,23 @@ export default async function handler(req, res) {
             });
 
             await clearGateNotice(supabase, profile.cockpit, notionPageId);
+
+            // Raj keeps a copy as a record. Without this, a decline lives only
+            // in a push to the crew - miss the push and it is gone, which is a
+            // broken gate wearing a different hat.
+            const { error: recordError } = await supabase
+                .from("notifications")
+                .insert({
+                    recipient: "raj",
+                    type: "stage_declined_record",
+                    title: `${stage.stageName} sent back to the crew`,
+                    body: `${stage.side} - ${trimmedNote}`,
+                    link: `/raj?stage=${notionPageId}`,
+                });
+
+            if (recordError) {
+                console.error("Could not record the decline for Raj:", recordError);
+            }
 
             if (crewLead) {
                 await supabase.from("notifications").insert({

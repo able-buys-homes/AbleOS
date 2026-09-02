@@ -17,8 +17,10 @@ import { sendPush } from "../lib/sendPush.js";
 
 const REHAB_DATABASE_ID = "39f97b1c96b680dd9a77d8d83da4793c";
 
-// Crew leads only ever see their own side, whatever they ask for.
-const LOCKED_SIDE = { colton: "Side A", zo: "Side B" };
+// Zo covers both sides since 3 Sep 2026, so nobody is locked to one any more.
+// Kept as a map rather than deleted - a replacement Side A lead gets an entry
+// here and the lock returns without touching the query logic.
+const LOCKED_SIDE = {};
 
 /**
  * Stages that skip Jeremiah and Karen and go straight to Raj. Before Teardown
@@ -55,7 +57,7 @@ export default async function handler(req, res) {
     /* ---- SAVE a photo link ---- */
     if (req.method === "POST") {
         try {
-            requireCockpit(profile, ["colton", "zo"]);
+            requireCockpit(profile, ["zo"]);
         } catch (err) {
             return res
                 .status(err?.status || 403)

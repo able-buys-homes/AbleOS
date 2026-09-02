@@ -111,7 +111,7 @@ export default async function handler(req, res) {
     try {
         caller = await requireUser(req);
         // Only the two crew leads upload stage photos.
-        requireCockpit(caller.profile, ["colton", "zo"]);
+        requireCockpit(caller.profile, ["zo"]);
     } catch (err) {
         return res
             .status(err?.status || 401)
@@ -121,12 +121,9 @@ export default async function handler(req, res) {
     try {
         const { side, stageName, mimeType, ext } = req.body || {};
 
-        // Colton can only write to Side A, Zo only to Side B.
-        const ownSide = caller.profile.cockpit === "colton" ? "A" : "B";
-        const requestedSide = String(side || "").trim().toUpperCase().replace("SIDE ", "");
-        if (requestedSide !== ownSide) {
-            return res.status(403).json({ error: "You can only upload to your own side" });
-        }
+        // Zo covers both sides since 3 Sep 2026, so there is no own-side check
+        // to make. The side is still validated below - getFolderId returns
+        // nothing for anything that is not Side A or Side B.
 
         if (!side || !stageName) {
             return res.status(400).json({ error: "side and stageName are required" });
