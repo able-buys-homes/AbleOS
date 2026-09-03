@@ -623,7 +623,9 @@ export function RajCockpit() {
               Unit inspections
             </h2>
             <UnitInspectionsCard />
-            <CollectionsApprovalsCard />
+            <div className="mt-4">
+              <CollectionsApprovalsCard />
+            </div>
             <div className="mt-4">
               <SocialQueueCard />
             </div>
