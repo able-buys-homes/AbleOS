@@ -133,7 +133,7 @@ export function ZoCollections() {
           <h1 className="mt-3 text-[27px] font-bold tracking-[-0.015em]">
             Collections
           </h1>
-          <p className="mt-1.5 text-[13.5px] text-[#A9B4CC]">
+          <p className="mt-1.5 text-[13.5px] text-white/75">
             Hometown Meadows MHP &nbsp;•&nbsp; 121 Smith Lane, Nashville AR
           </p>
 
@@ -149,8 +149,8 @@ export function ZoCollections() {
                 aria-selected={tab === key}
                 className={`whitespace-nowrap border-b-[3px] pb-3 text-[14px] font-semibold ${
                   tab === key
-                    ? "border-[#F0B429] text-white"
-                    : "border-transparent text-[#8E9BB8]"
+                    ? "border-white text-white"
+                    : "border-transparent text-white/70"
                 }`}
                 key={key}
                 onClick={() => {
