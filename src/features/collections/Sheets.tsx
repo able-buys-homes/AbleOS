@@ -161,14 +161,26 @@ export function Sheets({ kind, lot, data, onClose, onDone }: Props) {
   const [close, setClose] = React.useState<File | null>(null);
   const [postNote, setPostNote] = React.useState("");
   const [coords, setCoords] = React.useState<{ lat: number; lng: number } | null>(null);
+  const [geoState, setGeoState] = React.useState<"asking" | "ok" | "none">("asking");
 
   // Captured, never typed. A geotag someone can edit is not evidence.
   React.useEffect(() => {
-    if (kind !== "post" || !navigator.geolocation) return;
+    if (kind !== "post") return;
+
+    if (!navigator.geolocation) {
+      setGeoState("none");
+      return;
+    }
 
     navigator.geolocation.getCurrentPosition(
-      (p) => setCoords({ lat: p.coords.latitude, lng: p.coords.longitude }),
-      () => setCoords(null),
+      (p) => {
+        setCoords({ lat: p.coords.latitude, lng: p.coords.longitude });
+        setGeoState("ok");
+      },
+      // Never blocks the save. A dead GPS in a metal-sided park must not stop
+      // Zo recording a posting he actually made - the photos and the server
+      // timestamp are still real evidence.
+      () => setGeoState("none"),
       { enableHighAccuracy: true, timeout: 8000 },
     );
   }, [kind]);
@@ -597,11 +609,25 @@ export function Sheets({ kind, lot, data, onClose, onDone }: Props) {
             minute: "2-digit",
           })}
         </b>
-        {coords && ` · ${coords.lat.toFixed(4)}, ${coords.lng.toFixed(4)}`}
+        {geoState === "ok" && coords && (
+          <>
+            {" "}
+            · {coords.lat.toFixed(4)}, {coords.lng.toFixed(4)}
+          </>
+        )}
+        {geoState === "asking" && <> · finding your location…</>}
         <br />
         Certified mail and the housing authority copy go out automatically today. You do
         not mail anything.
       </Stamp>
+
+      {geoState === "none" && (
+        <div className="mt-3 rounded-[9px] border-l-4 border-l-[#D97706] bg-[#FFFCF5] px-3.5 py-3 text-[13.5px] leading-relaxed text-[#92600A]">
+          <b className="block text-[#7A4E06]">Your phone could not find the location</b>
+          You can still save this. We will note that the location was not available, so
+          nobody thinks it was missed. The photos and the time are still recorded.
+        </div>
+      )}
     </Shell>
   );
 }

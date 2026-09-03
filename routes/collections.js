@@ -308,6 +308,9 @@ export default async function handler(req, res) {
                     photo_close_path: close,
                     geo_lat: req.body?.geo_lat ?? null,
                     geo_lng: req.body?.geo_lng ?? null,
+                    // Recorded, not inferred. A blank would leave Barrett
+                    // guessing whether the phone failed or nobody asked.
+                    geo_status: req.body?.geo_lat ? "captured" : "unavailable",
                     post_note: req.body?.note ? String(req.body.note).slice(0, 500) : null,
                 })
                 .eq("id", notice.id);
