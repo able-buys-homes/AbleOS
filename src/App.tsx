@@ -15,6 +15,7 @@ import { LandingPage } from "./pages/LandingPage";
 import { PipelineBoard } from "./pages/PipelineBoard";
 import { DocumentTitle } from "./lib/DocumentTitle";
 import { ZoCollections } from "./pages/ZoCollections";
+import { RajApprovals } from "./pages/RajApprovals";
 
 export function App() {
   const isMarketingDomain =
@@ -97,6 +98,14 @@ export function App() {
             element={
               <ProtectedRoute cockpit="rex">
                 <RexCockpit />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/raj/approvals"
+            element={
+              <ProtectedRoute cockpit="raj">
+                <RajApprovals />
               </ProtectedRoute>
             }
           />
