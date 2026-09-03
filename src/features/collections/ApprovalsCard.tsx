@@ -58,7 +58,7 @@ export function CollectionsApprovalsCard({
       subtitle="Balances to verify and plans to approve"
       title="Collections"
       tone={waiting ? "orange" : "green"}
-      variant="row"
+      variant="card"
     />
   );
 }
