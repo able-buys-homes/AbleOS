@@ -14,6 +14,7 @@ import { CorneliusCockpit } from "./pages/CorneliusCockpit";
 import { LandingPage } from "./pages/LandingPage";
 import { PipelineBoard } from "./pages/PipelineBoard";
 import { DocumentTitle } from "./lib/DocumentTitle";
+import { ZoCollections } from "./pages/ZoCollections";
 
 export function App() {
   const isMarketingDomain =
@@ -69,6 +70,14 @@ export function App() {
           />
           {/* Unit inspections. A separate capability from the rehab photo lane -
               deliberately not bolted onto the stage flow. */}
+          <Route
+            path="/zo/collections"
+            element={
+              <ProtectedRoute cockpit="zo">
+                <ZoCollections />
+              </ProtectedRoute>
+            }
+          />
           <Route
             path="/zo/inspect"
             element={
