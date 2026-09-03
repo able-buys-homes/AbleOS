@@ -7,6 +7,7 @@
 // count, so endpoints can be added freely from here on.
 
 import approveStage from "../routes/approve-stage.js";
+import collections from "../routes/collections.js";
 import criticalDates from "../routes/critical-dates.js";
 import dailyTaskItems from "../routes/daily-task-items.js";
 import dailyTasks from "../routes/daily-tasks.js";
@@ -44,6 +45,7 @@ export const config = { maxDuration: 60 };
 
 const ROUTES = {
     "approve-stage": approveStage,
+    collections,
     "critical-dates": criticalDates,
     "daily-task-items": dailyTaskItems,
     "daily-tasks": dailyTasks,
