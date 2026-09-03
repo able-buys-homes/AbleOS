@@ -95,6 +95,38 @@ export default async function handler(req, res) {
     try {
         const supabase = getClient();
 
+        /* ---- proof of service for one notice ---- */
+        // Signed links, minted per request and short-lived. These photos show
+        // residents' doors - they are evidence, not content, and never sit
+        // behind a public URL.
+        if (req.method === "GET" && req.query?.proof) {
+            const noticeId = String(req.query.proof);
+
+            const { data: notice, error } = await supabase
+                .from("notices")
+                .select("*, lots(lot_number, tenant_name)")
+                .eq("id", noticeId)
+                .maybeSingle();
+
+            if (error) throw error;
+            if (!notice) return res.status(404).json({ error: "Not found" });
+
+            const sign = async (path) => {
+                if (!path) return null;
+                const { data } = await supabase.storage
+                    .from("collections-photos")
+                    .createSignedUrl(path, 600);
+                return data?.signedUrl ?? null;
+            };
+
+            const [wideUrl, closeUrl] = await Promise.all([
+                sign(notice.photo_wide_path),
+                sign(notice.photo_close_path),
+            ]);
+
+            return res.status(200).json({ notice, wideUrl, closeUrl });
+        }
+
         /* ================= WRITES ================= */
 
         /**

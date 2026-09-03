@@ -25,6 +25,7 @@ import {
   money,
 } from "../features/collections/parts";
 import { Sheets } from "../features/collections/Sheets";
+import { ProofSheet } from "../features/collections/ProofSheet";
 
 type Lot = {
   id: string;
@@ -89,6 +90,7 @@ export function ZoCollections() {
     null,
   );
   const [sheetLot, setSheetLot] = React.useState<Lot | null>(null);
+  const [proofId, setProofId] = React.useState<string | null>(null);
 
   const load = React.useCallback(async () => {
     try {
@@ -198,9 +200,9 @@ export function ZoCollections() {
                   key={lot.id}
                   lot={lot}
                   onPay={() => openSheet("pay", lot)}
-                  onPost={() => openSheet("post", lot)}
                   onPlan={() => openSheet("plan", lot)}
-                  say={say}
+                  onPost={() => openSheet("post", lot)}
+                  onProof={setProofId}
                 />
               ))}
             </Stack>
@@ -462,23 +464,33 @@ export function ZoCollections() {
 
       {/* ---------------- DOCK ---------------- */}
       <div className="fixed inset-x-0 bottom-0 z-40 flex items-center gap-3 border-t border-[#E3E5E9] bg-white px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3">
+        {/* Truncates rather than wraps - at 380px this was pushing the buttons
+            down and eating a third of the screen. */}
         <div className="min-w-0 flex-1">
-          <div className="text-[15px] font-bold">
-            {data ? `${data.pastDue.length} lots past due` : "Loading"}
+          <div className="truncate text-[15px] font-bold">
+            {data ? `${data.pastDue.length} past due` : "Loading"}
           </div>
-          <div className="text-[12.5px] text-[#6C7484]">
-            {data ? `${data.notices.toPost.length} notice to post today` : ""}
+          <div className="truncate text-[12.5px] text-[#6C7484]">
+            {data
+              ? data.notices.toPost.length === 1
+                ? "1 notice to post"
+                : `${data.notices.toPost.length} notices to post`
+              : ""}
           </div>
         </div>
-        <Btn onClick={() => openSheet("plan")} variant="ghost">
-          Propose a plan
-        </Btn>
-        <Btn onClick={() => openSheet("pay")} variant="primary">
-          Log a payment
-        </Btn>
+        <div className="flex shrink-0 gap-2">
+          <Btn onClick={() => openSheet("plan")} variant="ghost">
+            Plan
+          </Btn>
+          <Btn onClick={() => openSheet("pay")} variant="primary">
+            Log a payment
+          </Btn>
+        </div>
       </div>
 
       <Toast message={toast.msg} stop={toast.stop} />
+
+      {proofId && <ProofSheet noticeId={proofId} onClose={() => setProofId(null)} />}
 
       {sheet && (
         <Sheets
@@ -546,13 +558,13 @@ function LotRow({
   onPay,
   onPost,
   onPlan,
-  say,
+  onProof,
 }: {
   lot: Lot;
   onPay: () => void;
   onPost: () => void;
   onPlan: () => void;
-  say: (m: string) => void;
+  onProof: (noticeId: string) => void;
 }) {
   const posted = Boolean(lot.latest_notice?.posted_at);
 
@@ -578,18 +590,16 @@ function LotRow({
             Post the notice
           </Btn>
         )}
-        {posted && (
-          <Btn onClick={() => say(`Proof of service — Lot ${lot.lot_number}`)}>
+        {posted && lot.latest_notice && (
+          <Btn onClick={() => onProof(lot.latest_notice!.id)}>
             See proof of service
           </Btn>
         )}
         <Btn onClick={onPay}>Log a payment</Btn>
-                {!lot.active_plan && !lot.pending_plan && !lot.latest_notice && (
+        {!lot.active_plan && !lot.pending_plan && !lot.latest_notice && (
           <Btn onClick={onPlan}>Propose a plan</Btn>
         )}
-        {lot.pending_plan && (
-          <Btn disabled>Plan waiting on Raj</Btn>
-        )}
+        {lot.pending_plan && <Btn disabled>Plan waiting on Raj</Btn>}
       </div>
     </div>
   );
