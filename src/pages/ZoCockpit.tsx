@@ -317,6 +317,12 @@ export function ZoCockpit() {
                 >
                   Inspect
                 </Link>
+                <Link
+                  className="rounded-full px-3 py-2 text-[16px] font-medium text-white/80 transition-colors hover:text-white focus:outline-none focus:ring-2 focus:ring-white"
+                  to="/zo/collections"
+                >
+                  Collections
+                </Link>
               </nav>
               <NotificationBell />
               <UserMenu />
