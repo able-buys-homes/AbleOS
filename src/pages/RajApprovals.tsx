@@ -192,7 +192,11 @@ export function RajApprovals() {
                 `Proposed by ${plan.proposed_by}`,
               ].filter(Boolean)}
               meta={new Date(plan.proposed_at).toLocaleString()}
-              title="Payment plan"
+              title={
+                plan.lot
+                  ? `Lot ${plan.lot.lot_number} — ${plan.lot.tenant_name}`
+                  : "Payment plan"
+              }
             >
               <Note>
                 Approve, then Zo prints and collects the signature. The document

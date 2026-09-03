@@ -436,6 +436,13 @@ export default async function handler(req, res) {
                 .map((p) => [p.lot_id, p]),
         );
 
+        // A lot with a proposal already sitting with Raj must not accept a
+        // second one - two plans on one lot is how a tenant ends up holding
+        // two different sets of terms.
+        const pendingPlanByLot = new Map(
+            plans.filter((p) => p.status === "proposed").map((p) => [p.lot_id, p]),
+        );
+
         const noticeByLot = new Map();
         for (const n of notices) {
             if (!noticeByLot.has(n.lot_id)) noticeByLot.set(n.lot_id, n);
@@ -456,6 +463,7 @@ export default async function handler(req, res) {
                 locked: Boolean(openCase),
                 open_case: openCase,
                 active_plan: plan,
+                pending_plan: pendingPlanByLot.get(lot.id) ?? null,
                 latest_notice: notice,
                 installments: plan
                     ? (plans.find((p) => p.id === plan.id)?.plan_installments ?? [])
@@ -510,7 +518,12 @@ export default async function handler(req, res) {
                 // not yet been verified. Verification is the gate on the whole
                 // eviction cascade.
                 verify: pastDue.filter((l) => !l.verified && !l.active_plan),
-                approve: plans.filter((p) => p.status === "proposed"),
+                approve: plans
+                    .filter((p) => p.status === "proposed")
+                    .map((p) => ({
+                        ...p,
+                        lot: lots.find((l) => l.id === p.lot_id) ?? null,
+                    })),
                 deadlines: cases
                     .filter((c) => c.objection_deadline && !c.possession_at)
                     .map((c) => ({

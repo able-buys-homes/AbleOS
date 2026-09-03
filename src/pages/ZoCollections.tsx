@@ -39,6 +39,7 @@ type Lot = {
   verified: boolean;
   locked: boolean;
   active_plan: { id: string; status: string } | null;
+  pending_plan: { id: string; status: string } | null;
   latest_notice: { id: string; posted_at: string | null } | null;
 };
 
@@ -243,7 +244,7 @@ export function ZoCollections() {
                       ? "On an approved plan"
                       : lot.occupied
                         ? "Nothing owed"
-                        : "Vacant"}
+                        : "Rent ready"}
                   </p>
                   {lot.occupied && !lot.locked && (
                     <div className="mt-3.5">
@@ -583,8 +584,11 @@ function LotRow({
           </Btn>
         )}
         <Btn onClick={onPay}>Log a payment</Btn>
-        {!lot.active_plan && !lot.latest_notice && (
+                {!lot.active_plan && !lot.pending_plan && !lot.latest_notice && (
           <Btn onClick={onPlan}>Propose a plan</Btn>
+        )}
+        {lot.pending_plan && (
+          <Btn disabled>Plan waiting on Raj</Btn>
         )}
       </div>
     </div>
