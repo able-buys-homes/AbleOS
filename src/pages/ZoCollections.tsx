@@ -227,7 +227,7 @@ export function ZoCollections() {
                       <Note stop title="Do not take money on this lot">
                         Once the file is with Barrett, accepting a payment or
                         making an arrangement can get the case dismissed. If the
-                        tenant offers you anything, send it to Raj and say
+                        resident offers you anything, send it to Raj and say
                         nothing else.
                       </Note>
                     </div>
@@ -371,7 +371,7 @@ export function ZoCollections() {
                 </ol>
 
                 <Note stop title="Never get a signature first">
-                  If a tenant signs before Raj approves, the park is arguably
+                  If a resident signs before Raj approves, the park is arguably
                   stuck with terms he never agreed to. That is why the print
                   button does not appear until step 3.
                 </Note>

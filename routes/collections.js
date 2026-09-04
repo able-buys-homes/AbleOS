@@ -180,7 +180,7 @@ export default async function handler(req, res) {
 
             if (await lockedLot(lotId)) {
                 return res.status(409).json({
-                    error: "That lot is with Barrett. Send anything the tenant offers to Raj.",
+                    error: "That lot is with Barrett. Send anything the resident offers to Raj.",
                 });
             }
 
@@ -201,15 +201,14 @@ export default async function handler(req, res) {
                 return res.status(400).json({ error: "That payment type is not entered here" });
             }
 
-            // Sequential per year, for the receipt the tenant receives.
-            const { count, error: countError } = await supabase
-                .from("payments")
-                .select("id", { count: "exact", head: true })
-                .not("receipt_number", "is", null);
+            // From a Postgres sequence, so two payments saved in the same
+            // second cannot share a number. A duplicate receipt reads as
+            // tampering later, however innocent it was.
+            const { data: receipt, error: receiptError } = await supabase.rpc(
+                "next_receipt_number",
+            );
 
-            if (countError) throw countError;
-
-            const receipt = `HTM-${new Date().getFullYear()}-${String((count ?? 0) + 1).padStart(4, "0")}`;
+            if (receiptError) throw receiptError;
 
             const { error: insertError } = await supabase.from("payments").insert({
                 lot_id: lotId,
@@ -412,7 +411,7 @@ export default async function handler(req, res) {
                             : "Raj rejected the payment plan",
                     body:
                         decision === "approve"
-                            ? "The plan document is ready to print and sign."
+                            ? "Raj approved it. The plan document is coming — do not collect a signature yet."
                             : "No document was generated.",
                     link: "/zo/collections",
                 });
@@ -421,7 +420,9 @@ export default async function handler(req, res) {
                     ok: true,
                     message:
                         decision === "approve"
-                            ? "Approved. Plan document generated and sent to Zo to print."
+                            // Says only what happened. The document does not
+                            // exist yet, and the cockpit must not claim it does.
+                            ? "Approved — plan document coming."
                             : "Rejected. Zo notified. No document generated.",
                 });
             }
@@ -472,7 +473,7 @@ export default async function handler(req, res) {
         );
 
         // A lot with a proposal already sitting with Raj must not accept a
-        // second one - two plans on one lot is how a tenant ends up holding
+        // second one - two plans on one lot is how a resident ends up holding
         // two different sets of terms.
         const pendingPlanByLot = new Map(
             plans.filter((p) => p.status === "proposed").map((p) => [p.lot_id, p]),

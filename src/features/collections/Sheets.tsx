@@ -385,7 +385,7 @@ export function Sheets({ kind, lot, data, onClose, onDone }: Props) {
         {problem && <p className="mb-3 text-[15px] text-[#B91C1C]">{problem}</p>}
 
         <Stamp>
-          A numbered receipt texts and emails to the tenant the second you save. That
+          A numbered receipt texts and emails to the resident the second you save. That
           receipt protects you as much as it protects the park.
         </Stamp>
       </Shell>
@@ -590,7 +590,7 @@ export function Sheets({ kind, lot, data, onClose, onDone }: Props) {
         <textarea
           className={inputClass}
           onChange={(e) => setPostNote(e.target.value)}
-          placeholder="Dog in the yard, tenant came to the door, home looked empty"
+          placeholder="Dog in the yard, resident came to the door, home looked empty"
           rows={2}
           value={postNote}
         />
