@@ -46,6 +46,16 @@ export function ZoMap() {
             you take a payment or record a move-in. Until it does, treat Rent as
             the answer on who owes what — not this screen.
           </p>
+          {counts.verify > 0 && (
+            <p className="mt-2.5 text-[13.5px] font-semibold leading-relaxed text-[#7A4E06]">
+              {counts.verify === 1
+                ? "One home is"
+                : `${counts.verify} homes are`}{" "}
+              marked <b>Needs checking</b> — two records disagree about who is
+              there. Do not show those to anyone until you have walked them
+              yourself.
+            </p>
+          )}
         </div>
       </div>
 

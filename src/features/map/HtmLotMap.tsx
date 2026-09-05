@@ -15,7 +15,8 @@ export type LotStatus =
   | "moving_out"
   | "needs_repair"
   | "full_rehab"
-  | "common_area";
+  | "common_area"
+  | "verify";
 
 export interface Lot {
   id: number;
@@ -68,6 +69,14 @@ export const STATUS_META: Record<
     stroke: "#8C949E",
     text: "#4A5460",
   },
+  // Raj, 5 Sep: not ready, not occupied, until Zo has stood in front of it.
+  // The two sources disagree and neither is trusted enough to colour a home.
+  verify: {
+    label: "Needs checking",
+    fill: "#FEF6CE",
+    stroke: "#A88300",
+    text: "#6B5200",
+  },
 };
 
 /** Statuses that count as a rentable door. The office is not a door. */
@@ -77,6 +86,7 @@ const RENTABLE: LotStatus[] = [
   "moving_out",
   "needs_repair",
   "full_rehab",
+  "verify",
 ];
 
 /** Lot geometry - fixed. Only status changes. */
@@ -125,14 +135,28 @@ const LOT_POSITIONS: Record<number, { x: number; y: number }> = {
  */
 export const DEFAULT_LOTS: Lot[] = [
   { id: 1, status: "occupied", bed: 3, bath: 1 },
-  { id: 2, status: "ready", bed: 2, bath: 1.5, sqft: 840 },
+  {
+    id: 2,
+    status: "verify",
+    bed: 2,
+    bath: 1.5,
+    sqft: 840,
+    note: "Rent-ready on the June list, but an August account shows a resident. Nobody is shown this home until Zo has confirmed which is true.",
+  },
   { id: 3, status: "needs_repair", bed: 2, bath: 1, sqft: 720 },
   { id: 4, status: "occupied", bed: 2, bath: 1, sqft: 720 },
   { id: 6, status: "occupied", bed: 2, bath: 1, sqft: 700 },
   { id: 7, status: "needs_repair", bed: 3, bath: 1.5, sqft: 980 },
   { id: 8, status: "ready", bed: 2, bath: 1, sqft: 700 },
   { id: 12, status: "ready" },
-  { id: 13, status: "moving_out", bed: 1, bath: 1, sqft: 600 },
+  {
+    id: 13,
+    status: "moving_out",
+    bed: 1,
+    bath: 1,
+    sqft: 600,
+    note: "Marked moving out on the site plan. Confirm the notice is real before this is offered to anyone.",
+  },
   { id: 14, status: "occupied", bed: 1, bath: 1 },
   { id: 15, status: "occupied", bed: 2, bath: 1, sqft: 700 },
   { id: 16, status: "occupied", note: "Resident-owned home (lot rent only)" },
