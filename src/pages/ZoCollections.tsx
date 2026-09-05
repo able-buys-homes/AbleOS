@@ -220,27 +220,6 @@ export function ZoCollections() {
           </div>
         )}
 
-        {/* Shown on every tab, not just the roll. The payment dropdown lists
-            these names too, and a warning that only appears on one screen is
-            a warning Zo can walk past. */}
-        {data &&
-          [...data.pastDue, ...data.current, ...data.withCounsel].some(
-            (lot) => lot.is_sample,
-          ) && (
-            <div className="mt-4 rounded-2xl border-2 border-[#B3261E] bg-[#FDF2F1] p-4">
-              <div className="text-[15px] font-bold text-[#B3261E]">
-                SAMPLE DATA — these are not real residents
-              </div>
-              <p className="mt-1.5 text-[13.5px] leading-relaxed text-[#8A1F19]">
-                Every name and amount marked below was invented while this
-                screen was built. Do not collect against them, do not call
-                anyone on this list, and do not print anything from it. The
-                real roll gets built one home at a time, from the lease and
-                your own walk.
-              </p>
-            </div>
-          )}
-
         {/* ---------------- RENT ROLL ---------------- */}
         {tab === "roll" && data && (
           <>
