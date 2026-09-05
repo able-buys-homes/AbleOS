@@ -338,8 +338,12 @@ export function Sheets({
           </div>
         )}
 
-        <div className="mb-4.5 grid grid-cols-2 gap-3">
-          <div>
+        {/* Stacked on a phone, side by side only when there is room. A native
+            date input has an intrinsic minimum width that ignores its column,
+            so in a two-column grid at 390px it pushed itself off the right
+            edge. min-w-0 stops the cell doing the same on wider screens. */}
+        <div className="mb-4.5 grid gap-3 sm:grid-cols-2">
+          <div className="min-w-0">
             <Label>Amount received</Label>
             <input
               className={inputClass}
@@ -351,10 +355,12 @@ export function Sheets({
               value={amount}
             />
           </div>
-          <div>
+          <div className="min-w-0">
             <Label>Date received</Label>
             <input
-              className={inputClass}
+              className={`${inputClass} block appearance-none`}
+              // You cannot receive money that has not been handed over yet.
+              max={new Date().toISOString().slice(0, 10)}
               onChange={(e) => setReceived(e.target.value)}
               type="date"
               value={received}

@@ -40,6 +40,7 @@ type Lot = {
   is_sample: boolean;
   paid_this_month: boolean;
   has_ledger: boolean;
+  notes: string | null;
   owed: number;
   verified: boolean;
   locked: boolean;
@@ -792,7 +793,27 @@ function LotRow({
               tenant portion of {money(lot.contract_rent)} contract rent
             </p>
           )}
-          <Tag hap={lot.hap_household}>{tenancyLabel(lot)}</Tag>
+
+          {!lot.has_ledger && (
+            <p className="text-[13.5px] leading-relaxed text-[#6C7484]">
+              No rent amount is recorded for this home yet — it comes from the
+              lease. You can still log a payment.
+            </p>
+          )}
+
+          {/* Only when there is something to say. This was drawing an empty
+              grey pill on every lot whose tenancy type is not recorded, which
+              is most of them. */}
+          {tenancyLabel(lot) && (
+            <Tag hap={lot.hap_household}>{tenancyLabel(lot)}</Tag>
+          )}
+
+          {lot.notes && (
+            <div className="mt-3 rounded-[9px] border-l-4 border-l-[#D97706] bg-[#FFFCF5] px-3.5 py-3 text-[13px] leading-relaxed text-[#92600A]">
+              {lot.notes}
+            </div>
+          )}
+
           <div className="mt-3.5 flex flex-wrap gap-2.5">
             {lot.latest_notice && !posted && (
               <Btn onClick={onPost} variant="primary">
