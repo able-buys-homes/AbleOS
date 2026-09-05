@@ -41,6 +41,12 @@ type Lot = {
   paid_this_month: boolean;
   has_ledger: boolean;
   notes: string | null;
+  last_payment: {
+    amount: string | number;
+    received_at: string;
+    method: string | null;
+    receipt_number: string | null;
+  } | null;
   owed: number;
   verified: boolean;
   locked: boolean;
@@ -307,7 +313,7 @@ export function ZoCollections() {
                       <div className="mt-3 text-[22px] font-bold tracking-[-0.02em]">
                         {money(lot.owed)}
                       </div>
-                      <Tag>{tenancyLabel(lot)}</Tag>
+                      {tenancyLabel(lot) && <Tag>{tenancyLabel(lot)}</Tag>}
                       <div className="mt-3.5">
                         <Btn disabled>Locked — with counsel</Btn>
                       </div>
@@ -381,8 +387,7 @@ export function ZoCollections() {
                   Application for residency
                 </div>
                 <p className="mt-1 text-[13.5px] text-[#6C7484]">
-                  Hand them the iPad, or print a blank copy for them to take
-                  home.
+                  Not ready yet — keep using the paper form.
                 </p>
                 <div className="mt-3.5 flex flex-wrap gap-2.5">
                   <Btn disabled>Fill it in here</Btn>
@@ -399,23 +404,8 @@ export function ZoCollections() {
                     <Btn disabled>Print a blank one</Btn>
                   )}
                 </div>
-                <Note title="Keep using the paper form for now">
-                  Filling it in on the iPad comes in the next round of work.
-                  Nothing you collect on paper is wasted — it gets typed in
-                  once, by us, not by you.
-                </Note>
               </div>
             </Stack>
-
-            <Note
-              stop
-              title="Build note for Dane — this one matters more than anything else here"
-            >
-              Nothing in the eviction sequence may fire because Zo failed to
-              enter something. Notices generate from a positive, verified unpaid
-              balance. If Zo never opens this screen all month, no notice is
-              ever produced.
-            </Note>
           </>
         )}
 
@@ -731,6 +721,10 @@ function subLine(lot: Lot) {
   if (!lot.occupied) return "Nobody living here";
   if (lot.owed < 0) return "Paid ahead";
   if (lot.owed > 0) return "Past due";
+  if (lot.paid_this_month && lot.last_payment)
+    return `Paid ${when(lot.last_payment.received_at)} · ${methodWord(
+      lot.last_payment.method,
+    )}`;
   if (lot.paid_this_month) return "Payment logged this month";
   if (!lot.has_ledger) return "No rent recorded yet — comes from the lease";
   return "Nothing owed";
@@ -772,14 +766,34 @@ function LotRow({
           <Pill tone={s.tone}>{s.label}</Pill>
           {/* A minus sign in front of a rent figure reads as "owes". Say
               what a negative balance actually is instead. */}
-          {/* An em dash, not $0.00. Nothing is charged yet, and a zero would
-              read as "owes nothing" rather than "not set up". */}
-          <div className="mt-1.5 text-[19px] font-bold tracking-[-0.02em]">
-            {lot.has_ledger ? money(Math.abs(lot.owed)) : "—"}
-          </div>
-          {lot.owed < 0 && (
-            <div className="text-[11px] font-bold uppercase tracking-[0.05em] text-[#1B7A4B]">
-              In credit
+          {lot.has_ledger ? (
+            <>
+              <div className="mt-1.5 text-[19px] font-bold tracking-[-0.02em]">
+                {money(Math.abs(lot.owed))}
+              </div>
+              {lot.owed < 0 && (
+                <div className="text-[11px] font-bold uppercase tracking-[0.05em] text-[#1B7A4B]">
+                  In credit
+                </div>
+              )}
+            </>
+          ) : lot.last_payment ? (
+            <>
+              {/* No charge is recorded, so this is what Zo took - not a
+                  balance, and not a credit. Calling it credit implied the
+                  resident had overpaid something. */}
+              <div className="mt-1.5 text-[19px] font-bold tracking-[-0.02em] text-[#1B7A4B]">
+                {money(lot.last_payment.amount)}
+              </div>
+              <div className="text-[11px] font-bold uppercase tracking-[0.05em] text-[#1B7A4B]">
+                Received
+              </div>
+            </>
+          ) : (
+            /* An em dash, not $0.00. Nothing is charged and nothing is paid,
+               and a zero would read as "owes nothing". */
+            <div className="mt-1.5 text-[19px] font-bold tracking-[-0.02em]">
+              —
             </div>
           )}
         </div>
@@ -794,8 +808,22 @@ function LotRow({
             </p>
           )}
 
+          {lot.last_payment && (
+            <p className="text-[13.5px] leading-relaxed text-[#1B2231]">
+              Last payment: <b>{money(lot.last_payment.amount)}</b> on{" "}
+              {when(lot.last_payment.received_at)} ·{" "}
+              {methodWord(lot.last_payment.method)}
+              {lot.last_payment.receipt_number && (
+                <>
+                  <br />
+                  Receipt <b>{lot.last_payment.receipt_number}</b>
+                </>
+              )}
+            </p>
+          )}
+
           {!lot.has_ledger && (
-            <p className="text-[13.5px] leading-relaxed text-[#6C7484]">
+            <p className="mt-2 text-[13.5px] leading-relaxed text-[#6C7484]">
               No rent amount is recorded for this home yet — it comes from the
               lease. You can still log a payment.
             </p>
@@ -835,6 +863,13 @@ function LotRow({
       )}
     </div>
   );
+}
+
+function methodWord(method: string | null) {
+  if (method === "money_order") return "money order";
+  if (method === "cashiers_check") return "cashier's check";
+  if (method === "cash") return "cash";
+  return "payment";
 }
 
 function daysUntil(date: string) {

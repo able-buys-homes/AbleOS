@@ -507,19 +507,27 @@ export function Sheets({
           </div>
         </div>
 
-        <div className="mb-4.5 grid grid-cols-2 gap-3">
-          <div>
+        {/* Same fix as the payment form. A native date input has an intrinsic
+            minimum width that ignores its column and runs off a 390px screen. */}
+        <div className="mb-4.5 grid gap-3 sm:grid-cols-2">
+          <div className="min-w-0">
             <Label>First one due</Label>
             <input
-              className={inputClass}
+              className={`${inputClass} block appearance-none`}
+              // The first payment of a plan cannot already have passed.
+              min={new Date().toISOString().slice(0, 10)}
               onChange={(e) => setFirstDue(e.target.value)}
               type="date"
               value={firstDue}
             />
           </div>
-          <div>
+          <div className="min-w-0">
             <Label>How often</Label>
-            <select className={inputClass} onChange={(e) => setFreq(e.target.value)} value={freq}>
+            <select
+              className={inputClass}
+              onChange={(e) => setFreq(e.target.value)}
+              value={freq}
+            >
               <option>Every two weeks</option>
               <option>Weekly</option>
               <option>Monthly</option>
