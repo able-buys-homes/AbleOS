@@ -4,9 +4,9 @@ import {
   useNotificationTarget,
 } from "../lib/useNotificationTarget";
 import { motion } from "framer-motion";
-import { Link } from "react-router-dom";
 import { UserMenu } from "../components/UserMenu";
 import { NotificationBell } from "../components/NotificationBell";
+import { ZoTabBar } from "../components/ZoTabBar";
 import { apiFetch } from "../lib/apiFetch";
 import {
   StageRow,
@@ -301,29 +301,9 @@ export function ZoCockpit() {
               src="/able-logo.png"
             />
             <div className="flex items-center gap-3">
-              <nav
-                aria-label="Workspace pages"
-                className="flex items-center gap-1 rounded-full bg-white/15 p-1"
-              >
-                <span
-                  aria-current="page"
-                  className="rounded-full bg-white px-3 py-2 text-[16px] font-medium text-[#1E3A8A]"
-                >
-                  Cockpit
-                </span>
-                <Link
-                  className="rounded-full px-3 py-2 text-[16px] font-medium text-white/80 transition-colors hover:text-white focus:outline-none focus:ring-2 focus:ring-white"
-                  to="/zo/inspect"
-                >
-                  Inspect
-                </Link>
-                <Link
-                  className="rounded-full px-3 py-2 text-[16px] font-medium text-white/80 transition-colors hover:text-white focus:outline-none focus:ring-2 focus:ring-white"
-                  to="/zo/collections"
-                >
-                  Collections
-                </Link>
-              </nav>
+              {/* The pill switcher is gone. The bar at the bottom does this
+                  now, and two navigations that disagree about where you are
+                  is worse than one. */}
               <NotificationBell />
               <UserMenu />
             </div>
@@ -333,7 +313,7 @@ export function ZoCockpit() {
             Executive workspace
           </p>
           <h1 className="mt-1 text-[32px] font-semibold leading-tight tracking-[-0.045em] sm:text-[38px] lg:text-[44px]">
-            Zo&apos;s Cockpit
+            Rehab
           </h1>
           <p className="mt-2 max-w-md text-[18px] font-medium text-white/85">
             Phase progress and checklist for your current build.
@@ -511,6 +491,7 @@ export function ZoCockpit() {
         <footer className="pt-10 text-center text-[16px] font-medium tracking-[0.12em] text-[#8291A5]">
           Able OS
         </footer>
+        <ZoTabBar />
       </main>
     </div>
   );

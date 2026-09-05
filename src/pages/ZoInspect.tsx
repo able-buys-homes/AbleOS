@@ -588,23 +588,8 @@ export function ZoInspect() {
               src="/able-logo.png"
             />
             <div className="flex items-center gap-3">
-              <nav
-                aria-label="Workspace pages"
-                className="flex items-center gap-1 rounded-full bg-white/15 p-1"
-              >
-                <Link
-                  className="rounded-full px-3 py-2 text-[16px] font-medium text-white/80 transition-colors hover:text-white focus:outline-none focus:ring-2 focus:ring-white"
-                  to="/zo"
-                >
-                  Cockpit
-                </Link>
-                <span
-                  aria-current="page"
-                  className="rounded-full bg-white px-3 py-2 text-[16px] font-medium text-[#1E3A8A]"
-                >
-                  Inspect
-                </span>
-              </nav>
+              {/* Removed along with the one on the Rehab screen. The bottom
+                  bar is the only navigation now. */}
               <UserMenu />
             </div>
           </div>

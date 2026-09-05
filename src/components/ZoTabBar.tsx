@@ -9,11 +9,15 @@ import { NavLink } from "react-router-dom";
 import {
   BanknoteIcon,
   ClipboardCheckIcon,
+  HardHatIcon,
   MapIcon,
   WrenchIcon,
 } from "lucide-react";
 
+// Hard hat for Rehab and wrench for Jobs, not two spanners. One is a build
+// that runs for months, the other is a leak Zo fixes this afternoon.
 const TABS = [
+  { to: "/zo", label: "Rehab", Icon: HardHatIcon },
   { to: "/zo/collections", label: "Rent", Icon: BanknoteIcon },
   { to: "/zo/jobs", label: "Jobs", Icon: WrenchIcon },
   { to: "/zo/map", label: "Map", Icon: MapIcon },
@@ -37,10 +41,13 @@ export function ZoTabBar() {
           {TABS.map(({ to, label, Icon }) => (
             <NavLink
               className={({ isActive }) =>
-                `flex flex-1 flex-col items-center gap-1 px-1 pb-2 pt-2.5 text-[11.5px] font-semibold ${
+                `flex flex-1 flex-col items-center gap-1 px-0.5 pb-2 pt-2.5 text-[11px] font-semibold ${
                   isActive ? "text-[#1E3A8A]" : "text-[#6C7484]"
                 }`
               }
+              // Rehab is at "/zo" itself, so without `end` it would light up
+              // on every child route.
+              end={to === "/zo"}
               key={to}
               to={to}
             >
