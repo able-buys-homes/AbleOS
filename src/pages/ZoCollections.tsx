@@ -180,6 +180,20 @@ export function ZoCollections() {
     (lot) => !lot.active_plan && !lot.occupied,
   );
 
+  // Nothing can generate a notice today, so an empty tab is a door to an
+  // empty room. Hidden until there is something behind it - the screen and
+  // the posting flow underneath it stay built and come back on their own.
+  const hasNotices = Boolean(
+    data && (data.notices.toPost.length > 0 || data.notices.posted.length > 0),
+  );
+
+  const tabs: [Tab, string][] = [
+    ["roll", "Who's paid"],
+    ["pay", "Take payment"],
+    ["plans", "Plans"],
+  ];
+  if (hasNotices) tabs.push(["notices", "Notices"]);
+
   return (
     <MobileScreenShell
       headerContent={
