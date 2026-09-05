@@ -199,14 +199,7 @@ export function ZoCollections() {
           </p>
 
           <div className="mt-4 flex gap-6 overflow-x-auto">
-            {(
-              [
-                ["roll", "Who's paid"],
-                ["pay", "Take payment"],
-                ["plans", "Plans"],
-                ["notices", "Notices"],
-              ] as const
-            ).map(([key, label]) => (
+            {tabs.map(([key, label]) => (
               <button
                 aria-selected={tab === key}
                 className={`whitespace-nowrap border-b-[3px] pb-3 text-[14px] font-semibold ${
