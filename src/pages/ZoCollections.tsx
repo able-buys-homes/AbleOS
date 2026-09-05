@@ -155,7 +155,14 @@ export function ZoCollections() {
     (lot) => lot.active_plan,
   );
   const late = (data?.pastDue ?? []).filter((lot) => !lot.active_plan);
-  const paid = (data?.current ?? []).filter((lot) => !lot.active_plan);
+  // An empty home is not a resident who paid. Counting it as one inflates
+  // the tile and makes a bad month look like a good one.
+  const paid = (data?.current ?? []).filter(
+    (lot) => !lot.active_plan && lot.occupied,
+  );
+  const vacant = (data?.current ?? []).filter(
+    (lot) => !lot.active_plan && !lot.occupied,
+  );
 
   return (
     <MobileScreenShell
@@ -339,6 +346,24 @@ export function ZoCollections() {
                 />
               ))}
             </Stack>
+
+            {vacant.length > 0 && (
+              <>
+                <SectionBar count={vacant.length} title="Empty" />
+                <Stack>
+                  {vacant.map((lot) => (
+                    <LotRow
+                      key={lot.id}
+                      lot={lot}
+                      onPay={() => openSheet("pay", lot)}
+                      onPlan={() => openSheet("plan", lot)}
+                      onPost={() => openSheet("post", lot)}
+                      onProof={setProofId}
+                    />
+                  ))}
+                </Stack>
+              </>
+            )}
 
             <SectionBar title="New resident?" />
             <Stack>
@@ -694,7 +719,8 @@ function subLine(lot: Lot) {
   if (lot.latest_notice) return "Notice ready to post";
   if (lot.pending_plan) return "Plan waiting on Raj";
   if (lot.active_plan) return "On an approved plan";
-  if (!lot.occupied) return "Vacant";
+  if (!lot.occupied) return "Nobody living here";
+  if (lot.owed < 0) return "Paid ahead";
   if (lot.owed > 0) return "Past due";
   return "Nothing owed";
 }
@@ -733,9 +759,16 @@ function LotRow({
         </div>
         <div className="shrink-0 text-right">
           <Pill tone={s.tone}>{s.label}</Pill>
+          {/* A minus sign in front of a rent figure reads as "owes". Say
+              what a negative balance actually is instead. */}
           <div className="mt-1.5 text-[19px] font-bold tracking-[-0.02em]">
-            {money(lot.owed)}
+            {money(Math.abs(lot.owed))}
           </div>
+          {lot.owed < 0 && (
+            <div className="text-[11px] font-bold uppercase tracking-[0.05em] text-[#1B7A4B]">
+              In credit
+            </div>
+          )}
         </div>
       </button>
 
