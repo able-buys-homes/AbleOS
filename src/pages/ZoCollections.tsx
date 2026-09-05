@@ -38,6 +38,8 @@ type Lot = {
   tenant_portion: string | number | null;
   occupied: boolean;
   is_sample: boolean;
+  paid_this_month: boolean;
+  has_ledger: boolean;
   owed: number;
   verified: boolean;
   locked: boolean;
@@ -76,7 +78,8 @@ function statusOf(lot: Lot) {
   if (lot.latest_notice)
     return { tone: "notice" as const, label: "Notice ready" };
   if (lot.owed > 0) return { tone: "late" as const, label: "Past due" };
-  return { tone: "ok" as const, label: "Paid" };
+  if (lot.paid_this_month) return { tone: "ok" as const, label: "Paid" };
+  return { tone: "late" as const, label: "Not paid" };
 }
 
 function tenancyLabel(lot: Lot) {
@@ -157,9 +160,15 @@ export function ZoCollections() {
   const late = (data?.pastDue ?? []).filter((lot) => !lot.active_plan);
   // An empty home is not a resident who paid. Counting it as one inflates
   // the tile and makes a bad month look like a good one.
-  const paid = (data?.current ?? []).filter(
+  // Split on a logged payment, not on a balance. There is no ledger for the
+  // real residents yet, so every balance is zero - and calling that "paid"
+  // would report seventeen people as square when nothing is known about any
+  // of them.
+  const settled = (data?.current ?? []).filter(
     (lot) => !lot.active_plan && lot.occupied,
   );
+  const paid = settled.filter((lot) => lot.paid_this_month);
+  const notPaid = settled.filter((lot) => !lot.paid_this_month);
   const vacant = (data?.current ?? []).filter(
     (lot) => !lot.active_plan && !lot.occupied,
   );
@@ -224,7 +233,7 @@ export function ZoCollections() {
         {tab === "roll" && data && (
           <>
             <div className="grid grid-cols-3 gap-2.5">
-              <Tile l="Late" n={String(late.length)} tone="late" />
+              <Tile l="Not paid yet" n={String(notPaid.length)} tone="late" />
               <Tile l="On a plan" n={String(onPlan.length)} tone="plan" />
               <Tile l="Paid" n={String(paid.length)} tone="paid" />
             </div>
@@ -245,14 +254,34 @@ export function ZoCollections() {
               Tap a name to see what they owe or to take a payment.
             </p>
 
-            <SectionBar count={late.length} title="Late" />
+            {/* Hidden until a ledger exists. An empty "Late" heading reads as
+                nobody being late, which is not the same as not knowing. */}
+            {late.length > 0 && (
+              <>
+                <SectionBar count={late.length} title="Late" />
+                <Stack>
+                  {late.map((lot) => (
+                    <LotRow
+                      key={lot.id}
+                      lot={lot}
+                      onPay={() => openSheet("pay", lot)}
+                      onPlan={() => openSheet("plan", lot)}
+                      onPost={() => openSheet("post", lot)}
+                      onProof={setProofId}
+                    />
+                  ))}
+                </Stack>
+              </>
+            )}
+
+            <SectionBar count={notPaid.length} title="Not paid yet" />
             <Stack>
-              {late.length === 0 && (
+              {notPaid.length === 0 && (
                 <div className="p-4 text-[15px] text-[#6C7484]">
-                  Nobody is late. Nothing to do here today.
+                  Everyone has paid this month.
                 </div>
               )}
-              {late.map((lot) => (
+              {notPaid.map((lot) => (
                 <LotRow
                   key={lot.id}
                   lot={lot}
@@ -701,6 +730,8 @@ function subLine(lot: Lot) {
   if (!lot.occupied) return "Nobody living here";
   if (lot.owed < 0) return "Paid ahead";
   if (lot.owed > 0) return "Past due";
+  if (lot.paid_this_month) return "Payment logged this month";
+  if (!lot.has_ledger) return "No rent recorded yet — comes from the lease";
   return "Nothing owed";
 }
 
@@ -740,8 +771,10 @@ function LotRow({
           <Pill tone={s.tone}>{s.label}</Pill>
           {/* A minus sign in front of a rent figure reads as "owes". Say
               what a negative balance actually is instead. */}
+          {/* An em dash, not $0.00. Nothing is charged yet, and a zero would
+              read as "owes nothing" rather than "not set up". */}
           <div className="mt-1.5 text-[19px] font-bold tracking-[-0.02em]">
-            {money(Math.abs(lot.owed))}
+            {lot.has_ledger ? money(Math.abs(lot.owed)) : "—"}
           </div>
           {lot.owed < 0 && (
             <div className="text-[11px] font-bold uppercase tracking-[0.05em] text-[#1B7A4B]">

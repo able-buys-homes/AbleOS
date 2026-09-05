@@ -484,6 +484,7 @@ export default async function handler(req, res) {
             if (!noticeByLot.has(n.lot_id)) noticeByLot.set(n.lot_id, n);
         }
 
+        const now = new Date();
         const enriched = lots.map((lot) => {
             const owed = balanceFor(lot.id, charges, payments);
             const openCase = openCaseByLot.get(lot.id) ?? null;
@@ -493,6 +494,18 @@ export default async function handler(req, res) {
             return {
                 ...lot,
                 owed,
+                // Payment status without a ledger. Charges are not recorded
+                // for the real residents yet, so a balance of zero means
+                // "nothing is known", not "they paid". A payment Zo logged is
+                // the only thing we can honestly call proof of payment today.
+                paid_this_month: payments.some(
+                    (p) =>
+                        p.lot_id === lot.id &&
+                        new Date(p.received_at).getMonth() === now.getMonth() &&
+                        new Date(p.received_at).getFullYear() ===
+                            now.getFullYear(),
+                ),
+                has_ledger: charges.some((c) => c.lot_id === lot.id),
                 verified: isVerified(lot.id, charges),
                 // A lot with counsel is locked to everyone but Raj. Taking
                 // money on it can get the case dismissed.
