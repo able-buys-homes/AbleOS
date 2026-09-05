@@ -268,25 +268,30 @@ export function ZoCollections() {
               Tap a name to see what they owe or to take a payment.
             </p>
 
-            {/* Hidden until a ledger exists. An empty "Late" heading reads as
-                nobody being late, which is not the same as not knowing. */}
-            {late.length > 0 && (
-              <>
-                <SectionBar count={late.length} title="Late" />
-                <Stack>
-                  {late.map((lot) => (
-                    <LotRow
-                      key={lot.id}
-                      lot={lot}
-                      onPay={() => openSheet("pay", lot)}
-                      onPlan={() => openSheet("plan", lot)}
-                      onPost={() => openSheet("post", lot)}
-                      onProof={setProofId}
-                    />
-                  ))}
-                </Stack>
-              </>
-            )}
+            {/* Always on screen now, so the section exists where the mock puts
+                it. The empty line says why it is empty. It must never read as
+                "nobody is late" - that is a claim about the residents, and
+                this is a gap in the records. */}
+            <SectionBar count={late.length} title="Late" />
+            <Stack>
+              {late.length === 0 && (
+                <div className="p-4 text-[15px] text-[#6C7484]">
+                  Nothing here yet. Rent is due the 1st and the 5th is the last
+                  day to pay before a $75 late fee — but no rent amount is
+                  recorded against these lots, so nobody can be marked late.
+                </div>
+              )}
+              {late.map((lot) => (
+                <LotRow
+                  key={lot.id}
+                  lot={lot}
+                  onPay={() => openSheet("pay", lot)}
+                  onPlan={() => openSheet("plan", lot)}
+                  onPost={() => openSheet("post", lot)}
+                  onProof={setProofId}
+                />
+              ))}
+            </Stack>
 
             <SectionBar count={notPaid.length} title="Not paid yet" />
             <Stack>
