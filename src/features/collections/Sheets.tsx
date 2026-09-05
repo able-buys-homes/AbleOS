@@ -20,6 +20,8 @@ type Props = {
   data: { pastDue: Lot[]; current: Lot[] } | null;
   onClose: () => void;
   onDone: (message: string) => void;
+  /** Render as a panel in the page instead of a sheet over it. */
+  inline?: boolean;
 };
 
 function Shell({
@@ -28,13 +30,34 @@ function Shell({
   onClose,
   children,
   footer,
+  inline = false,
 }: {
   title: string;
   sub?: string;
   onClose: () => void;
   children: React.ReactNode;
   footer: React.ReactNode;
+  inline?: boolean;
 }) {
+  // Same form, no overlay. Used when it is a tab in its own right rather
+  // than a sheet thrown over a list Zo can no longer read.
+  if (inline) {
+    return (
+      <div className="mt-4 overflow-hidden rounded-[18px] border border-[#DCE4EE] bg-[#F1F2F4]">
+        <div className="bg-[#1E3A8A] px-5 py-4 text-white">
+          <h2 className="text-[17px] font-bold tracking-[-0.01em]">{title}</h2>
+          {sub && (
+            <div className="mt-0.5 text-[12.5px] text-[#A9B4CC]">{sub}</div>
+          )}
+        </div>
+        <div className="p-5">{children}</div>
+        <div className="flex gap-2.5 border-t border-[#E3E5E9] bg-white px-5 py-3.5 [&>button]:flex-1">
+          {footer}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
       className="fixed inset-0 z-[60] flex items-end justify-center bg-[#141A28]/55 sm:items-center"
@@ -136,7 +159,14 @@ function Shot({
   );
 }
 
-export function Sheets({ kind, lot, data, onClose, onDone }: Props) {
+export function Sheets({
+  kind,
+  lot,
+  data,
+  onClose,
+  onDone,
+  inline = false,
+}: Props) {
   const [busy, setBusy] = React.useState(false);
   const [problem, setProblem] = React.useState("");
 
@@ -278,6 +308,7 @@ export function Sheets({ kind, lot, data, onClose, onDone }: Props) {
             </Btn>
           </>
         }
+        inline={inline}
         onClose={onClose}
         sub={lot ? `Lot ${lot.lot_number}` : undefined}
         title="Log a payment"

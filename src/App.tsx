@@ -15,6 +15,8 @@ import { LandingPage } from "./pages/LandingPage";
 import { PipelineBoard } from "./pages/PipelineBoard";
 import { DocumentTitle } from "./lib/DocumentTitle";
 import { ZoCollections } from "./pages/ZoCollections";
+import { ZoJobs } from "./pages/ZoJobs";
+import { ZoMap } from "./pages/ZoMap";
 import { RajApprovals } from "./pages/RajApprovals";
 
 export function App() {
@@ -84,6 +86,25 @@ export function App() {
             element={
               <ProtectedRoute cockpit="zo">
                 <ZoInspect />
+              </ProtectedRoute>
+            }
+          />
+          {/* Jobs and Map are stubs today. They are routed anyway so the
+              bottom bar has four real destinations - a tab that goes
+              nowhere teaches Zo not to trust the tabs. */}
+          <Route
+            path="/zo/jobs"
+            element={
+              <ProtectedRoute cockpit="zo">
+                <ZoJobs />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/zo/map"
+            element={
+              <ProtectedRoute cockpit="zo">
+                <ZoMap />
               </ProtectedRoute>
             }
           />

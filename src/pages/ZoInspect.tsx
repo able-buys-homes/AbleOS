@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { MobileScreenShell } from "../components/MobileScreenShell";
 import { UserMenu } from "../components/UserMenu";
+import { ZoTabBar } from "../components/ZoTabBar";
 import { apiFetch } from "../lib/apiFetch";
 import { useAuth } from "../lib/AuthProvider";
 
@@ -969,7 +970,11 @@ export function ZoInspect() {
       </div>
 
       {/* Sticky footer, same as the standalone form */}
-      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-[#DCE4EE] bg-white px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3">
+      {/* Clears the action bar, which now sits above the tab bar rather than
+          on the floor of the screen. */}
+      <div aria-hidden="true" className="h-[78px]" />
+
+      <div className="fixed inset-x-0 bottom-[calc(68px+env(safe-area-inset-bottom))] z-40 border-t border-[#DCE4EE] bg-white px-4 pb-3 pt-3">
         <div className="mx-auto flex max-w-lg items-center gap-3">
           <div className="min-w-0 flex-1">
             <p className="truncate text-[15px] font-semibold text-[#1A1A2E]">
@@ -990,6 +995,8 @@ export function ZoInspect() {
           </button>
         </div>
       </div>
+
+      <ZoTabBar />
     </MobileScreenShell>
   );
 }
