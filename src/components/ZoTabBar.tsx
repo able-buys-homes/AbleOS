@@ -41,7 +41,7 @@ export function ZoTabBar() {
           {TABS.map(({ to, label, Icon }) => (
             <NavLink
               className={({ isActive }) =>
-                `flex flex-1 flex-col items-center gap-1 px-0.5 pb-2 pt-2.5 text-[11px] font-semibold ${
+                `flex flex-1 flex-col items-center gap-1 px-0.5 pb-2 pt-2.5 ${
                   isActive ? "text-[#1E3A8A]" : "text-[#6C7484]"
                 }`
               }
@@ -51,16 +51,15 @@ export function ZoTabBar() {
               key={to}
               to={to}
             >
-              {({ isActive }) => (
-                <>
-                  <Icon
-                    aria-hidden="true"
-                    size={22}
-                    strokeWidth={isActive ? 2.4 : 1.9}
-                  />
-                  <span>{label}</span>
-                </>
-              )}
+              <>
+                {/* Identical size and weight on all five. The active tab
+                    differs by colour and nothing else - a heavier stroke on
+                    the active icon read as a larger label. */}
+                <Icon aria-hidden="true" size={22} strokeWidth={2} />
+                <span className="text-[11px] font-semibold leading-none">
+                  {label}
+                </span>
+              </>
             </NavLink>
           ))}
         </div>
