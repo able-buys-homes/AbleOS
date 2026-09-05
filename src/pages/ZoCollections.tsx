@@ -37,6 +37,7 @@ type Lot = {
   contract_rent: string | number | null;
   tenant_portion: string | number | null;
   occupied: boolean;
+  is_sample: boolean;
   owed: number;
   verified: boolean;
   locked: boolean;
@@ -211,6 +212,27 @@ export function ZoCollections() {
             {problem}
           </div>
         )}
+
+        {/* Shown on every tab, not just the roll. The payment dropdown lists
+            these names too, and a warning that only appears on one screen is
+            a warning Zo can walk past. */}
+        {data &&
+          [...data.pastDue, ...data.current, ...data.withCounsel].some(
+            (lot) => lot.is_sample,
+          ) && (
+            <div className="mt-4 rounded-2xl border-2 border-[#B3261E] bg-[#FDF2F1] p-4">
+              <div className="text-[15px] font-bold text-[#B3261E]">
+                SAMPLE DATA — these are not real residents
+              </div>
+              <p className="mt-1.5 text-[13.5px] leading-relaxed text-[#8A1F19]">
+                Every name and amount marked below was invented while this
+                screen was built. Do not collect against them, do not call
+                anyone on this list, and do not print anything from it. The
+                real roll gets built one home at a time, from the lease and
+                your own walk.
+              </p>
+            </div>
+          )}
 
         {/* ---------------- RENT ROLL ---------------- */}
         {tab === "roll" && data && (
@@ -600,6 +622,16 @@ export function ZoCollections() {
 
 /* ---------------- small pieces ---------------- */
 
+// Sits on the row itself, not only in the banner at the top. Zo scrolls, and
+// a header warning stops being visible the moment he does.
+function SampleTag() {
+  return (
+    <div className="mt-1 inline-block rounded bg-[#FDE7E5] px-1.5 py-0.5 text-[10.5px] font-bold uppercase tracking-[0.06em] text-[#B3261E]">
+      Sample data — not a real resident
+    </div>
+  );
+}
+
 function Tile({
   n,
   l,
@@ -643,6 +675,7 @@ function LotHead({ lot }: { lot: Lot }) {
         <div className="text-[17px] font-bold tracking-[-0.01em]">
           Lot {lot.lot_number}
         </div>
+        {lot.is_sample && <SampleTag />}
         <div className="mt-0.5 text-[14px] text-[#6C7484]">
           {lot.tenant_name ?? "Vacant"}
         </div>
@@ -695,6 +728,7 @@ function LotRow({
           <div className="text-[16px] font-bold tracking-[-0.01em]">
             Lot {lot.lot_number} — {lot.tenant_name ?? "Vacant"}
           </div>
+          {lot.is_sample && <SampleTag />}
           <div className="mt-1 text-[13px] text-[#6C7484]">{subLine(lot)}</div>
         </div>
         <div className="shrink-0 text-right">
