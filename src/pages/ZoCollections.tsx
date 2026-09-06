@@ -87,7 +87,12 @@ function statusOf(lot: Lot) {
     return { tone: "notice" as const, label: "Posted" };
   if (lot.latest_notice)
     return { tone: "notice" as const, label: "Notice ready" };
-  if (lot.owed > 0) return { tone: "late" as const, label: "Past due" };
+  // Owing and being late are different states and must not share a word.
+  // "Past due" on the 3rd tells Zo to chase someone who has two days left.
+  if (lot.owed > 0)
+    return lot.is_late
+      ? { tone: "late" as const, label: "Late" }
+      : { tone: "plan" as const, label: "Due" };
   if (lot.paid_this_month) return { tone: "ok" as const, label: "Paid" };
   return { tone: "late" as const, label: "Not paid" };
 }
@@ -756,7 +761,7 @@ function subLine(lot: Lot) {
   if (lot.active_plan) return "On an approved plan";
   if (!lot.occupied) return "Nobody living here";
   if (lot.owed < 0) return "Paid ahead";
-  if (lot.owed > 0) return "Past due";
+  if (lot.owed > 0) return lot.is_late ? "Late" : "Due now — not late yet";
   if (lot.paid_this_month && lot.last_payment)
     return `Paid ${when(lot.last_payment.received_at)} · ${methodWord(
       lot.last_payment.method,
