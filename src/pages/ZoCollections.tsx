@@ -749,7 +749,12 @@ function subLine(lot: Lot) {
       lot.last_payment.method,
     )}`;
   if (lot.paid_this_month) return "Payment logged this month";
-  if (!lot.has_ledger) return "No rent recorded yet — comes from the lease";
+  if (!lot.contract_rent) return "No rent recorded yet — comes from the lease";
+  if (!lot.rent_confirmed_at)
+    return `${money(
+      lot.tenant_portion ?? lot.contract_rent,
+    )} a month — waiting on Raj to confirm`;
+  if (!lot.has_ledger) return "Rent confirmed — this month not charged yet";
   return "Nothing owed";
 }
 
@@ -847,10 +852,21 @@ function LotRow({
             </p>
           )}
 
-          {!lot.has_ledger && (
+          {!lot.contract_rent && (
             <p className="mt-2 text-[13.5px] leading-relaxed text-[#6C7484]">
               No rent amount is recorded for this home yet — it comes from the
               lease. You can still log a payment.
+            </p>
+          )}
+
+          {/* Recorded but not agreed. Saying "no rent recorded" here while a
+              figure sits on the lot is how a screen loses its reader. */}
+          {Boolean(lot.contract_rent) && !lot.rent_confirmed_at && (
+            <p className="mt-2 text-[13.5px] leading-relaxed text-[#6C7484]">
+              {money(lot.tenant_portion ?? lot.contract_rent)} a month is
+              recorded{lot.rent_set_by ? `, entered by ${lot.rent_set_by}` : ""}
+              . Raj has not confirmed it, so nothing is charged and nobody can
+              be late on it yet.
             </p>
           )}
 
