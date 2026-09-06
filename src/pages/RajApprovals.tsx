@@ -29,10 +29,13 @@ type Lot = {
   hap_household: boolean;
   contract_rent: string | number | null;
   tenant_portion: string | number | null;
+  rent_set_by: string | null;
+  rent_note: string | null;
   owed: number;
 };
 
 type Payload = {
+  rent: Lot[];
   verify: Lot[];
   approve: any[];
   deadlines: any[];
@@ -116,6 +119,70 @@ export function RajApprovals() {
             {problem}
           </div>
         )}
+
+        {/* Upstream of everything else on this screen. A wrong figure here
+            becomes a wrong balance, then a wrong notice, then a wrong late
+            fee — so it is the first thing Raj sees. */}
+        <SectionBar count={data?.rent.length} title="Rent amounts to confirm" />
+        <Stack>
+          {data?.rent.length === 0 && (
+            <div className="p-4 text-[15px] text-[#6C7484]">
+              Nothing waiting. Amounts Zo records appear here before they can
+              charge anything.
+            </div>
+          )}
+
+          {data?.rent.map((lot) => (
+            <Item
+              awaiting
+              key={lot.id}
+              lines={[
+                lot.hap_household
+                  ? `Tenant pays ${money(lot.tenant_portion)} of ${money(
+                      lot.contract_rent,
+                    )} contract rent`
+                  : `${money(lot.contract_rent)} a month`,
+                lot.rent_set_by ? `Entered by ${lot.rent_set_by}` : "",
+                lot.rent_note ?? "",
+              ].filter(Boolean)}
+              meta={lot.hap_household ? "Housing assistance" : undefined}
+              title={`Lot ${lot.lot_number} — ${lot.tenant_name}`}
+            >
+              <Note title="Check it against the lease">
+                Confirming charges this month at this amount and lets a $75 late
+                fee rest on it. Nobody else who touched this figure has seen the
+                lease — only you can say it is right.
+              </Note>
+              <div className="mt-3.5 flex flex-wrap gap-2.5">
+                <Btn
+                  disabled={busy !== null}
+                  onClick={() =>
+                    act(
+                      "/api/collections?rent=1",
+                      { lot_id: lot.id },
+                      `r-${lot.id}`,
+                    )
+                  }
+                  variant="primary"
+                >
+                  {busy === `r-${lot.id}`
+                    ? "Confirming…"
+                    : "Confirm — charge this month"}
+                </Btn>
+                <Btn
+                  onClick={() =>
+                    say(
+                      "Left unconfirmed. Nothing is charged. Tell Zo what the figure should be.",
+                      true,
+                    )
+                  }
+                >
+                  Not right
+                </Btn>
+              </div>
+            </Item>
+          ))}
+        </Stack>
 
         <SectionBar
           count={data?.verify.length}

@@ -726,6 +726,13 @@ export default async function handler(req, res) {
             }
 
             return res.status(200).json({
+                // A rent amount someone typed but nobody has agreed to. Until
+                // Raj confirms it, it charges nothing and no late fee can rest
+                // on it - so this queue is the only thing standing between a
+                // mistyped figure and a resident being chased for it.
+                rent: enriched.filter(
+                    (l) => l.contract_rent != null && !l.rent_confirmed_at,
+                ),
                 // A balance only reaches Raj once something is owed and it has
                 // not yet been verified. Verification is the gate on the whole
                 // eviction cascade.
