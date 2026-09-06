@@ -55,6 +55,7 @@ type Lot = {
   latest_notice: { id: string; posted_at: string | null } | null;
   rent_set_by: string | null;
   rent_confirmed_at: string | null;
+  is_late: boolean;
 };
 
 type Payload = {
@@ -167,7 +168,15 @@ export function ZoCollections() {
   const onPlan = [...(data?.pastDue ?? []), ...(data?.current ?? [])].filter(
     (lot) => lot.active_plan,
   );
-  const late = (data?.pastDue ?? []).filter((lot) => !lot.active_plan);
+  const late = (data?.pastDue ?? []).filter(
+    (lot) => !lot.active_plan && lot.is_late,
+  );
+  // Owes rent, but the 5th has not passed. Not late — so these belong with
+  // the people who simply have not paid yet, not in a section that reads as
+  // the first step towards eviction.
+  const dueNotLate = (data?.pastDue ?? []).filter(
+    (lot) => !lot.active_plan && !lot.is_late,
+  );
   // An empty home is not a resident who paid. Counting it as one inflates
   // the tile and makes a bad month look like a good one.
   // Split on a logged payment, not on a balance. There is no ledger for the
@@ -178,7 +187,10 @@ export function ZoCollections() {
     (lot) => !lot.active_plan && lot.occupied,
   );
   const paid = settled.filter((lot) => lot.paid_this_month);
-  const notPaid = settled.filter((lot) => !lot.paid_this_month);
+  const notPaid = [
+    ...dueNotLate,
+    ...settled.filter((lot) => !lot.paid_this_month),
+  ];
   const vacant = (data?.current ?? []).filter(
     (lot) => !lot.active_plan && !lot.occupied,
   );
@@ -279,9 +291,10 @@ export function ZoCollections() {
             <Stack>
               {late.length === 0 && (
                 <div className="p-4 text-[15px] text-[#6C7484]">
-                  Nothing here yet. Rent is due the 1st and the 5th is the last
-                  day to pay before a $75 late fee — but no rent amount is
-                  recorded against these lots, so nobody can be marked late.
+                  Nobody with a recorded rent is late. Rent is due on the 1st,
+                  the 5th is the last day to pay, and a $75 fee is added from
+                  the 6th. A lot with no rent amount recorded cannot appear
+                  here at all.
                 </div>
               )}
               {late.map((lot) => (

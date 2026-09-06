@@ -60,7 +60,7 @@ const ROUTES = {
     "drive-folders": driveFolders,
     deals,
     documents,
-    "drive-upload-url": driveUploadUrl,
+    "drive-upload-url": driveUploadUrl, 
     "late-fees": lateFees,
     leads,
     notifications,

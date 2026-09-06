@@ -16,6 +16,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { randomUUID } from "node:crypto";
 import { requireUser } from "../lib/apiAuth.js";
+import { pastGrace } from "../lib/rentRules.js";
 
 const PROPERTY = "Hometown Meadows MHP";
 
@@ -615,6 +616,9 @@ export default async function handler(req, res) {
         }
 
         const now = new Date();
+        // The same answer for every lot this month, so it is decided once.
+        const graceOver = pastGrace();
+
         const enriched = lots.map((lot) => {
             const owed = balanceFor(lot.id, charges, payments);
             const openCase = openCaseByLot.get(lot.id) ?? null;
@@ -648,6 +652,12 @@ export default async function handler(req, res) {
                             ),
                         )[0] ?? null,
                 verified: isVerified(lot.id, charges),
+                // Owing money is not the same as being late. Inside the grace
+                // period a resident who has not paid is simply not late yet -
+                // the 5th is the last day. Filing them under Late is how
+                // someone gets chased on the 3rd for rent they still have two
+                // days to pay.
+                is_late: owed > 0 && graceOver,
                 // A lot with counsel is locked to everyone but Raj. Taking
                 // money on it can get the case dismissed.
                 locked: Boolean(openCase),
