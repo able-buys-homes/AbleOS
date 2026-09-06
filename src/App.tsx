@@ -15,6 +15,7 @@ import { LandingPage } from "./pages/LandingPage";
 import { PipelineBoard } from "./pages/PipelineBoard";
 import { DocumentTitle } from "./lib/DocumentTitle";
 import { ZoCollections } from "./pages/ZoCollections";
+import { HtmApplication } from "./pages/HtmApplication";
 import { ZoJobs } from "./pages/ZoJobs";
 import { ZoMap } from "./pages/ZoMap";
 import { RajApprovals } from "./pages/RajApprovals";
@@ -78,6 +79,17 @@ export function App() {
             element={
               <ProtectedRoute cockpit="zo">
                 <ZoCollections />
+              </ProtectedRoute>
+            }
+          />
+          {/* The residency application. Behind the same guard as the rent
+              roll, because it collects dates of birth and licence numbers.
+              It never sits on an open route. */}
+          <Route
+            path="/zo/apply"
+            element={
+              <ProtectedRoute cockpit="zo">
+                <HtmApplication />
               </ProtectedRoute>
             }
           />

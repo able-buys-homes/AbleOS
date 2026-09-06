@@ -506,6 +506,17 @@ export default async function handler(req, res) {
                             now.getFullYear(),
                 ),
                 has_ledger: charges.some((c) => c.lot_id === lot.id),
+                // The most recent payment, so the row can say what was taken
+                // and when. A boolean told Zo that a payment happened and
+                // nothing about it - he could not check his own work.
+                last_payment:
+                    payments
+                        .filter((p) => p.lot_id === lot.id)
+                        .sort((a, b) =>
+                            String(b.received_at).localeCompare(
+                                String(a.received_at),
+                            ),
+                        )[0] ?? null,
                 verified: isVerified(lot.id, charges),
                 // A lot with counsel is locked to everyone but Raj. Taking
                 // money on it can get the case dismissed.

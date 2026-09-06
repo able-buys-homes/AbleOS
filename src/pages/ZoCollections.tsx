@@ -8,7 +8,7 @@
 // unchanged. The copy is the training - it is written for someone standing in
 // a gravel driveway on a phone, so none of it is shortened here.
 import React from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { ArrowLeftIcon } from "lucide-react";
 import { MobileScreenShell } from "../components/MobileScreenShell";
 import { UserMenu } from "../components/UserMenu";
@@ -97,6 +97,7 @@ function tenancyLabel(lot: Lot) {
 }
 
 export function ZoCollections() {
+  const navigate = useNavigate();
   const [tab, setTab] = React.useState<Tab>("roll");
   const [data, setData] = React.useState<Payload | null>(null);
   const [problem, setProblem] = React.useState("");
@@ -399,10 +400,13 @@ export function ZoCollections() {
                   Application for residency
                 </div>
                 <p className="mt-1 text-[13.5px] text-[#6C7484]">
-                  Not ready yet — keep using the paper form.
+                  Fill it in with them standing there. It saves when you
+                  submit — nothing is kept if you close it half done.
                 </p>
                 <div className="mt-3.5 flex flex-wrap gap-2.5">
-                  <Btn disabled>Fill it in here</Btn>
+                  <Btn onClick={() => navigate("/zo/apply")} variant="primary">
+                    Fill it in here
+                  </Btn>
                   {BLANK_APPLICATION_URL ? (
                     <Btn
                       onClick={() =>
