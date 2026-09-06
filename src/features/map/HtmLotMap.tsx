@@ -8,6 +8,7 @@
 // can never become a second opinion about who lives where.
 
 import React from "react";
+import { useNavigate } from "react-router-dom";
 
 export type LotStatus =
   | "occupied"
@@ -219,6 +220,7 @@ export function HtmLotMap({
   lots?: Lot[];
   onSelect?: (lot: Lot) => void;
 }) {
+  const navigate = useNavigate();
   const [filter, setFilter] = React.useState<LotStatus | null>(null);
   const [selected, setSelected] = React.useState<Lot | null>(null);
   const detailRef = React.useRef<HTMLDivElement>(null);
@@ -424,6 +426,39 @@ export function HtmLotMap({
                 Nothing recorded for this home yet. Walk it and file an
                 inspection to fill this in.
               </p>
+            )}
+
+            {/* Only the actions that have somewhere real to go. Jobs have no
+                table behind them yet, so that button says so instead of
+                opening an empty screen - a button that does nothing teaches
+                Zo to stop pressing buttons. The office is not a home and
+                gets none of these. */}
+            {selected.status !== "common_area" && (
+              <div className="mt-3.5 flex flex-wrap gap-2.5 border-t border-[#E3E5E9] pt-3.5">
+                {selected.status === "occupied" && (
+                  <button
+                    className="rounded-[10px] bg-[#1E3A8A] px-3.5 py-2.5 text-[14px] font-semibold text-white"
+                    onClick={() => navigate("/zo/collections")}
+                    type="button"
+                  >
+                    Take payment
+                  </button>
+                )}
+                <button
+                  className="rounded-[10px] border border-[#DCE4EE] bg-white px-3.5 py-2.5 text-[14px] font-semibold text-[#1B2231]"
+                  onClick={() => navigate("/zo/inspect")}
+                  type="button"
+                >
+                  Open in Inspect
+                </button>
+                <button
+                  className="rounded-[10px] border border-[#DCE4EE] bg-white px-3.5 py-2.5 text-[14px] font-semibold text-[#9AA1AC]"
+                  disabled
+                  type="button"
+                >
+                  New job — not built yet
+                </button>
+              </div>
             )}
           </div>
         ) : (
