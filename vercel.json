@@ -1,4 +1,10 @@
 {
+  "crons": [
+    {
+      "path": "/api/late-fees",
+      "schedule": "0 13 * * *"
+    }
+  ],
   "rewrites": [
     {
       "source": "/api/(.*)",

@@ -22,6 +22,7 @@ import driveFolders from "../routes/drive-folders.js";
 import deals from "../routes/deals.js";
 import documents from "../routes/documents.js";
 import driveUploadUrl from "../routes/drive-upload-url.js";
+import lateFees from "../routes/late-fees.js";
 import leads from "../routes/leads.js";
 import notifications from "../routes/notifications.js";
 import opsAlert from "../routes/ops-alert.js";
@@ -60,6 +61,7 @@ const ROUTES = {
     deals,
     documents,
     "drive-upload-url": driveUploadUrl,
+    "late-fees": lateFees,
     leads,
     notifications,
     "ops-alert": opsAlert,
