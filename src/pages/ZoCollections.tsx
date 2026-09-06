@@ -53,6 +53,8 @@ type Lot = {
   active_plan: { id: string; status: string } | null;
   pending_plan: { id: string; status: string } | null;
   latest_notice: { id: string; posted_at: string | null } | null;
+  rent_set_by: string | null;
+  rent_confirmed_at: string | null;
 };
 
 type Payload = {
@@ -104,9 +106,9 @@ export function ZoCollections() {
   const [toast, setToast] = React.useState<{ msg: string; stop?: boolean }>({
     msg: "",
   });
-  const [sheet, setSheet] = React.useState<null | "pay" | "plan" | "post">(
-    null,
-  );
+  const [sheet, setSheet] = React.useState<
+    null | "pay" | "plan" | "post" | "rent"
+  >(null);
   const [sheetLot, setSheetLot] = React.useState<Lot | null>(null);
   const [proofId, setProofId] = React.useState<string | null>(null);
 
@@ -152,7 +154,7 @@ export function ZoCollections() {
     window.setTimeout(() => setToast({ msg: "" }), 4200);
   }
 
-  function openSheet(kind: "pay" | "plan" | "post", lot?: Lot) {
+  function openSheet(kind: "pay" | "plan" | "post" | "rent", lot?: Lot) {
     setSheetLot(lot ?? null);
     setSheet(kind);
   }
@@ -289,6 +291,7 @@ export function ZoCollections() {
                   onPay={() => openSheet("pay", lot)}
                   onPlan={() => openSheet("plan", lot)}
                   onPost={() => openSheet("post", lot)}
+                  onSetRent={() => openSheet("rent", lot)}
                   onProof={setProofId}
                 />
               ))}
@@ -308,6 +311,7 @@ export function ZoCollections() {
                   onPay={() => openSheet("pay", lot)}
                   onPlan={() => openSheet("plan", lot)}
                   onPost={() => openSheet("post", lot)}
+                  onSetRent={() => openSheet("rent", lot)}
                   onProof={setProofId}
                 />
               ))}
@@ -356,6 +360,7 @@ export function ZoCollections() {
                   onPay={() => openSheet("pay", lot)}
                   onPlan={() => openSheet("plan", lot)}
                   onPost={() => openSheet("post", lot)}
+                  onSetRent={() => openSheet("rent", lot)}
                   onProof={setProofId}
                 />
               ))}
@@ -370,6 +375,7 @@ export function ZoCollections() {
                   onPay={() => openSheet("pay", lot)}
                   onPlan={() => openSheet("plan", lot)}
                   onPost={() => openSheet("post", lot)}
+                  onSetRent={() => openSheet("rent", lot)}
                   onProof={setProofId}
                 />
               ))}
@@ -386,6 +392,7 @@ export function ZoCollections() {
                       onPay={() => openSheet("pay", lot)}
                       onPlan={() => openSheet("plan", lot)}
                       onPost={() => openSheet("post", lot)}
+                      onSetRent={() => openSheet("rent", lot)}
                       onProof={setProofId}
                     />
                   ))}
@@ -751,12 +758,14 @@ function LotRow({
   onPay,
   onPost,
   onPlan,
+  onSetRent,
   onProof,
 }: {
   lot: Lot;
   onPay: () => void;
   onPost: () => void;
   onPlan: () => void;
+  onSetRent: () => void;
   onProof: (noticeId: string) => void;
 }) {
   const [open, setOpen] = React.useState(false);
@@ -870,6 +879,17 @@ function LotRow({
               </Btn>
             )}
             <Btn onClick={onPay}>Log a payment</Btn>
+            {/* The amount is a lease term and nobody has typed it in yet.
+                Until it is set this row cannot say what is owed, nothing can
+                be late, and no fee can apply. */}
+            {!lot.contract_rent && lot.occupied && (
+              <Btn onClick={onSetRent} variant="primary">
+                Set the rent
+              </Btn>
+            )}
+            {Boolean(lot.contract_rent) && !lot.rent_confirmed_at && (
+              <Btn disabled>Rent waiting on Raj</Btn>
+            )}
             {!lot.active_plan && !lot.pending_plan && !lot.latest_notice && (
               <Btn onClick={onPlan}>Propose a plan</Btn>
             )}

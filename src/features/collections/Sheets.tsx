@@ -12,10 +12,14 @@ type Lot = {
   id: string;
   lot_number: string;
   tenant_name: string | null;
+  hap_household?: boolean;
+  contract_rent?: string | number | null;
+  tenant_portion?: string | number | null;
+  rent_confirmed_at?: string | null;
 };
 
 type Props = {
-  kind: "pay" | "plan" | "post";
+  kind: "pay" | "plan" | "post" | "rent";
   lot: Lot | null;
   data: { pastDue: Lot[]; current: Lot[] } | null;
   onClose: () => void;
@@ -186,6 +190,16 @@ export function Sheets({
   const [freq, setFreq] = React.useState("Every two weeks");
   const [why, setWhy] = React.useState("");
 
+  /* ---- rent ---- */
+  const [rentLotId, setRentLotId] = React.useState(lot?.id ?? "");
+  const [contractRent, setContractRent] = React.useState(
+    lot?.contract_rent != null ? String(lot.contract_rent) : "",
+  );
+  const [tenantPortion, setTenantPortion] = React.useState(
+    lot?.tenant_portion != null ? String(lot.tenant_portion) : "",
+  );
+  const [rentNote, setRentNote] = React.useState("");
+
   /* ---- posting ---- */
   const [wide, setWide] = React.useState<File | null>(null);
   const [close, setClose] = React.useState<File | null>(null);
@@ -268,6 +282,131 @@ export function Sheets({
     } finally {
       setBusy(false);
     }
+  }
+
+  if (kind === "rent") {
+    const chosen = lot ?? choosable.find((l) => l.id === rentLotId) ?? null;
+    const hap = Boolean(chosen?.hap_household);
+
+    return (
+      <Shell
+        footer={
+          <>
+            <Btn onClick={onClose}>Cancel</Btn>
+            <Btn
+              disabled={
+                busy || !contractRent || !rentLotId || (hap && !tenantPortion)
+              }
+              onClick={() =>
+                send(
+                  "/api/collections?rent=1",
+                  {
+                    lot_id: rentLotId,
+                    contract_rent: Number(contractRent),
+                    tenant_portion: hap ? Number(tenantPortion) : undefined,
+                    note: rentNote || undefined,
+                  },
+                  "Rent recorded.",
+                )
+              }
+              variant="primary"
+            >
+              {busy ? "Saving…" : "Record the rent"}
+            </Btn>
+          </>
+        }
+        inline={inline}
+        onClose={onClose}
+        sub={chosen ? `Lot ${chosen.lot_number}` : undefined}
+        title="Set the rent for this home"
+      >
+        <div className="mb-5">
+          <Stamp>
+            Copy the figure from the signed lease. Do not work it out from what
+            someone usually pays or what the last resident paid — this number is
+            what a late fee gets charged against, so a guess here turns into a
+            charge on a real person.
+          </Stamp>
+        </div>
+
+        {!lot && (
+          <div className="mb-4.5">
+            <Label>Which lot</Label>
+            <select
+              className={inputClass}
+              onChange={(e) => setRentLotId(e.target.value)}
+              value={rentLotId}
+            >
+              <option value="">Pick a lot</option>
+              {choosable.map((l) => (
+                <option key={l.id} value={l.id}>
+                  Lot {l.lot_number} — {l.tenant_name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        <div className="mb-4.5 grid gap-3 sm:grid-cols-2">
+          <div className="min-w-0">
+            <Label>{hap ? "Contract rent" : "Monthly rent"}</Label>
+            <input
+              className={inputClass}
+              inputMode="decimal"
+              onChange={(e) => setContractRent(e.target.value)}
+              placeholder="0.00"
+              step="0.01"
+              type="number"
+              value={contractRent}
+            />
+          </div>
+          {hap && (
+            <div className="min-w-0">
+              <Label>Tenant's portion</Label>
+              <input
+                className={inputClass}
+                inputMode="decimal"
+                onChange={(e) => setTenantPortion(e.target.value)}
+                placeholder="0.00"
+                step="0.01"
+                type="number"
+                value={tenantPortion}
+              />
+            </div>
+          )}
+        </div>
+
+        {hap && (
+          <div className="mb-4.5 rounded-[9px] border-l-4 border-l-[#D97706] bg-[#FFFCF5] px-3.5 py-3 text-[13.5px] leading-relaxed text-[#92600A]">
+            <b className="block text-[#7A4E06]">This is an assisted household</b>
+            Two amounts, never one. The contract rent is the whole figure. The
+            tenant's portion is the only part this resident can ever be chased
+            for — the housing authority pays the rest.
+          </div>
+        )}
+
+        <div className="mb-4.5">
+          <Label>Where this came from (optional)</Label>
+          <input
+            className={inputClass}
+            onChange={(e) => setRentNote(e.target.value)}
+            placeholder="Signed lease dated 12 March, office file"
+            type="text"
+            value={rentNote}
+          />
+        </div>
+
+        {problem && (
+          <p className="mb-3 text-[15px] text-[#B91C1C]">{problem}</p>
+        )}
+
+        <Stamp>
+          Nothing is charged when you save this. Raj sees the amount and
+          confirms it, and only then is the month charged and a late fee
+          possible. If you change the figure later it goes back to him.
+        </Stamp>
+      </Shell>
+    );
   }
 
   if (kind === "pay") {

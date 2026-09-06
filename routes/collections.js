@@ -232,6 +232,95 @@ export default async function handler(req, res) {
             });
         }
 
+        /* ---- record the rent on a lot ---- */
+        // The amount is a lease term, but nobody has typed it in yet, so Zo
+        // enters it when a home becomes occupied. It shows on the roll
+        // immediately and drives nothing until Raj confirms it. A $75 late fee
+        // charged against a figure one person typed unreviewed is the version
+        // of this that ends up in front of a judge.
+        if (req.method === "POST" && req.query?.rent) {
+            if (!["zo", "raj", "dane"].includes(profile.cockpit)) {
+                return res.status(403).json({ error: "Not your screen" });
+            }
+
+            const lotId = String(req.body?.lot_id || "");
+            if (!lotId) return res.status(400).json({ error: "Pick a lot" });
+
+            const contractRent = Number(req.body?.contract_rent);
+            if (!Number.isFinite(contractRent) || contractRent <= 0) {
+                return res
+                    .status(400)
+                    .json({ error: "Enter the monthly rent from the lease" });
+            }
+
+            const { data: lot, error: lotError } = await supabase
+                .from("lots")
+                .select("id, lot_number, hap_household")
+                .eq("id", lotId)
+                .maybeSingle();
+
+            if (lotError) throw lotError;
+            if (!lot) return res.status(404).json({ error: "No such lot" });
+
+            // An assisted household pays a share, not the contract rent. If the
+            // split is missing it is not assumed - a guess here overcharges
+            // someone on a fixed income.
+            let tenantPortion;
+            if (lot.hap_household) {
+                tenantPortion = Number(req.body?.tenant_portion);
+                if (!Number.isFinite(tenantPortion) || tenantPortion < 0) {
+                    return res.status(400).json({
+                        error:
+                            "This is an assisted household. Enter the tenant's portion as well as the contract rent.",
+                    });
+                }
+                if (tenantPortion > contractRent) {
+                    return res.status(400).json({
+                        error: "The tenant's portion cannot be more than the contract rent.",
+                    });
+                }
+            } else {
+                tenantPortion = contractRent;
+            }
+
+            const { error: updateError } = await supabase
+                .from("lots")
+                .update({
+                    contract_rent: contractRent,
+                    tenant_portion: tenantPortion,
+                    hap_portion: lot.hap_household
+                        ? money(contractRent - tenantPortion)
+                        : null,
+                    rent_set_by: profile.cockpit,
+                    rent_set_at: new Date().toISOString(),
+                    // Re-entering the amount withdraws any previous
+                    // confirmation. A changed number has not been agreed to.
+                    rent_confirmed_by: null,
+                    rent_confirmed_at: null,
+                    rent_note: req.body?.note
+                        ? String(req.body.note).slice(0, 500)
+                        : null,
+                    updated_at: new Date().toISOString(),
+                })
+                .eq("id", lotId);
+
+            if (updateError) throw updateError;
+
+            await supabase.from("notifications").insert({
+                recipient: "raj",
+                type: "rent_set",
+                title: `Rent entered for Lot ${lot.lot_number}`,
+                body: `${profile.cockpit} recorded $${money(tenantPortion)} a month. Nothing is charged until you confirm it.`,
+                link: "/raj/approvals",
+            });
+
+            return res.status(200).json({
+                ok: true,
+                message:
+                    "Rent recorded. It shows on the roll now — nothing is charged and no late fee can apply until Raj confirms it.",
+            });
+        }
+
         /* ---- propose a plan ---- */
         if (req.method === "POST" && req.query?.plan) {
             if (!["zo", "raj", "dane"].includes(profile.cockpit)) {
@@ -378,6 +467,69 @@ export default async function handler(req, res) {
                 return res.status(200).json({
                     ok: true,
                     message: "Verified. Notice queued to Zo to print and post.",
+                });
+            }
+
+            /* ---- confirm the rent, and charge this month ---- */
+            if (req.query?.rent) {
+                const lotId = String(req.body?.lot_id || "");
+                if (!lotId) return res.status(400).json({ error: "Which lot?" });
+
+                const { data: lot, error: lotError } = await supabase
+                    .from("lots")
+                    .select("id, lot_number, contract_rent, tenant_portion")
+                    .eq("id", lotId)
+                    .maybeSingle();
+
+                if (lotError) throw lotError;
+                if (!lot) return res.status(404).json({ error: "No such lot" });
+
+                const owedMonthly = Number(lot.tenant_portion ?? lot.contract_rent);
+                if (!Number.isFinite(owedMonthly) || owedMonthly <= 0) {
+                    return res.status(400).json({
+                        error: "There is no rent amount on this lot to confirm.",
+                    });
+                }
+
+                const now = new Date();
+                const period = `${now.getUTCFullYear()}-${String(
+                    now.getUTCMonth() + 1,
+                ).padStart(2, "0")}-01`;
+
+                const { error: confirmError } = await supabase
+                    .from("lots")
+                    .update({
+                        rent_confirmed_by: profile.cockpit,
+                        rent_confirmed_at: new Date().toISOString(),
+                        updated_at: new Date().toISOString(),
+                    })
+                    .eq("id", lotId);
+
+                if (confirmError) throw confirmError;
+
+                // This month's charge. The unique index refuses a second one,
+                // so confirming twice cannot double what a resident owes.
+                const { error: chargeError } = await supabase
+                    .from("rent_ledger")
+                    .insert({
+                        lot_id: lotId,
+                        period,
+                        charge_type: "rent",
+                        amount: owedMonthly,
+                        due_date: period,
+                        source: "manual",
+                        verified_at: new Date().toISOString(),
+                        verified_by: profile.cockpit,
+                    });
+
+                const alreadyCharged = chargeError?.code === "23505";
+                if (chargeError && !alreadyCharged) throw chargeError;
+
+                return res.status(200).json({
+                    ok: true,
+                    message: alreadyCharged
+                        ? `Rent confirmed for Lot ${lot.lot_number}. This month was already charged, so nothing was added.`
+                        : `Rent confirmed for Lot ${lot.lot_number}. $${money(owedMonthly)} charged for this month.`,
                 });
             }
 
