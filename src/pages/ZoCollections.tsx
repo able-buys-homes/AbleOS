@@ -750,12 +750,7 @@ function subLine(lot: Lot) {
     )}`;
   if (lot.paid_this_month) return "Payment logged this month";
   if (!lot.contract_rent) return "No rent recorded yet — comes from the lease";
-  if (!lot.rent_confirmed_at)
-    return `${money(
-      lot.tenant_portion ?? lot.contract_rent,
-    )} a month — waiting on Raj to confirm`;
-  if (!lot.has_ledger) return "Rent confirmed — this month not charged yet";
-  return "Nothing owed";
+  return `${money(lot.tenant_portion ?? lot.contract_rent)} a month`;
 }
 
 function LotRow({
@@ -859,14 +854,13 @@ function LotRow({
             </p>
           )}
 
-          {/* Recorded but not agreed. Saying "no rent recorded" here while a
-              figure sits on the lot is how a screen loses its reader. */}
-          {Boolean(lot.contract_rent) && !lot.rent_confirmed_at && (
+          {/* Who typed the figure. With no confirmation step, this line is the
+              only record on screen of where the number came from. */}
+          {Boolean(lot.contract_rent) && (
             <p className="mt-2 text-[13.5px] leading-relaxed text-[#6C7484]">
-              {money(lot.tenant_portion ?? lot.contract_rent)} a month is
-              recorded{lot.rent_set_by ? `, entered by ${lot.rent_set_by}` : ""}
-              . Raj has not confirmed it, so nothing is charged and nobody can
-              be late on it yet.
+              Rent is {money(lot.tenant_portion ?? lot.contract_rent)} a month
+              {lot.rent_set_by ? `, entered by ${lot.rent_set_by}` : ""}. If
+              that is wrong, set it again — this month's charge moves with it.
             </p>
           )}
 
@@ -898,13 +892,13 @@ function LotRow({
             {/* The amount is a lease term and nobody has typed it in yet.
                 Until it is set this row cannot say what is owed, nothing can
                 be late, and no fee can apply. */}
-            {!lot.contract_rent && lot.occupied && (
+            {lot.occupied && !lot.contract_rent && (
               <Btn onClick={onSetRent} variant="primary">
                 Set the rent
               </Btn>
             )}
-            {Boolean(lot.contract_rent) && !lot.rent_confirmed_at && (
-              <Btn disabled>Rent waiting on Raj</Btn>
+            {lot.occupied && Boolean(lot.contract_rent) && (
+              <Btn onClick={onSetRent}>Change the rent</Btn>
             )}
             {!lot.active_plan && !lot.pending_plan && !lot.latest_notice && (
               <Btn onClick={onPlan}>Propose a plan</Btn>

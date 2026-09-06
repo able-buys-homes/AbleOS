@@ -401,9 +401,10 @@ export function Sheets({
         )}
 
         <Stamp>
-          Nothing is charged when you save this. Raj sees the amount and
-          confirms it, and only then is the month charged and a late fee
-          possible. If you change the figure later it goes back to him.
+          Saving this charges the month at that amount straight away. Nobody
+          checks it after you — enter the figure Raj gave you, exactly as he
+          gave it. If it turns out wrong, set it again and the charge moves
+          with it.
         </Stamp>
       </Shell>
     );

@@ -283,6 +283,11 @@ export default async function handler(req, res) {
                 tenantPortion = contractRent;
             }
 
+            const now = new Date();
+            const period = `${now.getUTCFullYear()}-${String(
+                now.getUTCMonth() + 1,
+            ).padStart(2, "0")}-01`;
+
             const { error: updateError } = await supabase
                 .from("lots")
                 .update({
@@ -292,32 +297,68 @@ export default async function handler(req, res) {
                         ? money(contractRent - tenantPortion)
                         : null,
                     rent_set_by: profile.cockpit,
-                    rent_set_at: new Date().toISOString(),
-                    // Re-entering the amount withdraws any previous
-                    // confirmation. A changed number has not been agreed to.
-                    rent_confirmed_by: null,
-                    rent_confirmed_at: null,
+                    rent_set_at: now.toISOString(),
+                    // The figure comes from Raj and is entered as he gave it,
+                    // so it binds on entry. Who typed it and when is recorded
+                    // here, because that record is now the only check standing
+                    // between a mistyped number and a resident being chased
+                    // for it.
+                    rent_confirmed_by: profile.cockpit,
+                    rent_confirmed_at: now.toISOString(),
                     rent_note: req.body?.note
                         ? String(req.body.note).slice(0, 500)
                         : null,
-                    updated_at: new Date().toISOString(),
+                    updated_at: now.toISOString(),
                 })
                 .eq("id", lotId);
 
             if (updateError) throw updateError;
 
+            // This month's charge, at the amount just entered. A correction has
+            // to move the charge with it or the roll goes on chasing the old
+            // number - so this updates in place rather than inserting a second
+            // row the unique index would refuse anyway.
+            const { data: existingCharge, error: findError } = await supabase
+                .from("rent_ledger")
+                .select("id")
+                .eq("lot_id", lotId)
+                .eq("period", period)
+                .eq("charge_type", "rent")
+                .maybeSingle();
+
+            if (findError) throw findError;
+
+            const chargeRow = {
+                lot_id: lotId,
+                period,
+                charge_type: "rent",
+                amount: tenantPortion,
+                due_date: period,
+                source: "manual",
+                verified_at: now.toISOString(),
+                verified_by: profile.cockpit,
+            };
+
+            const { error: chargeError } = existingCharge
+                ? await supabase
+                    .from("rent_ledger")
+                    .update(chargeRow)
+                    .eq("id", existingCharge.id)
+                : await supabase.from("rent_ledger").insert(chargeRow);
+
+            if (chargeError) throw chargeError;
+
             await supabase.from("notifications").insert({
                 recipient: "raj",
                 type: "rent_set",
-                title: `Rent entered for Lot ${lot.lot_number}`,
-                body: `${profile.cockpit} recorded $${money(tenantPortion)} a month. Nothing is charged until you confirm it.`,
-                link: "/raj/approvals",
+                title: `Rent set on Lot ${lot.lot_number}`,
+                body: `${profile.cockpit} entered $${money(tenantPortion)} a month, and this month is charged at that amount. If it is wrong, have it entered again — the charge moves with it.`,
+                link: "/zo/collections",
             });
 
             return res.status(200).json({
                 ok: true,
-                message:
-                    "Rent recorded. It shows on the roll now — nothing is charged and no late fee can apply until Raj confirms it.",
+                message: `Rent set at $${money(tenantPortion)} a month. This month is charged at that amount.`,
             });
         }
 
@@ -470,69 +511,6 @@ export default async function handler(req, res) {
                 });
             }
 
-            /* ---- confirm the rent, and charge this month ---- */
-            if (req.query?.rent) {
-                const lotId = String(req.body?.lot_id || "");
-                if (!lotId) return res.status(400).json({ error: "Which lot?" });
-
-                const { data: lot, error: lotError } = await supabase
-                    .from("lots")
-                    .select("id, lot_number, contract_rent, tenant_portion")
-                    .eq("id", lotId)
-                    .maybeSingle();
-
-                if (lotError) throw lotError;
-                if (!lot) return res.status(404).json({ error: "No such lot" });
-
-                const owedMonthly = Number(lot.tenant_portion ?? lot.contract_rent);
-                if (!Number.isFinite(owedMonthly) || owedMonthly <= 0) {
-                    return res.status(400).json({
-                        error: "There is no rent amount on this lot to confirm.",
-                    });
-                }
-
-                const now = new Date();
-                const period = `${now.getUTCFullYear()}-${String(
-                    now.getUTCMonth() + 1,
-                ).padStart(2, "0")}-01`;
-
-                const { error: confirmError } = await supabase
-                    .from("lots")
-                    .update({
-                        rent_confirmed_by: profile.cockpit,
-                        rent_confirmed_at: new Date().toISOString(),
-                        updated_at: new Date().toISOString(),
-                    })
-                    .eq("id", lotId);
-
-                if (confirmError) throw confirmError;
-
-                // This month's charge. The unique index refuses a second one,
-                // so confirming twice cannot double what a resident owes.
-                const { error: chargeError } = await supabase
-                    .from("rent_ledger")
-                    .insert({
-                        lot_id: lotId,
-                        period,
-                        charge_type: "rent",
-                        amount: owedMonthly,
-                        due_date: period,
-                        source: "manual",
-                        verified_at: new Date().toISOString(),
-                        verified_by: profile.cockpit,
-                    });
-
-                const alreadyCharged = chargeError?.code === "23505";
-                if (chargeError && !alreadyCharged) throw chargeError;
-
-                return res.status(200).json({
-                    ok: true,
-                    message: alreadyCharged
-                        ? `Rent confirmed for Lot ${lot.lot_number}. This month was already charged, so nothing was added.`
-                        : `Rent confirmed for Lot ${lot.lot_number}. $${money(owedMonthly)} charged for this month.`,
-                });
-            }
-
             if (req.query?.plan) {
                 const planId = String(req.query.plan);
                 const decision = String(req.body?.decision || "");
@@ -655,7 +633,7 @@ export default async function handler(req, res) {
                         p.lot_id === lot.id &&
                         new Date(p.received_at).getMonth() === now.getMonth() &&
                         new Date(p.received_at).getFullYear() ===
-                            now.getFullYear(),
+                        now.getFullYear(),
                 ),
                 has_ledger: charges.some((c) => c.lot_id === lot.id),
                 // The most recent payment, so the row can say what was taken
@@ -726,13 +704,6 @@ export default async function handler(req, res) {
             }
 
             return res.status(200).json({
-                // A rent amount someone typed but nobody has agreed to. Until
-                // Raj confirms it, it charges nothing and no late fee can rest
-                // on it - so this queue is the only thing standing between a
-                // mistyped figure and a resident being chased for it.
-                rent: enriched.filter(
-                    (l) => l.contract_rent != null && !l.rent_confirmed_at,
-                ),
                 // A balance only reaches Raj once something is owed and it has
                 // not yet been verified. Verification is the gate on the whole
                 // eviction cascade.
