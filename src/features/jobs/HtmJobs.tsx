@@ -11,7 +11,7 @@
 // other screen in Zo's cockpit.
 
 import React from "react";
-import { Btn, SectionBar, Stack, money } from "../collections/parts";
+import { Btn, Stack, money } from "../collections/parts";
 
 export type Priority = "emergency" | "urgent" | "routine";
 export type JobStatus = "new" | "assigned" | "in_progress" | "completed";
@@ -145,7 +145,9 @@ export default function HtmJobs({
   lots,
 }: Props) {
   const [open, setOpen] = React.useState<string | null>(null);
-  const [showDone, setShowDone] = React.useState(false);
+  const [statusFilter, setStatusFilter] = React.useState<"all" | JobStatus>(
+    "all",
+  );
   const [creating, setCreating] = React.useState(false);
   const [draft, setDraft] = React.useState<
     Record<string, Partial<NonNullable<Job["closeout"]>>>
@@ -153,18 +155,34 @@ export default function HtmJobs({
   const [busy, setBusy] = React.useState<string | null>(null);
   const [problem, setProblem] = React.useState("");
 
+  // Emergencies first, finished last. A board that buries an emergency under
+  // a loose porch step is worse than no board.
   const sorted = React.useMemo(
     () =>
-      [...jobs].sort(
-        (a, b) =>
+      [...jobs].sort((a, b) => {
+        const aDone = a.status === "completed" ? 1 : 0;
+        const bDone = b.status === "completed" ? 1 : 0;
+        return (
+          aDone - bDone ||
           rank[a.priority] - rank[b.priority] ||
-          +new Date(a.openedAt) - +new Date(b.openedAt),
-      ),
+          +new Date(a.openedAt) - +new Date(b.openedAt)
+        );
+      }),
     [jobs],
   );
 
-  const live = sorted.filter((j) => j.status !== "completed");
-  const done = sorted.filter((j) => j.status === "completed");
+  const visible =
+    statusFilter === "all"
+      ? sorted
+      : sorted.filter((j) => j.status === statusFilter);
+
+  const FILTERS: Array<{ key: "all" | JobStatus; label: string }> = [
+    { key: "all", label: `All (${jobs.length})` },
+    { key: "new", label: "Not started" },
+    { key: "assigned", label: "Assigned" },
+    { key: "in_progress", label: "Being written up" },
+    { key: "completed", label: "Finished" },
+  ];
 
   const d = (id: string) =>
     draft[id] ?? jobs.find((j) => j.id === id)?.closeout ?? {};
@@ -238,7 +256,13 @@ export default function HtmJobs({
     const finished = j.status === "completed";
 
     return (
-      <div className="p-4" key={j.id}>
+      <div
+        className="border-l-4 p-4"
+        key={j.id}
+        style={{
+          borderLeftColor: finished ? "#DCE4EE" : PRIO[j.priority].bar,
+        }}
+      >
         <button
           aria-expanded={isOpen}
           className="flex w-full items-start gap-3 text-left"
@@ -253,7 +277,9 @@ export default function HtmJobs({
               Lot {j.lot} — {j.title}
             </div>
             <div className="mt-1 text-[13px] text-[#6C7484]">
-              {j.resident ? `${j.resident} · ` : ""}
+              {/* "Vacant" rather than a blank. An empty home is a fact worth
+                  saying — it changes whose door you knock on. */}
+              {j.resident ? `${j.resident} · ` : "Vacant · "}
               {CAT[j.category]} · {STATUS[j.status]}
             </div>
             <div className="mt-0.5 text-[12.5px] text-[#8A929E]">
@@ -261,7 +287,13 @@ export default function HtmJobs({
               {j.assignedTo ? ` · ${j.assignedTo} assigned` : ""}
             </div>
           </div>
-          {!finished && <Chip p={j.priority} />}
+          {finished ? (
+            <span className="shrink-0 rounded-full border border-[#B7E2CC] bg-[#E6F5EC] px-2.5 py-1 text-[11.5px] font-bold uppercase tracking-[0.04em] text-[#1B7A4B]">
+              Finished
+            </span>
+          ) : (
+            <Chip p={j.priority} />
+          )}
         </button>
 
         {isOpen && !finished && (
@@ -410,37 +442,44 @@ export default function HtmJobs({
 
   return (
     <div className="pb-24">
-      <SectionBar count={live.length} title="Open jobs" />
+      <p className="text-[14px] leading-relaxed text-[#6C7484]">
+        Emergencies are always on top. Tap a job to open it, add the finished
+        photo, then mark it done.
+      </p>
+
+      {/* Scrolls sideways rather than wrapping to three rows and pushing the
+          board off the screen. */}
+      <div className="-mx-1 mt-3 flex gap-2 overflow-x-auto px-1 pb-1">
+        {FILTERS.map((f) => {
+          const active = statusFilter === f.key;
+          return (
+            <button
+              aria-pressed={active}
+              className={`shrink-0 rounded-full border px-3.5 py-1.5 text-[13px] font-semibold ${
+                active
+                  ? "border-[#1E3A8A] bg-[#1E3A8A] text-white"
+                  : "border-[#DCE4EE] bg-white text-[#1B2231]"
+              }`}
+              key={f.key}
+              onClick={() => setStatusFilter(f.key)}
+              type="button"
+            >
+              {f.label}
+            </button>
+          );
+        })}
+      </div>
+
       <Stack>
-        {live.length === 0 && (
+        {visible.length === 0 && (
           <div className="p-4 text-[15px] text-[#6C7484]">
-            Nothing open. If a resident has told you about something, open it
-            here so it is not only in your head.
+            {statusFilter === "all"
+              ? "Nothing here yet. If a resident has told you about something, open it here so it is not only in your head."
+              : "Nothing in this one."}
           </div>
         )}
-        {live.map(row)}
+        {visible.map(row)}
       </Stack>
-
-      {done.length > 0 && (
-        <>
-          <button
-            className="mt-4 w-full text-center text-[14px] font-semibold text-[#1E3A8A] underline"
-            onClick={() => setShowDone((s) => !s)}
-            type="button"
-          >
-            {showDone
-              ? "Hide finished jobs"
-              : `Show finished jobs (${done.length})`}
-          </button>
-
-          {showDone && (
-            <>
-              <SectionBar count={done.length} title="Finished" />
-              <Stack>{done.map(row)}</Stack>
-            </>
-          )}
-        </>
-      )}
 
       <button
         aria-label="Open a new job"
