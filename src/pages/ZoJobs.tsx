@@ -17,6 +17,8 @@ import HtmJobs, {
   type NewJobInput,
   type Priority,
 } from "../features/jobs/HtmJobs";
+import { MobileScreenShell } from "../components/MobileScreenShell";
+import { UserMenu } from "../components/UserMenu";
 import { ZoTabBar } from "../components/ZoTabBar";
 import { apiFetch } from "../lib/apiFetch";
 
@@ -108,6 +110,8 @@ export function ZoJobs() {
     load();
   }, [load]);
 
+  const openCount = (jobs ?? []).filter((j) => j.status !== "completed").length;
+
   async function send(path: string, init: RequestInit) {
     const res = await apiFetch(path, init);
     const body = await res.json().catch(() => ({}));
@@ -185,31 +189,53 @@ export function ZoJobs() {
   }
 
   return (
-    <div className="min-h-screen bg-[#F4EEDF] pb-20">
-      {problem && (
-        <div className="mx-4 mt-4 rounded-xl bg-[#FEF2F2] px-4 py-3 text-[16px] text-[#B91C1C]">
-          {problem}
-        </div>
-      )}
+    <MobileScreenShell
+      headerContent={
+        <>
+          <div className="flex items-center justify-end">
+            <UserMenu />
+          </div>
 
-      {!jobs && !problem && (
-        <p className="px-4 pt-6 text-[15px] text-[#6B6558]">
-          Loading the jobs…
-        </p>
-      )}
+          <h1 className="mt-3 text-[27px] font-bold tracking-[-0.015em]">
+            Jobs
+          </h1>
+          <p className="mt-1.5 text-[13.5px] text-white/75">
+            Hometown Meadows MHP &nbsp;•&nbsp; 121 Smith Lane, Nashville AR
+          </p>
+          {jobs && (
+            <p className="mt-3 text-[15px] font-semibold">
+              {openCount} {openCount === 1 ? "job" : "jobs"} open
+            </p>
+          )}
+        </>
+      }
+    >
+      <div className="pt-2">
+        {problem && (
+          <div className="rounded-xl bg-[#FEF2F2] px-4 py-3 text-[16px] text-[#B91C1C]">
+            {problem}
+          </div>
+        )}
 
-      {jobs && (
-        <HtmJobs
-          jobs={jobs}
-          lots={lots.map((l) => Number(l.lot_number))}
-          onComplete={complete}
-          onCreate={create}
-          onSaveCloseout={saveCloseout}
-          onUploadPhoto={uploadPhoto}
-        />
-      )}
+        {!jobs && !problem && (
+          <div className="rounded-2xl border border-[#DCE4EE] bg-white p-4 text-[15px] text-[#6C7484]">
+            Loading the jobs…
+          </div>
+        )}
+
+        {jobs && (
+          <HtmJobs
+            jobs={jobs}
+            lots={lots.map((l) => Number(l.lot_number))}
+            onComplete={complete}
+            onCreate={create}
+            onSaveCloseout={saveCloseout}
+            onUploadPhoto={uploadPhoto}
+          />
+        )}
+      </div>
 
       <ZoTabBar />
-    </div>
+    </MobileScreenShell>
   );
 }
