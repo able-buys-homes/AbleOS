@@ -34,6 +34,8 @@ export interface Lot {
       1 September site walk is not the same claim as one Zo set today. */
   statusSetBy?: string;
   statusSetAt?: string;
+  /** Where the rent stands. Only meaningful when the home is occupied. */
+  rentState?: "paid" | "on_plan" | "late" | "occupied";
   bed?: number;
   bath?: number;
   sqft?: number;
@@ -88,6 +90,112 @@ export const STATUS_META: Record<
     text: "#6B5200",
   },
 };
+
+/**
+ * What a lot is painted. Deliberately not the same list as LotStatus: an
+ * occupied home is coloured by where its rent stands, which is a fact about
+ * money rather than about the home.
+ *
+ * The three rent colours stay dark until a rent amount exists for that lot.
+ * Painting seventeen occupied homes green today would tell Zo that seventeen
+ * people have paid, and not one of them has.
+ */
+export type Paint =
+  | "paid"
+  | "on_plan"
+  | "late"
+  | "occupied"
+  | "ready"
+  | "moving_out"
+  | "needs_repair"
+  | "full_rehab"
+  | "common_area"
+  | "verify";
+
+export const PAINT_META: Record<
+  Paint,
+  {
+    label: string;
+    fill: string;
+    stroke: string;
+    text: string;
+    dashed?: boolean;
+  }
+> = {
+  paid: {
+    label: "Occupied · paid",
+    fill: "#DFF3EA",
+    stroke: "#1D8A62",
+    text: "#0F5C41",
+  },
+  on_plan: {
+    label: "On a plan",
+    fill: "#FDF0D5",
+    stroke: "#D97706",
+    text: "#7A4508",
+  },
+  late: {
+    label: "Late",
+    fill: "#FBDDD3",
+    stroke: "#DC2626",
+    text: "#8A2E14",
+  },
+  // Someone lives here and there is nothing to act on. Covers both "no rent
+  // recorded yet" and "owes but the 5th has not passed" - neither of which is
+  // a claim that they have paid.
+  occupied: {
+    label: "Occupied",
+    fill: "#DCE7F5",
+    stroke: "#2A3648",
+    text: "#2A3648",
+  },
+  // Empty homes are drawn hollow. A dashed outline reads as "nobody here"
+  // from across a gravel driveway in sunlight, which a fill colour does not.
+  ready: {
+    label: "Ready to rent",
+    fill: "#FFFFFF",
+    stroke: "#1D8A62",
+    text: "#0F5C41",
+    dashed: true,
+  },
+  moving_out: {
+    label: "Moving out",
+    fill: "#FFFFFF",
+    stroke: "#D97706",
+    text: "#7A4508",
+    dashed: true,
+  },
+  needs_repair: {
+    label: "Needs repair",
+    fill: "#FDEBD3",
+    stroke: "#E0891F",
+    text: "#7A4508",
+  },
+  full_rehab: {
+    label: "Full rehab",
+    fill: "#DDE3F0",
+    stroke: "#1E3A8A",
+    text: "#1E3A8A",
+  },
+  common_area: {
+    label: "Office / laundry",
+    fill: "#EDEFF2",
+    stroke: "#8C949E",
+    text: "#4A5460",
+  },
+  verify: {
+    label: "Needs checking",
+    fill: "#FEF6CE",
+    stroke: "#A88300",
+    text: "#6B5200",
+  },
+};
+
+/** An occupied home is painted by its rent. Everything else by its status. */
+export function paintOf(lot: Lot): Paint {
+  if (lot.status !== "occupied") return lot.status;
+  return lot.rentState ?? "occupied";
+}
 
 /** Statuses that count as a rentable door. The office is not a door. */
 const RENTABLE: LotStatus[] = [
@@ -214,12 +322,18 @@ const STREET_LABELS: Array<[string, number, number, number]> = [
 ];
 
 export function lotCounts(lots: Lot[]) {
-  const counts = {} as Record<LotStatus, number>;
-  (Object.keys(STATUS_META) as LotStatus[]).forEach((key) => (counts[key] = 0));
-  lots.forEach((lot) => (counts[lot.status] += 1));
+  const counts = {} as Record<Paint, number>;
+  (Object.keys(PAINT_META) as Paint[]).forEach((key) => (counts[key] = 0));
+  lots.forEach((lot) => (counts[paintOf(lot)] += 1));
+
   const doors = lots.filter((lot) => RENTABLE.includes(lot.status)).length;
-  const occupancy = doors ? Math.round((counts.occupied / doors) * 100) : 0;
-  return { counts, doors, occupancy };
+
+  // Occupancy is about homes with someone in them, not about rent. A resident
+  // who is late still lives here.
+  const occupiedTotal = lots.filter((lot) => lot.status === "occupied").length;
+  const occupancy = doors ? Math.round((occupiedTotal / doors) * 100) : 0;
+
+  return { counts, doors, occupancy, occupiedTotal };
 }
 
 export function HtmLotMap({
@@ -233,7 +347,7 @@ export function HtmLotMap({
   onChanged?: () => void;
 }) {
   const navigate = useNavigate();
-  const [filter, setFilter] = React.useState<LotStatus | null>(null);
+  const [filter, setFilter] = React.useState<Paint | null>(null);
   // The id, not the object. After a save the array is replaced, and a stored
   // object would leave the card showing what the lot used to be.
   const [selectedId, setSelectedId] = React.useState<number | null>(null);
@@ -314,8 +428,8 @@ export function HtmLotMap({
       {/* Filters. Scrolls sideways rather than wrapping to three rows and
           pushing the map off the screen. */}
       <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
-        {(Object.keys(STATUS_META) as LotStatus[]).map((key) => {
-          const meta = STATUS_META[key];
+        {(Object.keys(PAINT_META) as Paint[]).map((key) => {
+          const meta = PAINT_META[key];
           const active = filter === key;
           return (
             <button
@@ -398,8 +512,9 @@ export function HtmLotMap({
           {lots.map((lot) => {
             const pos = LOT_POSITIONS[lot.id];
             if (!pos) return null;
-            const meta = STATUS_META[lot.status];
-            const dimmed = filter !== null && lot.status !== filter;
+            const paint = paintOf(lot);
+            const meta = PAINT_META[paint];
+            const dimmed = filter !== null && paint !== filter;
             const isSelected = selectedId === lot.id;
             return (
               <g
@@ -419,6 +534,7 @@ export function HtmLotMap({
                   height={48}
                   rx={6}
                   stroke={isSelected ? "#1E3A8A" : meta.stroke}
+                  strokeDasharray={meta.dashed ? "7 5" : undefined}
                   strokeWidth={isSelected ? 8 : 3}
                   width={64}
                   x={pos.x - 32}
@@ -450,12 +566,12 @@ export function HtmLotMap({
               <span
                 className="shrink-0 rounded-full border-2 px-2.5 py-1 text-[12px] font-bold"
                 style={{
-                  background: STATUS_META[selected.status].fill,
-                  borderColor: STATUS_META[selected.status].stroke,
-                  color: STATUS_META[selected.status].text,
+                  background: PAINT_META[paintOf(selected)].fill,
+                  borderColor: PAINT_META[paintOf(selected)].stroke,
+                  color: PAINT_META[paintOf(selected)].text,
                 }}
               >
-                {STATUS_META[selected.status].label}
+                {PAINT_META[paintOf(selected)].label}
               </span>
             </div>
 

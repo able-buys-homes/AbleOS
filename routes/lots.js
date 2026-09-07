@@ -10,6 +10,7 @@
 // they can no longer disagree.
 import { createClient } from "@supabase/supabase-js";
 import { requireUser } from "../lib/apiAuth.js";
+import { pastGrace } from "../lib/rentRules.js";
 
 const PROPERTY = "Hometown Meadows MHP";
 
@@ -70,16 +71,71 @@ export default async function handler(req, res) {
         const supabase = getClient();
 
         if (req.method === "GET") {
-            const { data, error } = await supabase
-                .from("lots")
-                .select(
-                    "id, lot_number, tenant_name, home_status, repair_note, bed, bath, sq_ft, notes, occupied, status_set_by, status_set_at, hap_household, tenancy_type",
-                )
-                .eq("property", PROPERTY);
+            const [lotsRes, chargesRes, paymentsRes, plansRes] =
+                await Promise.all([
+                    supabase
+                        .from("lots")
+                        .select(
+                            "id, lot_number, tenant_name, home_status, repair_note, bed, bath, sq_ft, notes, occupied, status_set_by, status_set_at, hap_household, tenancy_type, contract_rent, tenant_portion",
+                        )
+                        .eq("property", PROPERTY),
+                    supabase.from("rent_ledger").select("lot_id, amount"),
+                    supabase.from("payments").select("lot_id, amount"),
+                    supabase.from("payment_plans").select("lot_id, status"),
+                ]);
 
-            if (error) throw error;
+            for (const r of [lotsRes, chargesRes, paymentsRes, plansRes]) {
+                if (r.error) throw r.error;
+            }
 
-            return res.status(200).json({ lots: data ?? [], statuses: STATUSES });
+            const charges = chargesRes.data ?? [];
+            const payments = paymentsRes.data ?? [];
+
+            const onPlan = new Set(
+                (plansRes.data ?? [])
+                    .filter((p) => ["approved", "active"].includes(p.status))
+                    .map((p) => p.lot_id),
+            );
+
+            // The same answer for every lot this month, decided once.
+            const graceOver = pastGrace();
+
+            // rent_state is what the map paints an occupied home. It is null
+            // for an empty one - an empty home cannot be paid, late or on a
+            // plan, and colouring it as though it could is the confusion this
+            // whole change exists to remove.
+            const lots = (lotsRes.data ?? []).map((lot) => {
+                const charged = charges
+                    .filter((c) => c.lot_id === lot.id)
+                    .reduce((sum, c) => sum + Number(c.amount), 0);
+
+                const paid = payments
+                    .filter((p) => p.lot_id === lot.id)
+                    .reduce((sum, p) => sum + Number(p.amount), 0);
+
+                const owed = money(charged - paid);
+
+                let rentState = null;
+
+                if (lot.occupied) {
+                    if (onPlan.has(lot.id)) {
+                        rentState = "on_plan";
+                    } else if (owed > 0 && graceOver) {
+                        rentState = "late";
+                    } else if (lot.contract_rent != null && owed <= 0) {
+                        rentState = "paid";
+                    } else {
+                        // Occupied, and nothing to act on. Covers both "no rent
+                        // recorded yet" and "owes but the 5th has not passed" -
+                        // neither is a claim that they have paid.
+                        rentState = "occupied";
+                    }
+                }
+
+                return { ...lot, owed, rent_state: rentState };
+            });
+
+            return res.status(200).json({ lots, statuses: STATUSES });
         }
 
         /* ---- change what a lot is ---- */

@@ -30,6 +30,7 @@ type Row = {
   notes: string | null;
   status_set_by: string | null;
   status_set_at: string | null;
+  rent_state: "paid" | "on_plan" | "late" | "occupied" | null;
 };
 
 const num = (v: string | number | null) =>
@@ -71,6 +72,7 @@ export function ZoMap() {
           repairNote: r.repair_note ?? undefined,
           statusSetBy: r.status_set_by ?? undefined,
           statusSetAt: r.status_set_at ?? undefined,
+          rentState: r.rent_state ?? undefined,
           bed: num(r.bed),
           bath: num(r.bath),
           sqft: r.sq_ft ?? undefined,
@@ -88,7 +90,7 @@ export function ZoMap() {
     load();
   }, [load]);
 
-  const { counts, doors, occupancy } = lotCounts(lots ?? []);
+  const { counts, doors, occupancy, occupiedTotal } = lotCounts(lots ?? []);
 
   return (
     <MobileScreenShell
@@ -105,7 +107,7 @@ export function ZoMap() {
           </p>
           {lots && (
             <p className="mt-3 text-[15px] font-semibold">
-              {counts.occupied} of {doors} doors occupied &nbsp;•&nbsp;{" "}
+              {occupiedTotal} of {doors} doors occupied &nbsp;•&nbsp;{" "}
               {occupancy}%
             </p>
           )}
