@@ -671,9 +671,14 @@ export default async function handler(req, res) {
             };
         });
 
-        const withCounsel = enriched.filter((l) => l.locked);
-        const pastDue = enriched.filter((l) => !l.locked && l.owed > 0);
-        const current = enriched.filter((l) => !l.locked && l.owed <= 0);
+        // Rent is about people who owe rent. An empty home cannot pay, cannot
+        // be late and cannot be chased, so it has no business on this screen.
+        // The Map is where every lot lives, occupied or not.
+        const roll = enriched.filter((l) => l.occupied);
+
+        const withCounsel = roll.filter((l) => l.locked);
+        const pastDue = roll.filter((l) => !l.locked && l.owed > 0);
+        const current = roll.filter((l) => !l.locked && l.owed <= 0);
 
         const collectedThisMonth = payments
             .filter((p) => new Date(p.received_at).getMonth() === new Date().getMonth())
