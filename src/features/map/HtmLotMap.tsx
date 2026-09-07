@@ -443,9 +443,15 @@ export function HtmLotMap({
               onClick={() => setFilter(active ? null : key)}
               type="button"
             >
+              {/* The swatch has to be the same shape as the box on the map.
+                  A solid chip beside a dashed lot is a legend that lies. */}
               <span
-                className="h-3 w-3 rounded-[3px] border-2"
-                style={{ background: meta.fill, borderColor: meta.stroke }}
+                className="h-3.5 w-3.5 shrink-0 rounded-[3px] border-2"
+                style={{
+                  background: meta.fill,
+                  borderColor: meta.stroke,
+                  borderStyle: meta.dashed ? "dashed" : "solid",
+                }}
               />
               {meta.label}
               <span className={active ? "text-white/70" : "text-[#6C7484]"}>
