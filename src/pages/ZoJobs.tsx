@@ -147,6 +147,14 @@ export function ZoJobs() {
     await load();
   }
 
+  async function setStatus(id: string, status: JobStatus) {
+    await send(`/api/jobs?id=${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      body: JSON.stringify({ status }),
+    });
+    await load();
+  }
+
   async function complete(id: string) {
     await send(`/api/jobs?id=${encodeURIComponent(id)}`, {
       method: "PATCH",
@@ -230,6 +238,7 @@ export function ZoJobs() {
             onComplete={complete}
             onCreate={create}
             onSaveCloseout={saveCloseout}
+            onSetStatus={setStatus}
             onUploadPhoto={uploadPhoto}
           />
         )}

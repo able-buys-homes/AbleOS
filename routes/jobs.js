@@ -260,6 +260,27 @@ export default async function handler(req, res) {
                 : null;
         }
 
+        // Moving a job between states. "completed" is deliberately not in this
+        // list - it goes through the branch below, which insists on the proof.
+        if (req.body?.status !== undefined) {
+            const next = String(req.body.status);
+            const allowed = [
+                "new",
+                "assigned",
+                "in_progress",
+                "waiting_parts",
+                "cancelled",
+            ];
+
+            if (!allowed.includes(next)) {
+                return res
+                    .status(400)
+                    .json({ error: "That is not a job status" });
+            }
+
+            patch.status = next;
+        }
+
         if (req.body?.complete) {
             const fix = patch.fix ?? job.fix;
             const photo = patch.photo_path ?? job.photo_path;
@@ -280,8 +301,9 @@ export default async function handler(req, res) {
             patch.status = "completed";
             patch.completed_at = new Date().toISOString();
             patch.completed_by = profile.cockpit;
-        } else if (job.status === "new") {
-            // Somebody has started writing it up, so it is no longer untouched.
+        } else if (job.status === "new" && patch.status === undefined) {
+            // Somebody has started writing it up, so it is no longer
+            // untouched - unless they said explicitly what it is now.
             patch.status = "in_progress";
         }
 

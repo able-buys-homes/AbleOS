@@ -14,7 +14,13 @@ import React from "react";
 import { Btn, Stack, money } from "../collections/parts";
 
 export type Priority = "emergency" | "urgent" | "routine";
-export type JobStatus = "new" | "assigned" | "in_progress" | "completed";
+export type JobStatus =
+  | "new"
+  | "assigned"
+  | "in_progress"
+  | "waiting_parts"
+  | "completed"
+  | "cancelled";
 export type Category =
   | "plumbing"
   | "electrical"
@@ -59,6 +65,7 @@ interface Props {
   onSaveCloseout: (id: string, c: Job["closeout"]) => Promise<void> | void;
   onComplete: (id: string) => Promise<void> | void;
   onUploadPhoto: (id: string, file: File) => Promise<string>;
+  onSetStatus: (id: string, status: JobStatus) => Promise<void> | void;
   lots?: number[];
 }
 
@@ -83,10 +90,14 @@ const PRIO: Record<Priority, { label: string; chip: string; bar: string }> = {
 };
 
 const STATUS: Record<JobStatus, string> = {
-  new: "Not started",
+  new: "New",
   assigned: "Assigned",
-  in_progress: "Being written up",
-  completed: "Finished",
+  in_progress: "In progress",
+  // Somebody has looked at it and cannot finish. Not the same as untouched,
+  // and it must not sit on the board being chased as though it were.
+  waiting_parts: "Waiting on parts",
+  completed: "Completed",
+  cancelled: "Cancelled",
 };
 
 const CAT: Record<Category, string> = {
@@ -142,6 +153,7 @@ export default function HtmJobs({
   onSaveCloseout,
   onComplete,
   onUploadPhoto,
+  onSetStatus,
   lots,
 }: Props) {
   const [open, setOpen] = React.useState<string | null>(null);
@@ -178,10 +190,11 @@ export default function HtmJobs({
 
   const FILTERS: Array<{ key: "all" | JobStatus; label: string }> = [
     { key: "all", label: `All (${jobs.length})` },
-    { key: "new", label: "Not started" },
+    { key: "new", label: "New" },
     { key: "assigned", label: "Assigned" },
-    { key: "in_progress", label: "Being written up" },
-    { key: "completed", label: "Finished" },
+    { key: "in_progress", label: "In progress" },
+    { key: "waiting_parts", label: "Waiting on parts" },
+    { key: "completed", label: "Completed" },
   ];
 
   const d = (id: string) =>
@@ -229,6 +242,18 @@ export default function HtmJobs({
       setOpen(null);
     } catch (err) {
       setProblem(err instanceof Error ? err.message : "Could not finish it.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function setStatus(id: string, status: JobStatus) {
+    setBusy(id);
+    setProblem("");
+    try {
+      await onSetStatus(id, status);
+    } catch (err) {
+      setProblem(err instanceof Error ? err.message : "Could not change it.");
     } finally {
       setBusy(null);
     }
@@ -303,6 +328,30 @@ export default function HtmJobs({
                 {j.note}
               </p>
             )}
+
+            <Label>Where is it up to</Label>
+            <select
+              className={inputClass}
+              disabled={busy === j.id}
+              onChange={(e) => setStatus(j.id, e.target.value as JobStatus)}
+              value={j.status}
+            >
+              {(
+                [
+                  "new",
+                  "assigned",
+                  "in_progress",
+                  "waiting_parts",
+                ] as JobStatus[]
+              ).map((s) => (
+                <option key={s} value={s}>
+                  {STATUS[s]}
+                </option>
+              ))}
+            </select>
+            {/* Completed is not in that list on purpose. A job becomes
+                finished by writing what was fixed and attaching the photo,
+                never by picking it out of a menu. */}
 
             <Label>What did you fix?</Label>
             <textarea
