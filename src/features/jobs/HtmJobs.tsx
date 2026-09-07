@@ -200,8 +200,17 @@ export default function HtmJobs({
   const d = (id: string) =>
     draft[id] ?? jobs.find((j) => j.id === id)?.closeout ?? {};
 
+  // Reads the latest draft inside the updater rather than one captured when
+  // the handler was created. Reading a stale copy here can quietly drop the
+  // last few keystrokes of what somebody wrote about a repair.
   const setD = (id: string, patch: Partial<NonNullable<Job["closeout"]>>) =>
-    setDraft((s) => ({ ...s, [id]: { ...d(id), ...patch } }));
+    setDraft((s) => ({
+      ...s,
+      [id]: {
+        ...(s[id] ?? jobs.find((j) => j.id === id)?.closeout ?? {}),
+        ...patch,
+      },
+    }));
 
   async function save(id: string) {
     const c = d(id);
