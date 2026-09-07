@@ -238,6 +238,15 @@ export default function HtmJobs({
     setBusy(id);
     setProblem("");
     try {
+      // Save the write-up first. Completing sends only the flag, so without
+      // this the server sees a job with no fix recorded and refuses it -
+      // correctly, because nothing had been written down yet.
+      await onSaveCloseout(id, {
+        fix: c.fix ?? "",
+        partsCost: Number(c.partsCost ?? 0),
+        hours: Number(c.hours ?? 0),
+        photoUrl: c.photoUrl,
+      });
       await onComplete(id);
       setOpen(null);
     } catch (err) {
