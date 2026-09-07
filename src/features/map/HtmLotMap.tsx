@@ -122,72 +122,76 @@ export const PAINT_META: Record<
     dashed?: boolean;
   }
 > = {
+  // Rent states. Filled, saturated, and far apart in hue - these are the
+  // three that make Zo walk somewhere.
   paid: {
     label: "Occupied · paid",
-    fill: "#DFF3EA",
-    stroke: "#1D8A62",
-    text: "#0F5C41",
+    fill: "#BBF7D0",
+    stroke: "#15803D",
+    text: "#14532D",
   },
   on_plan: {
     label: "On a plan",
-    fill: "#FDF0D5",
-    stroke: "#D97706",
-    text: "#7A4508",
+    fill: "#FDE68A",
+    stroke: "#B45309",
+    text: "#78350F",
   },
   late: {
     label: "Late",
-    fill: "#FBDDD3",
+    fill: "#FECACA",
     stroke: "#DC2626",
-    text: "#8A2E14",
+    text: "#7F1D1D",
   },
-  // Someone lives here and there is nothing to act on. Covers both "no rent
-  // recorded yet" and "owes but the 5th has not passed" - neither of which is
-  // a claim that they have paid.
+  // Someone lives here and there is nothing to act on. Hollow with a solid
+  // outline: solid because it is not empty, hollow because nothing is known.
   occupied: {
     label: "Occupied",
-    fill: "#DCE7F5",
-    stroke: "#2A3648",
-    text: "#2A3648",
+    fill: "#FFFFFF",
+    stroke: "#334155",
+    text: "#1E293B",
   },
-  // Empty homes are drawn hollow. A dashed outline reads as "nobody here"
-  // from across a gravel driveway in sunlight, which a fill colour does not.
+  // Empty homes are dashed. A hollow dashed box reads as "nobody here" from
+  // across a gravel driveway in sunlight, which a fill colour does not.
   ready: {
     label: "Ready to rent",
     fill: "#FFFFFF",
-    stroke: "#1D8A62",
-    text: "#0F5C41",
+    stroke: "#15803D",
+    text: "#14532D",
     dashed: true,
   },
   moving_out: {
     label: "Moving out",
     fill: "#FFFFFF",
-    stroke: "#D97706",
-    text: "#7A4508",
+    stroke: "#B45309",
+    text: "#78350F",
     dashed: true,
   },
+  // Work states are filled, and orange and indigo rather than another amber
+  // and another navy - the first version had these sitting on top of On a
+  // plan and Occupied and you could not tell them apart.
   needs_repair: {
     label: "Needs repair",
-    fill: "#FDEBD3",
-    stroke: "#E0891F",
-    text: "#7A4508",
+    fill: "#FED7AA",
+    stroke: "#C2410C",
+    text: "#7C2D12",
   },
   full_rehab: {
     label: "Full rehab",
-    fill: "#DDE3F0",
-    stroke: "#1E3A8A",
-    text: "#1E3A8A",
+    fill: "#C7D2FE",
+    stroke: "#4338CA",
+    text: "#312E81",
   },
   common_area: {
     label: "Office / laundry",
-    fill: "#EDEFF2",
-    stroke: "#8C949E",
-    text: "#4A5460",
+    fill: "#E5E7EB",
+    stroke: "#9CA3AF",
+    text: "#4B5563",
   },
   verify: {
     label: "Needs checking",
-    fill: "#FEF6CE",
-    stroke: "#A88300",
-    text: "#6B5200",
+    fill: "#FEF08A",
+    stroke: "#A16207",
+    text: "#713F12",
   },
 };
 
