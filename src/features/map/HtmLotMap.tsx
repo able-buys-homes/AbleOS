@@ -9,6 +9,7 @@
 
 import React from "react";
 import { useNavigate } from "react-router-dom";
+import { apiFetch } from "../../lib/apiFetch";
 
 export type LotStatus =
   | "occupied"
@@ -20,11 +21,19 @@ export type LotStatus =
   | "verify";
 
 export interface Lot {
+  /** The lot number. Drives the geometry, which is fixed. */
   id: number;
+  /** The database row. Needed to change anything about the lot. */
+  lotId?: string;
   status: LotStatus;
   tenant?: string;
   rent?: number;
   note?: string;
+  repairNote?: string;
+  /** Who last said this is the status, and when. A status set by the
+      1 September site walk is not the same claim as one Zo set today. */
+  statusSetBy?: string;
+  statusSetAt?: string;
   bed?: number;
   bath?: number;
   sqft?: number;
@@ -216,19 +225,76 @@ export function lotCounts(lots: Lot[]) {
 export function HtmLotMap({
   lots = DEFAULT_LOTS,
   onSelect,
+  onChanged,
 }: {
   lots?: Lot[];
   onSelect?: (lot: Lot) => void;
+  /** Called after a status or note is saved, so the page can reload. */
+  onChanged?: () => void;
 }) {
   const navigate = useNavigate();
   const [filter, setFilter] = React.useState<LotStatus | null>(null);
-  const [selected, setSelected] = React.useState<Lot | null>(null);
+  // The id, not the object. After a save the array is replaced, and a stored
+  // object would leave the card showing what the lot used to be.
+  const [selectedId, setSelectedId] = React.useState<number | null>(null);
+  const [editing, setEditing] = React.useState(false);
+  const [draftStatus, setDraftStatus] = React.useState<LotStatus>("verify");
+  const [draftName, setDraftName] = React.useState("");
+  const [draftNote, setDraftNote] = React.useState("");
+  const [busy, setBusy] = React.useState(false);
+  const [problem, setProblem] = React.useState("");
   const detailRef = React.useRef<HTMLDivElement>(null);
+
+  const selected = lots.find((l) => l.id === selectedId) ?? null;
+
+  function openEditor() {
+    if (!selected) return;
+    setDraftStatus(selected.status);
+    setDraftName(selected.tenant ?? "");
+    setDraftNote(selected.repairNote ?? "");
+    setProblem("");
+    setEditing(true);
+  }
+
+  async function save(patch: {
+    home_status?: LotStatus;
+    tenant_name?: string;
+    repair_note?: string | null;
+  }) {
+    if (!selected?.lotId) {
+      setProblem(
+        "This lot is not in the database, so nothing can be saved against it.",
+      );
+      return;
+    }
+
+    setBusy(true);
+    setProblem("");
+
+    try {
+      const res = await apiFetch("/api/lots", {
+        method: "PATCH",
+        body: JSON.stringify({ lot_id: selected.lotId, ...patch }),
+      });
+
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body?.error || "Could not save");
+
+      setEditing(false);
+      onChanged?.();
+    } catch (err) {
+      setProblem(err instanceof Error ? err.message : "Could not save");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   const { counts } = lotCounts(lots);
 
   function pick(lot: Lot) {
-    setSelected(lot);
+    setSelectedId(lot.id);
+    setEditing(false);
+    setProblem("");
     onSelect?.(lot);
     // The detail sits under the map. On a phone that is off-screen when you
     // tap a lot near the top, so bring it to the eye rather than making Zo
@@ -334,7 +400,7 @@ export function HtmLotMap({
             if (!pos) return null;
             const meta = STATUS_META[lot.status];
             const dimmed = filter !== null && lot.status !== filter;
-            const isSelected = selected?.id === lot.id;
+            const isSelected = selectedId === lot.id;
             return (
               <g
                 aria-label={`Lot ${lot.id}, ${meta.label}`}
@@ -404,13 +470,12 @@ export function HtmLotMap({
                   }`}
                 />
               )}
-              {selected.tenant && (
-                <Row label="Resident" value={selected.tenant} />
-              )}
-              {selected.rent != null && (
+              {/* Only when someone lives here. A name shown on an empty home
+                  is how a former resident gets chased for a lot they left. */}
+              {selected.status === "occupied" && (
                 <Row
-                  label="Rent"
-                  value={`$${selected.rent.toLocaleString()} a month`}
+                  label="Resident"
+                  value={selected.tenant ?? "Not recorded"}
                 />
               )}
             </dl>
@@ -421,36 +486,143 @@ export function HtmLotMap({
               </p>
             )}
 
-            {selected.bed == null && !selected.note && (
-              <p className="mt-3 text-[13.5px] text-[#6C7484]">
-                Nothing recorded for this home yet. Walk it and file an
-                inspection to fill this in.
+            {(selected.status === "needs_repair" ||
+              selected.status === "full_rehab") && (
+              <div className="mt-3 rounded-[9px] border-l-4 border-l-[#D97706] bg-[#FFFCF5] px-3.5 py-3">
+                <div className="text-[12px] font-bold uppercase tracking-[0.05em] text-[#7A4E06]">
+                  What needs doing
+                </div>
+                <p className="mt-1 text-[13.5px] leading-relaxed text-[#92600A]">
+                  {selected.repairNote ||
+                    "Nothing written down yet. Nobody knows what this home needs until someone writes it here."}
+                </p>
+              </div>
+            )}
+
+            {/* Where this status came from. One carried over from the
+                September site walk is a different claim from one Zo set after
+                standing in front of the home. */}
+            {selected.statusSetBy && (
+              <p className="mt-3 text-[12.5px] text-[#8A929E]">
+                Set by {selected.statusSetBy}
+                {selected.statusSetAt
+                  ? ` · ${new Date(selected.statusSetAt).toLocaleDateString(
+                      undefined,
+                      { day: "numeric", month: "short", year: "numeric" },
+                    )}`
+                  : ""}
               </p>
             )}
 
-            {/* Only the actions that have somewhere real to go. Jobs have no
-                table behind them yet, so that button says so instead of
-                opening an empty screen - a button that does nothing teaches
-                Zo to stop pressing buttons. The office is not a home and
-                gets none of these. */}
-            {selected.status !== "common_area" && (
+            {problem && (
+              <p className="mt-3 text-[14px] text-[#B91C1C]">{problem}</p>
+            )}
+
+            {editing ? (
+              <div className="mt-3.5 border-t border-[#E3E5E9] pt-3.5">
+                <label className="block text-[12px] font-bold uppercase tracking-[0.05em] text-[#6C7484]">
+                  What is this lot now
+                </label>
+                <select
+                  className="mt-1.5 w-full rounded-[10px] border border-[#DCE4EE] bg-white px-3 py-2.5 text-[15px] text-[#1B2231]"
+                  onChange={(e) => setDraftStatus(e.target.value as LotStatus)}
+                  value={draftStatus}
+                >
+                  {(Object.keys(STATUS_META) as LotStatus[]).map((key) => (
+                    <option key={key} value={key}>
+                      {STATUS_META[key].label}
+                    </option>
+                  ))}
+                </select>
+
+                {/* A home cannot be occupied by nobody. The server refuses it
+                    too - this is just the polite version of the same rule. */}
+                {draftStatus === "occupied" && (
+                  <>
+                    <label className="mt-3 block text-[12px] font-bold uppercase tracking-[0.05em] text-[#6C7484]">
+                      Who lives here
+                    </label>
+                    <input
+                      className="mt-1.5 w-full rounded-[10px] border border-[#DCE4EE] bg-white px-3 py-2.5 text-[15px] text-[#1B2231]"
+                      onChange={(e) => setDraftName(e.target.value)}
+                      placeholder="Full name from the lease"
+                      type="text"
+                      value={draftName}
+                    />
+                  </>
+                )}
+
+                {(draftStatus === "needs_repair" ||
+                  draftStatus === "full_rehab") && (
+                  <>
+                    <label className="mt-3 block text-[12px] font-bold uppercase tracking-[0.05em] text-[#6C7484]">
+                      What needs doing
+                    </label>
+                    <textarea
+                      className="mt-1.5 w-full rounded-[10px] border border-[#DCE4EE] bg-white px-3 py-2.5 text-[15px] leading-relaxed text-[#1B2231]"
+                      onChange={(e) => setDraftNote(e.target.value)}
+                      placeholder="Back steps rotten, water heater leaking, needs a screen door"
+                      rows={4}
+                      value={draftNote}
+                    />
+                  </>
+                )}
+
+                <div className="mt-3.5 flex gap-2.5">
+                  <button
+                    className="flex-1 rounded-[10px] border border-[#DCE4EE] bg-white px-3.5 py-2.5 text-[14px] font-semibold text-[#1B2231]"
+                    onClick={() => setEditing(false)}
+                    type="button"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    className="flex-1 rounded-[10px] bg-[#1E3A8A] px-3.5 py-2.5 text-[14px] font-semibold text-white disabled:opacity-60"
+                    disabled={busy}
+                    onClick={() =>
+                      save({
+                        home_status: draftStatus,
+                        tenant_name: draftName.trim() || undefined,
+                        repair_note:
+                          draftStatus === "needs_repair" ||
+                          draftStatus === "full_rehab"
+                            ? draftNote.trim() || null
+                            : undefined,
+                      })
+                    }
+                    type="button"
+                  >
+                    {busy ? "Saving…" : "Save"}
+                  </button>
+                </div>
+              </div>
+            ) : (
               <div className="mt-3.5 flex flex-wrap gap-2.5 border-t border-[#E3E5E9] pt-3.5">
+                <button
+                  className="rounded-[10px] bg-[#1E3A8A] px-3.5 py-2.5 text-[14px] font-semibold text-white"
+                  onClick={openEditor}
+                  type="button"
+                >
+                  Change the status
+                </button>
                 {selected.status === "occupied" && (
                   <button
-                    className="rounded-[10px] bg-[#1E3A8A] px-3.5 py-2.5 text-[14px] font-semibold text-white"
+                    className="rounded-[10px] border border-[#DCE4EE] bg-white px-3.5 py-2.5 text-[14px] font-semibold text-[#1B2231]"
                     onClick={() => navigate("/zo/collections")}
                     type="button"
                   >
                     Take payment
                   </button>
                 )}
-                <button
-                  className="rounded-[10px] border border-[#DCE4EE] bg-white px-3.5 py-2.5 text-[14px] font-semibold text-[#1B2231]"
-                  onClick={() => navigate("/zo/inspect")}
-                  type="button"
-                >
-                  Open in Inspect
-                </button>
+                {selected.status !== "common_area" && (
+                  <button
+                    className="rounded-[10px] border border-[#DCE4EE] bg-white px-3.5 py-2.5 text-[14px] font-semibold text-[#1B2231]"
+                    onClick={() => navigate("/zo/inspect")}
+                    type="button"
+                  >
+                    Open in Inspect
+                  </button>
+                )}
                 <button
                   className="rounded-[10px] border border-[#DCE4EE] bg-white px-3.5 py-2.5 text-[14px] font-semibold text-[#9AA1AC]"
                   disabled
