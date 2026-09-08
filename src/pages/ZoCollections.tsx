@@ -123,6 +123,22 @@ export function ZoCollections() {
   const [toast, setToast] = React.useState<{ msg: string; stop?: boolean }>({
     msg: "",
   });
+  // Which section was just jumped to. The last section on the page cannot
+  // scroll to the top - the page runs out first - so a tap on Paid can move
+  // the screen barely at all. The highlight is how Zo knows it answered him.
+  const [flash, setFlash] = React.useState<string | null>(null);
+
+  function jumpTo(id: string) {
+    goTo(id);
+    setFlash(id);
+    window.setTimeout(() => setFlash(null), 1400);
+  }
+
+  const ring = (id: string) =>
+    `scroll-mt-4 rounded-xl transition-shadow duration-300 ${
+      flash === id ? "ring-4 ring-[#1E3A8A]/25" : ""
+    }`;
+
   const [sheet, setSheet] = React.useState<
     null | "pay" | "plan" | "post" | "rent"
   >(null);
@@ -284,19 +300,19 @@ export function ZoCollections() {
               <Tile
                 l="Late"
                 n={String(late.length)}
-                onClick={() => goTo("sec-late")}
+                onClick={() => jumpTo("sec-late")}
                 tone="late"
               />
               <Tile
                 l="On a plan"
                 n={String(onPlan.length)}
-                onClick={() => goTo("sec-plan")}
+                onClick={() => jumpTo("sec-plan")}
                 tone="plan"
               />
               <Tile
                 l="Paid"
                 n={String(paid.length)}
-                onClick={() => goTo("sec-paid")}
+                onClick={() => jumpTo("sec-paid")}
                 tone="paid"
               />
             </div>
@@ -321,8 +337,9 @@ export function ZoCollections() {
                 it. The empty line says why it is empty. It must never read as
                 "nobody is late" - that is a claim about the residents, and
                 this is a gap in the records. */}
-            <div className="scroll-mt-4" id="sec-late" />
-            <SectionBar count={late.length} title="Late" />
+            <div className={ring("sec-late")} id="sec-late">
+              <SectionBar count={late.length} title="Late" />
+            </div>
             <Stack>
               {late.length === 0 && (
                 <div className="p-4 text-[15px] text-[#6C7484]">
@@ -394,8 +411,9 @@ export function ZoCollections() {
               </>
             )}
 
-            <div className="scroll-mt-4" id="sec-plan" />
-            <SectionBar count={onPlan.length} title="On a plan" />
+            <div className={ring("sec-plan")} id="sec-plan">
+              <SectionBar count={onPlan.length} title="On a plan" />
+            </div>
             <Stack>
               {onPlan.length === 0 && (
                 <div className="p-4 text-[15px] text-[#6C7484]">
@@ -415,6 +433,7 @@ export function ZoCollections() {
               ))}
             </Stack>
 
+            <div className="scroll-mt-4" id="sec-paid" />
             <SectionBar count={paid.length} title="Paid" />
             <Stack>
               {paid.map((lot) => (
