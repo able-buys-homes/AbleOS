@@ -31,6 +31,8 @@ type Row = {
   status_set_by: string | null;
   status_set_at: string | null;
   rent_state: "paid" | "on_plan" | "late" | "occupied" | null;
+  next_inspection_at: string | null;
+  next_inspection_set_by: string | null;
 };
 
 const num = (v: string | number | null) =>
@@ -73,6 +75,8 @@ export function ZoMap() {
           statusSetBy: r.status_set_by ?? undefined,
           statusSetAt: r.status_set_at ?? undefined,
           rentState: r.rent_state ?? undefined,
+          nextInspectionAt: r.next_inspection_at ?? undefined,
+          nextInspectionSetBy: r.next_inspection_set_by ?? undefined,
           bed: num(r.bed),
           bath: num(r.bath),
           sqft: r.sq_ft ?? undefined,

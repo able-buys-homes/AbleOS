@@ -34,6 +34,9 @@ export interface Lot {
       1 September site walk is not the same claim as one Zo set today. */
   statusSetBy?: string;
   statusSetAt?: string;
+  /** The date somebody intends to walk this home. Not proof they did. */
+  nextInspectionAt?: string;
+  nextInspectionSetBy?: string;
   /** Where the rent stands. Only meaningful when the home is occupied. */
   rentState?: "paid" | "on_plan" | "late" | "occupied";
   bed?: number;
@@ -374,6 +377,15 @@ export function HtmLotMap({
   const [draftNote, setDraftNote] = React.useState("");
   const [busy, setBusy] = React.useState(false);
   const [problem, setProblem] = React.useState("");
+
+  // Scheduling mode. While it is on, tapping a lot picks it instead of
+  // opening it - so the map has to say so in plain words. A screen that
+  // silently changes what a tap does is a screen Zo stops trusting.
+  const [selecting, setSelecting] = React.useState(false);
+  const [picked, setPicked] = React.useState<Set<string>>(new Set());
+  const [inspectDate, setInspectDate] = React.useState("");
+  const [savingInspect, setSavingInspect] = React.useState(false);
+
   const detailRef = React.useRef<HTMLDivElement>(null);
 
   const selected = lots.find((l) => l.id === selectedId) ?? null;
@@ -385,6 +397,35 @@ export function HtmLotMap({
     setDraftNote(selected.repairNote ?? "");
     setProblem("");
     setEditing(true);
+  }
+
+  async function saveInspections(date: string | null) {
+    if (picked.size === 0) return;
+
+    setSavingInspect(true);
+    setProblem("");
+
+    try {
+      const res = await apiFetch("/api/lots", {
+        method: "PATCH",
+        body: JSON.stringify({
+          lot_ids: [...picked],
+          next_inspection_at: date,
+        }),
+      });
+
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body?.error || "Could not save");
+
+      setPicked(new Set());
+      setSelecting(false);
+      setInspectDate("");
+      onChanged?.();
+    } catch (err) {
+      setProblem(err instanceof Error ? err.message : "Could not save");
+    } finally {
+      setSavingInspect(false);
+    }
   }
 
   async function save(patch: {
@@ -423,6 +464,20 @@ export function HtmLotMap({
   const { counts } = lotCounts(lots);
 
   function pick(lot: Lot) {
+    if (selecting) {
+      // A lot that is not in the database cannot be scheduled, so it cannot
+      // be picked either.
+      if (!lot.lotId) return;
+      const id = lot.lotId;
+      setPicked((prev) => {
+        const next = new Set(prev);
+        if (next.has(id)) next.delete(id);
+        else next.add(id);
+        return next;
+      });
+      return;
+    }
+
     setSelectedId(lot.id);
     setEditing(false);
     setProblem("");
@@ -442,6 +497,69 @@ export function HtmLotMap({
 
   return (
     <div>
+      {selecting ? (
+        <div className="mb-3 rounded-2xl border border-[#1E3A8A] bg-[#EEF3FB] p-4">
+          <div className="text-[15px] font-bold text-[#1B2231]">
+            Tap the homes you are going to walk
+          </div>
+          <div className="mt-0.5 text-[13.5px] text-[#4A5464]">
+            {picked.size === 0
+              ? "None picked yet. Tapping a lot picks it instead of opening it."
+              : `${picked.size} ${picked.size === 1 ? "home" : "homes"} picked.`}
+          </div>
+
+          <input
+            className="mt-3 w-full rounded-[10px] border border-[#DCE4EE] bg-white px-3.5 py-2.5 text-[16px] text-[#1B2231]"
+            onChange={(e) => setInspectDate(e.target.value)}
+            type="date"
+            value={inspectDate}
+          />
+
+          {problem && (
+            <p className="mt-2.5 text-[14px] text-[#B91C1C]">{problem}</p>
+          )}
+
+          <div className="mt-3 flex flex-wrap gap-2.5">
+            <button
+              className="rounded-[10px] bg-[#1E3A8A] px-3.5 py-2.5 text-[14px] font-semibold text-white disabled:opacity-50"
+              disabled={savingInspect || picked.size === 0 || !inspectDate}
+              onClick={() => saveInspections(inspectDate)}
+              type="button"
+            >
+              {savingInspect ? "Saving…" : "Set the date"}
+            </button>
+            <button
+              className="rounded-[10px] border border-[#DCE4EE] bg-white px-3.5 py-2.5 text-[14px] font-semibold text-[#1B2231] disabled:opacity-50"
+              disabled={savingInspect || picked.size === 0}
+              onClick={() => saveInspections(null)}
+              type="button"
+            >
+              Clear the date
+            </button>
+            <button
+              className="rounded-[10px] border border-[#DCE4EE] bg-white px-3.5 py-2.5 text-[14px] font-semibold text-[#1B2231]"
+              onClick={() => {
+                setSelecting(false);
+                setPicked(new Set());
+                setInspectDate("");
+                setProblem("");
+              }}
+              type="button"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      ) : (
+        <button
+          className="mb-3 w-full rounded-2xl border border-[#DCE4EE] bg-white px-4 py-3 text-[15px] font-semibold text-[#1E3A8A]"
+          onClick={() => setSelecting(true)}
+          type="button"
+        >
+          Schedule inspections
+        </button>
+      )}
+
       {/* The three numbers Zo acts on. Tapping one dims the rest of the
           drawing rather than hiding it - he still needs to see where a lot
           sits relative to the park to walk to it. */}
@@ -572,6 +690,7 @@ export function HtmLotMap({
                 ? !OCCUPIED_PAINTS.includes(paint)
                 : paint !== filter);
             const isSelected = selectedId === lot.id;
+            const isPicked = Boolean(lot.lotId && picked.has(lot.lotId));
             return (
               <g
                 aria-label={`Lot ${lot.id}, ${meta.label}`}
@@ -589,9 +708,9 @@ export function HtmLotMap({
                   fill={meta.fill}
                   height={48}
                   rx={6}
-                  stroke={isSelected ? "#1E3A8A" : meta.stroke}
+                  stroke={isSelected || isPicked ? "#1E3A8A" : meta.stroke}
                   strokeDasharray={meta.dashed ? "7 5" : undefined}
-                  strokeWidth={isSelected ? 8 : 3}
+                  strokeWidth={isSelected || isPicked ? 8 : 3}
                   width={64}
                   x={pos.x - 32}
                   y={pos.y - 24}
@@ -648,6 +767,18 @@ export function HtmLotMap({
                 <Row
                   label="Resident"
                   value={selected.tenant ?? "Not recorded"}
+                />
+              )}
+              {selected.nextInspectionAt && (
+                <Row
+                  label="Next inspection"
+                  value={new Date(
+                    `${selected.nextInspectionAt}T00:00:00`,
+                  ).toLocaleDateString(undefined, {
+                    day: "numeric",
+                    month: "short",
+                    year: "numeric",
+                  })} 
                 />
               )}
             </dl>

@@ -10,7 +10,7 @@
 // they can no longer disagree.
 import { createClient } from "@supabase/supabase-js";
 import { requireUser } from "../lib/apiAuth.js";
-import { pastGrace } from "../lib/rentRules.js";
+import { parkToday, pastGrace } from "../lib/rentRules.js";
 
 const PROPERTY = "Hometown Meadows MHP";
 
@@ -76,7 +76,7 @@ export default async function handler(req, res) {
                     supabase
                         .from("lots")
                         .select(
-                            "id, lot_number, tenant_name, home_status, repair_note, bed, bath, sq_ft, notes, occupied, status_set_by, status_set_at, hap_household, tenancy_type, contract_rent, tenant_portion",
+                            "id, lot_number, tenant_name, home_status, repair_note, bed, bath, sq_ft, notes, occupied, status_set_by, status_set_at, hap_household, tenancy_type, contract_rent, tenant_portion, next_inspection_at, next_inspection_set_by, next_inspection_set_at",
                         )
                         .eq("property", PROPERTY),
                     supabase.from("rent_ledger").select("lot_id, amount"),
@@ -136,6 +136,72 @@ export default async function handler(req, res) {
             });
 
             return res.status(200).json({ lots, statuses: STATUSES });
+        }
+
+        /* ---- schedule the next inspection, one lot or many ---- */
+        //
+        // One code path for a single home and for twenty. A separate
+        // "bulk" endpoint would eventually disagree with the single one about
+        // what a valid date is, and the difference would show up as a home
+        // scheduled for a day nobody meant.
+        if (Array.isArray(req.body?.lot_ids)) {
+            const ids = req.body.lot_ids.map((id) => String(id)).filter(Boolean);
+
+            if (ids.length === 0) {
+                return res.status(400).json({ error: "Pick at least one lot" });
+            }
+
+            const raw = req.body?.next_inspection_at;
+
+            let date = null;
+
+            if (raw !== null && raw !== undefined && String(raw) !== "") {
+                const text = String(raw).slice(0, 10);
+
+                if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) {
+                    return res.status(400).json({ error: "Pick a date" });
+                }
+
+                // A date already gone is a typo, and it would sit on the roll
+                // looking like an inspection somebody missed.
+                const { year, month, day } = parkToday();
+                const today = `${year}-${String(month).padStart(2, "0")}-${String(
+                    day,
+                ).padStart(2, "0")}`;
+
+                if (text < today) {
+                    return res.status(400).json({
+                        error: "That date has already passed. Pick today or later.",
+                    });
+                }
+
+                date = text;
+            }
+
+            const { error: inspectError } = await supabase
+                .from("lots")
+                .update({
+                    next_inspection_at: date,
+                    // Cleared together with the date. Provenance for a date
+                    // that no longer exists is just noise.
+                    next_inspection_set_by: date ? profile.cockpit : null,
+                    next_inspection_set_at: date
+                        ? new Date().toISOString()
+                        : null,
+                    updated_at: new Date().toISOString(),
+                })
+                .in("id", ids);
+
+            if (inspectError) throw inspectError;
+
+            const homes = `${ids.length} ${ids.length === 1 ? "home" : "homes"}`;
+
+            return res.status(200).json({
+                ok: true,
+                message: date
+                    ? `Inspection set for ${homes}.`
+                    : `Inspection date cleared on ${homes}.`,
+            });
         }
 
         /* ---- change what a lot is ---- */
