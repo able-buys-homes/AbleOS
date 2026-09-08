@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import { MobileScreenShell } from "../components/MobileScreenShell";
 import { ZoScreenHeader } from "../components/ZoScreenHeader";
-import { MyInspectionsCard } from "../features/inspections/MyInspectionsCard";
+import { UnitInspectionsCard } from "../features/inspections/UnitInspectionsCard";
 import { ZoTabBar } from "../components/ZoTabBar";
 import { apiFetch } from "../lib/apiFetch";
 import { useAuth } from "../lib/AuthProvider";
@@ -944,9 +944,11 @@ export function ZoInspect() {
       </div>
 
       {/* Sticky footer, same as the standalone form */}
-      {/* His own record, under the form. Filing used to clear the screen and
-          leave nothing at all on Zo's side - the only copy went to Raj. */}
-      <MyInspectionsCard />
+      {/* The same card Raj has, reading the same endpoint. It returns only
+          the caller's own walks unless the caller is Raj, so Zo gets his own
+          history in the identical layout - one description of an inspection
+          rather than two that can drift apart. */}
+      <UnitInspectionsCard mine />
 
       {/* Clears the action bar, which now sits above the tab bar rather than
           on the floor of the screen. */}

@@ -230,9 +230,16 @@ function problems(row: Inspection) {
 export function UnitInspectionsCard({
   divider = false,
   row = false,
+  mine = false,
 }: {
   divider?: boolean;
   row?: boolean;
+  /**
+   * Rendered on Zo's own screen. The endpoint already returns only the
+   * caller's walks unless the caller is Raj, so this changes the wording and
+   * nothing else - it must never become the thing that decides who sees what.
+   */
+  mine?: boolean;
 }) {
   const [inspections, setInspections] = React.useState<Inspection[]>([]);
   const [loading, setLoading] = React.useState(true);
@@ -388,7 +395,9 @@ export function UnitInspectionsCard({
         subtitle={
           totals.flagged > 0
             ? `${totals.flagged} flagged — someone may be living there`
-            : "Vacant units Zo has walked"
+            : mine
+              ? "Walks you have filed"
+              : "Vacant units Zo has walked"
         }
         count={loading ? null : totals.total}
         tone={totals.flagged > 0 ? "orange" : "green"}
