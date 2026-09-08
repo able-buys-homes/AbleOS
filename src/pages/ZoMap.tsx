@@ -36,6 +36,8 @@ type Row = {
   owed: number;
   open_job_count: number;
   top_job: { id: string; title: string; priority: string } | null;
+  month_charged: number;
+  month_paid: number;
 };
 
 const num = (v: string | number | null) =>
@@ -83,6 +85,8 @@ export function ZoMap() {
           owed: Number(r.owed ?? 0),
           openJobCount: r.open_job_count ?? 0,
           topJob: r.top_job ?? undefined,
+          monthCharged: Number(r.month_charged ?? 0),
+          monthPaid: Number(r.month_paid ?? 0),
           bed: num(r.bed),
           bath: num(r.bath),
           sqft: r.sq_ft ?? undefined,

@@ -41,6 +41,8 @@ export interface Lot {
   owed?: number;
   openJobCount?: number;
   topJob?: { id: string; title: string; priority: string };
+  monthCharged?: number;
+  monthPaid?: number;
   /** Where the rent stands. Only meaningful when the home is occupied. */
   rentState?: "paid" | "on_plan" | "late" | "occupied";
   bed?: number;
@@ -220,7 +222,11 @@ function rentLine(lot: Lot) {
   if (lot.rentState === "on_plan") return "On a plan";
   if (lot.rentState === "late") return `Late · ${dollars(owed)} owed`;
   if (lot.rentState === "paid") {
-    return owed < 0 ? `Paid · ${dollars(-owed)} in credit` : "Paid";
+    const paid = lot.monthPaid ?? 0;
+    if (owed < 0) return `Paid · ${dollars(-owed)} in credit`;
+    // "Paid" with no figure is nothing Zo can repeat back to a resident who
+    // asks what they paid.
+    return paid > 0 ? `Paid · ${dollars(paid)} this month` : "Paid";
   }
   if (owed > 0) return `Due · ${dollars(owed)} owed`;
   return "No rent recorded";
@@ -253,12 +259,7 @@ export function paintOf(lot: Lot): Paint {
 }
 
 /** Every colour that means somebody lives there. */
-export const OCCUPIED_PAINTS: Paint[] = [
-  "paid",
-  "on_plan",
-  "late",
-  "occupied",
-];
+export const OCCUPIED_PAINTS: Paint[] = ["paid", "on_plan", "late", "occupied"];
 
 /** Statuses that count as a rentable door. The office is not a door. */
 const RENTABLE: LotStatus[] = [
@@ -833,7 +834,9 @@ export function HtmLotMap({
               <Row
                 label="Open jobs"
                 tone={
-                  selected.topJob ? jobTone(selected.topJob.priority) : undefined
+                  selected.topJob
+                    ? jobTone(selected.topJob.priority)
+                    : undefined
                 }
                 value={
                   selected.topJob
@@ -848,18 +851,23 @@ export function HtmLotMap({
                 }
               />
 
-              {selected.nextInspectionAt && (
-                <Row
-                  label="Next inspection"
-                  value={new Date(
-                    `${selected.nextInspectionAt}T00:00:00`,
-                  ).toLocaleDateString(undefined, {
-                    day: "numeric",
-                    month: "short",
-                    year: "numeric",
-                  })} 
-                />
-              )}
+              {/* Always on the card, even with no date. A missing row reads as
+                  "inspections do not apply here"; "Not scheduled" reads as
+                  something somebody still has to do. */}
+              <Row
+                label="Next inspection"
+                value={
+                  selected.nextInspectionAt
+                    ? new Date(
+                        `${selected.nextInspectionAt}T00:00:00`,
+                      ).toLocaleDateString(undefined, {
+                        day: "numeric",
+                        month: "short",
+                        year: "numeric",
+                      })
+                    : "Not scheduled"
+                }
+              />
             </dl>
 
             {selected.note && (
@@ -979,14 +987,8 @@ export function HtmLotMap({
                 </div>
               </div>
             ) : (
-              <div className="mt-3.5 flex flex-wrap gap-2.5 border-t border-[#E3E5E9] pt-3.5">
-                <button
-                  className="rounded-[10px] bg-[#1E3A8A] px-3.5 py-2.5 text-[14px] font-semibold text-white"
-                  onClick={openEditor}
-                  type="button"
-                >
-                  Change the status
-                </button>
+              <>
+                <div className="mt-3.5 flex flex-wrap gap-2.5 border-t border-[#E3E5E9] pt-3.5">
                 {selected.status === "occupied" && (
                   <button
                     className="rounded-[10px] border border-[#DCE4EE] bg-white px-3.5 py-2.5 text-[14px] font-semibold text-[#1B2231]"
@@ -994,15 +996,6 @@ export function HtmLotMap({
                     type="button"
                   >
                     Take payment
-                  </button>
-                )}
-                {selected.status !== "common_area" && (
-                  <button
-                    className="rounded-[10px] border border-[#DCE4EE] bg-white px-3.5 py-2.5 text-[14px] font-semibold text-[#1B2231]"
-                    onClick={() => navigate("/zo/inspect")}
-                    type="button"
-                  >
-                    Open in Inspect
                   </button>
                 )}
                 {/* Jobs exists now, so this goes somewhere real. It lands on
@@ -1017,6 +1010,30 @@ export function HtmLotMap({
                   {selected.topJob ? "Open the job" : "New job"}
                 </button>
               </div>
+
+              {/* Secondary on purpose. The mock's card has two buttons, and
+                  these are not what Zo reaches for standing at a door - but
+                  dropping them would take away the only way to correct a
+                  status or file an inspection from here. */}
+              <div className="mt-3 flex flex-wrap gap-4">
+                <button
+                  className="text-[13.5px] font-semibold text-[#1E3A8A] underline"
+                  onClick={openEditor}
+                  type="button"
+                >
+                  Change the status
+                </button>
+                {selected.status !== "common_area" && (
+                  <button
+                    className="text-[13.5px] font-semibold text-[#1E3A8A] underline"
+                    onClick={() => navigate("/zo/inspect")}
+                    type="button"
+                  >
+                    Open in Inspect
+                  </button>
+                )}
+                </div>
+              </>
             )}
           </div>
         ) : (

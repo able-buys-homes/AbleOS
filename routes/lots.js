@@ -10,7 +10,7 @@
 // they can no longer disagree.
 import { createClient } from "@supabase/supabase-js";
 import { requireUser } from "../lib/apiAuth.js";
-import { parkToday, pastGrace } from "../lib/rentRules.js";
+import { currentPeriod, parkToday, pastGrace } from "../lib/rentRules.js";
 
 const PROPERTY = "Hometown Meadows MHP";
 
@@ -116,6 +116,7 @@ export default async function handler(req, res) {
 
             // The same answer for every lot this month, decided once.
             const graceOver = pastGrace();
+            const thisPeriod = currentPeriod();
 
             // rent_state is what the map paints an occupied home. It is null
             // for an empty one - an empty home cannot be paid, late or on a
@@ -164,6 +165,28 @@ export default async function handler(req, res) {
                     ...lot,
                     owed,
                     rent_state: rentState,
+                    // This month on its own. "Paid" with no figure tells Zo
+                    // nothing he can repeat back to a resident who asks what
+                    // they paid.
+                    month_charged: money(
+                        charges
+                            .filter(
+                                (c) =>
+                                    c.lot_id === lot.id &&
+                                    String(c.period) === thisPeriod,
+                            )
+                            .reduce((sum, c) => sum + Number(c.amount), 0),
+                    ),
+                    month_paid: money(
+                        payments
+                            .filter(
+                                (p) =>
+                                    p.lot_id === lot.id &&
+                                    String(p.received_at).slice(0, 10) >=
+                                        thisPeriod,
+                            )
+                            .reduce((sum, p) => sum + Number(p.amount), 0),
+                    ),
                     open_job_count: mine.length,
                     top_job: mine[0]
                         ? {
