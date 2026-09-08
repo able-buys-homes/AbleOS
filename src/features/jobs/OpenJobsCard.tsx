@@ -1,12 +1,18 @@
 // src/features/jobs/OpenJobsCard.tsx
 // Open work orders, on Raj's cockpit.
 //
+// A row like every other row on that page, opening a list. The first version
+// of this was a full panel and stood out as a third kind of card, which is
+// the same drift the shared header fixed.
+//
 // Read only, deliberately. Raj cannot reach Zo's Jobs board - that route is
 // Zo's - so a button here that Raj could press and Zo would never see would
-// be worse than no button. What this card is for is knowing what the
-// community is waiting on before somebody phones him about it.
+// be worse than no button. This card exists so he knows what the community is
+// waiting on before somebody phones him about it.
 
 import React from "react";
+import { WrenchIcon } from "lucide-react";
+import { NavCard } from "../../components/NavCard";
 import { apiFetch } from "../../lib/apiFetch";
 
 type Row = {
@@ -80,6 +86,7 @@ function ago(iso: string) {
 export function OpenJobsCard() {
   const [jobs, setJobs] = React.useState<Row[] | null>(null);
   const [problem, setProblem] = React.useState("");
+  const [open, setOpen] = React.useState(false);
 
   React.useEffect(() => {
     (async () => {
@@ -95,8 +102,8 @@ export function OpenJobsCard() {
         const body = await res.json().catch(() => null);
         if (!res.ok) throw new Error(body?.error || "Could not load the jobs");
 
-        // Emergencies first, then oldest. A board that buries an emergency
-        // under a loose porch step is worse than no board.
+        // Emergencies first, then oldest. A list that buries an emergency
+        // under a loose porch step is worse than no list.
         setJobs(
           ((body?.jobs ?? []) as Row[])
             .filter((j) => j.status !== "completed" && j.status !== "cancelled")
@@ -118,65 +125,105 @@ export function OpenJobsCard() {
     (j) => j.priority === "emergency",
   ).length;
 
+  const subtitle = problem
+    ? "Could not load the work orders"
+    : emergencies > 0
+      ? `${emergencies} emergency${emergencies === 1 ? "" : "s"} — no water, no heat, sewage or a hazard`
+      : "What the community is waiting on";
+
   return (
-    <div className="overflow-hidden rounded-2xl border border-[#DCE4EE] bg-white shadow-[0_8px_20px_rgba(30,58,138,0.08)]">
-      <div className="flex items-baseline justify-between gap-3 border-b border-[#E3E5E9] px-5 py-4">
-        <h3 className="text-[17px] font-bold tracking-[-0.01em] text-[#1B2231]">
-          Open work orders
-        </h3>
-        <span className="text-[13px] font-semibold text-[#6C7484]">
-          {jobs ? `${jobs.length} open` : "…"}
-        </span>
-      </div>
+    <>
+      <NavCard
+        count={jobs ? jobs.length : null}
+        icon={<WrenchIcon size={20} strokeWidth={2.25} />}
+        onClick={() => setOpen(true)}
+        subtitle={subtitle}
+        title="Open work orders"
+        tone="orange"
+      />
 
-      {problem && (
-        <p className="px-5 py-4 text-[15px] text-[#B91C1C]">{problem}</p>
-      )}
-
-      {jobs && emergencies > 0 && (
-        <p className="border-b border-[#F0E2C4] bg-[#FFFCF5] px-5 py-3 text-[13.5px] font-semibold text-[#7A4E06]">
-          {emergencies === 1
-            ? "One emergency is open"
-            : `${emergencies} emergencies are open`}{" "}
-          — that means no water, no heat, sewage, or a hazard.
-        </p>
-      )}
-
-      {jobs && jobs.length === 0 && (
-        <p className="px-5 py-4 text-[15px] text-[#6C7484]">
-          Nothing open. That says nobody has opened a job, not that nothing is
-          wrong.
-        </p>
-      )}
-
-      {(jobs ?? []).map((j) => (
+      {open && (
         <div
-          className="border-b border-l-4 border-b-[#E3E5E9] px-5 py-4 last:border-b-0"
-          key={j.id}
-          style={{ borderLeftColor: PRIO[j.priority].bar }}
+          className="fixed inset-0 z-[60] flex items-end justify-center bg-[#141A28]/55 sm:items-center"
+          onClick={() => setOpen(false)}
         >
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <div className="text-[16px] font-bold tracking-[-0.01em] text-[#1B2231]">
-                Lot {j.lot_number ?? "—"} — {j.title}
+          <div
+            className="flex max-h-[92vh] w-full max-w-[560px] flex-col overflow-hidden rounded-t-[20px] bg-[#F1F2F4] sm:rounded-[18px]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex flex-none items-center justify-between gap-3 bg-[#1E3A8A] px-5 py-4 text-white">
+              <div>
+                <h2 className="text-[17px] font-bold tracking-[-0.01em]">
+                  Open work orders
+                </h2>
+                <div className="mt-0.5 text-[12.5px] text-[#A9B4CC]">
+                  {jobs
+                    ? `${jobs.length} open at Hometown Meadows`
+                    : "Loading…"}
+                </div>
               </div>
-              <div className="mt-1 text-[13px] text-[#6C7484]">
-                {j.tenant_name ? `${j.tenant_name} · ` : "Vacant · "}
-                {CAT[j.category] ?? j.category} · {STATUS[j.status] ?? j.status}
-              </div>
-              <div className="mt-0.5 text-[12.5px] text-[#8A929E]">
-                Opened {ago(j.opened_at)}
-                {j.assigned_to ? ` · ${j.assigned_to} assigned` : ""}
-              </div>
+              <button
+                aria-label="Close"
+                className="grid h-8 w-8 flex-none place-items-center rounded-full bg-white/15 text-[19px] leading-none"
+                onClick={() => setOpen(false)}
+                type="button"
+              >
+                ×
+              </button>
             </div>
-            <span
-              className={`shrink-0 rounded-full border px-2.5 py-1 text-[11.5px] font-bold uppercase tracking-[0.04em] ${PRIO[j.priority].chip}`}
-            >
-              {PRIO[j.priority].label}
-            </span>
+
+            <div className="overflow-y-auto p-5">
+              {problem && (
+                <p className="text-[15px] text-[#B91C1C]">{problem}</p>
+              )}
+
+              {jobs && jobs.length === 0 && (
+                <p className="rounded-2xl border border-[#DCE4EE] bg-white p-4 text-[15px] text-[#6C7484]">
+                  Nothing open. That says nobody has opened a job, not that
+                  nothing is wrong.
+                </p>
+              )}
+
+              <div className="flex flex-col gap-2.5">
+                {(jobs ?? []).map((j) => (
+                  <div
+                    className="rounded-2xl border border-l-4 border-[#DCE4EE] bg-white p-4"
+                    key={j.id}
+                    style={{ borderLeftColor: PRIO[j.priority].bar }}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="text-[16px] font-bold tracking-[-0.01em] text-[#1B2231]">
+                          Lot {j.lot_number ?? "—"} — {j.title}
+                        </div>
+                        <div className="mt-1 text-[13px] text-[#6C7484]">
+                          {j.tenant_name ? `${j.tenant_name} · ` : "Vacant · "}
+                          {CAT[j.category] ?? j.category} ·{" "}
+                          {STATUS[j.status] ?? j.status}
+                        </div>
+                        <div className="mt-0.5 text-[12.5px] text-[#8A929E]">
+                          Opened {ago(j.opened_at)}
+                          {j.assigned_to ? ` · ${j.assigned_to} assigned` : ""}
+                        </div>
+                      </div>
+                      <span
+                        className={`shrink-0 rounded-full border px-2.5 py-1 text-[11.5px] font-bold uppercase tracking-[0.04em] ${PRIO[j.priority].chip}`}
+                      >
+                        {PRIO[j.priority].label}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <p className="mt-4 text-[13px] leading-relaxed text-[#6C7484]">
+                Read only. Zo closes these out on his own screen, and cannot
+                mark one done without a photo of the finished work.
+              </p>
+            </div>
           </div>
         </div>
-      ))}
-    </div>
+      )}
+    </>
   );
 }

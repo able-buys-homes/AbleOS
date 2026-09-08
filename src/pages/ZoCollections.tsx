@@ -433,8 +433,9 @@ export function ZoCollections() {
               ))}
             </Stack>
 
-            <div className="scroll-mt-4" id="sec-paid" />
-            <SectionBar count={paid.length} title="Paid" />
+            <div className={ring("sec-paid")} id="sec-paid">
+              <SectionBar count={paid.length} title="Paid" />
+            </div>
             <Stack>
               {paid.map((lot) => (
                 <LotRow
