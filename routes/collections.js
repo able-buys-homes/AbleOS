@@ -644,7 +644,9 @@ export default async function handler(req, res) {
                         decision === "approve"
                             ? "Raj approved it. The plan document is coming — do not collect a signature yet."
                             : "No document was generated.",
-                    link: "/zo/collections",
+                    // Lands on the Plans tab with this plan in view, rather
+                    // than on the rent roll for Zo to go hunting through.
+                    link: `/zo/collections?tab=plans&plan=${planId}`,
                 });
 
                 return res.status(200).json({

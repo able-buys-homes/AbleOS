@@ -71,6 +71,8 @@ interface Props {
   onSetStatus: (id: string, status: JobStatus) => Promise<void> | void;
   /** The photo of the problem, uploaded before the job exists. */
   onUploadOpenPhoto: (file: File) => Promise<{ path: string; url: string }>;
+  /** A job a notification asked for. It gets opened and shown. */
+  openJobId?: string | null;
   lots?: Array<{ number: number; tenant?: string }>;
 }
 
@@ -169,6 +171,7 @@ export default function HtmJobs({
   onUploadPhoto,
   onSetStatus,
   onUploadOpenPhoto,
+  openJobId,
   lots,
 }: Props) {
   const [open, setOpen] = React.useState<string | null>(null);
@@ -202,6 +205,14 @@ export default function HtmJobs({
     statusFilter === "all"
       ? sorted
       : sorted.filter((j) => j.status === statusFilter);
+
+  // A notification asked for one job. Clear the filter first, or the job it
+  // points at can be sitting behind a chip and simply not be there.
+  React.useEffect(() => {
+    if (!openJobId) return;
+    setStatusFilter("all");
+    setOpen(openJobId);
+  }, [openJobId]);
 
   const FILTERS: Array<{ key: "all" | JobStatus; label: string }> = [
     { key: "all", label: `All (${jobs.length})` },

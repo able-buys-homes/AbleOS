@@ -21,6 +21,7 @@ import { MobileScreenShell } from "../components/MobileScreenShell";
 import { ZoScreenHeader } from "../components/ZoScreenHeader";
 import { ZoTabBar } from "../components/ZoTabBar";
 import { apiFetch } from "../lib/apiFetch";
+import { useNotificationTarget } from "../lib/useNotificationTarget";
 
 type Row = {
   id: string;
@@ -111,6 +112,21 @@ export function ZoJobs() {
   }, [load]);
 
   const openCount = (jobs ?? []).filter((j) => j.status !== "completed").length;
+
+  /* Notifications deep-link into here, e.g. /zo/jobs?job=<id> */
+  const { clear, target } = useNotificationTarget();
+  const [jobTarget, setJobTarget] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    if (!target.job) return;
+
+    // Held until the board has loaded. Opening a job before the list arrives
+    // means opening nothing, and the param is gone by the time it does.
+    if (!jobs) return;
+
+    setJobTarget(target.job);
+    clear();
+  }, [clear, jobs, target.job]);
 
   async function send(path: string, init: RequestInit) {
     const res = await apiFetch(path, init);
@@ -270,6 +286,7 @@ export function ZoJobs() {
             onCreate={create}
             onSaveCloseout={saveCloseout}
                       onSetStatus={setStatus}
+          openJobId={jobTarget}
           onUploadOpenPhoto={uploadOpenPhoto}
           onUploadPhoto={uploadPhoto}
           />

@@ -17,6 +17,7 @@ import {
   type LotStatus,
 } from "../features/map/HtmLotMap";
 import { apiFetch } from "../lib/apiFetch";
+import { useNotificationTarget } from "../lib/useNotificationTarget";
 
 type Row = {
   id: string;
@@ -106,6 +107,22 @@ export function ZoMap() {
 
   const { counts, doors, occupancy, occupiedTotal } = lotCounts(lots ?? []);
 
+  /* Notifications deep-link into here, e.g. /zo/map?lot=14 */
+  const { clear, target } = useNotificationTarget();
+  const [lotTarget, setLotTarget] = React.useState<number | null>(null);
+
+  React.useEffect(() => {
+    if (!target.lot) return;
+
+    // Held until the site has loaded, or there is no lot to select yet.
+    if (!lots) return;
+
+    const number = Number(target.lot);
+    if (Number.isFinite(number)) setLotTarget(number);
+
+    clear();
+  }, [clear, lots, target.lot]);
+
   return (
     <MobileScreenShell
       headerContent={
@@ -138,7 +155,7 @@ export function ZoMap() {
 
         {lots && (
           <>
-            <HtmLotMap lots={lots} onChanged={load} />
+            <HtmLotMap lots={lots} onChanged={load} selectLot={lotTarget} />
 
             {counts.verify > 0 && (
               <div className="mt-4 rounded-2xl border-l-4 border-l-[#D97706] border-y border-r border-y-[#F0E2C4] border-r-[#F0E2C4] bg-[#FFFCF5] p-4">

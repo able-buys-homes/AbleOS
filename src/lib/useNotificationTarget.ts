@@ -19,6 +19,12 @@ export type NotificationTarget = {
   inspection: string | null;
   /** A work order to open in the Open work orders card. */
   job: string | null;
+  /** A lot to open — a database id on Rent, a lot number on the Map. */
+  lot: string | null;
+  /** A payment plan to bring into view. */
+  plan: string | null;
+  /** Which tab a screen should land on, e.g. "plans" on Rent. */
+  tab: string | null;
 };
 
 /** Bring a section heading into view once a notification lands on the page. */
@@ -42,12 +48,15 @@ export function useNotificationTarget() {
   const daneTask = params.get("danetask");
   const inspection = params.get("inspection");
   const job = params.get("job");
+  const lot = params.get("lot");
+  const plan = params.get("plan");
+  const tab = params.get("tab");
   const target: NotificationTarget = React.useMemo(
-    () => ({ task, chat, order, stage, daneTask, inspection, job }),
-    [chat, daneTask, inspection, job, order, stage, task],
+    () => ({ task, chat, order, stage, daneTask, inspection, job, lot, plan, tab }),
+    [chat, daneTask, inspection, job, lot, order, plan, stage, tab, task],
   );
   const hasTarget = Boolean(
-    task || order || stage || daneTask || inspection || job,
+    task || order || stage || daneTask || inspection || job || lot || plan || tab,
   );
 
   /**

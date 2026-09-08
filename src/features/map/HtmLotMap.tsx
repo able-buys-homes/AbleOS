@@ -404,11 +404,14 @@ export function HtmLotMap({
   lots = DEFAULT_LOTS,
   onSelect,
   onChanged,
+  selectLot,
 }: {
   lots?: Lot[];
   onSelect?: (lot: Lot) => void;
   /** Called after a status or note is saved, so the page can reload. */
   onChanged?: () => void;
+  /** A lot number a notification asked for. Selected and scrolled to. */
+  selectLot?: number | null;
 }) {
   const navigate = useNavigate();
   // "occupied_any" covers all four occupied colours at once, because the

@@ -13,6 +13,7 @@ import { MobileScreenShell } from "../components/MobileScreenShell";
 import { ZoScreenHeader } from "../components/ZoScreenHeader";
 import { ZoTabBar } from "../components/ZoTabBar";
 import { apiFetch } from "../lib/apiFetch";
+import { useNotificationTarget } from "../lib/useNotificationTarget";
 import {
   Btn,
   Item,
@@ -181,6 +182,22 @@ export function ZoCollections() {
   React.useEffect(() => {
     load();
   }, [load]);
+
+  /* Notifications deep-link into here, e.g. /zo/collections?tab=plans */
+  const { clear, target } = useNotificationTarget();
+
+  React.useEffect(() => {
+    if (!target.tab) return;
+
+    // Only tabs that exist. A param naming something else would leave the
+    // screen showing nothing and Zo with no way to tell why.
+    if (["roll", "pay", "plans", "notices"].includes(target.tab)) {
+      setTab(target.tab as Tab);
+      window.scrollTo(0, 0);
+    }
+
+    clear();
+  }, [clear, target.tab]);
 
   function say(msg: string, stop?: boolean) {
     setToast({ msg, stop });
