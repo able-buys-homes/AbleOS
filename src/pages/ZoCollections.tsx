@@ -56,6 +56,15 @@ type Lot = {
   rent_set_by: string | null;
   rent_confirmed_at: string | null;
   is_late: boolean;
+  plan_progress: {
+    count: number;
+    total: number;
+    paid: number;
+    remaining: number;
+    next_number: number | null;
+    next_due: string | null;
+    next_amount: number | null;
+  } | null;
 };
 
 type Payload = {
@@ -170,8 +179,16 @@ export function ZoCollections() {
   // Grouped the way Zo reads the roll. A lot on an approved plan is not
   // "late" - it has terms Raj agreed to, and filing it under Late is how a
   // resident doing exactly what was asked of them gets chased anyway.
-  const onPlan = [...(data?.pastDue ?? []), ...(data?.current ?? [])].filter(
-    (lot) => lot.active_plan,
+  const everyone = [...(data?.pastDue ?? []), ...(data?.current ?? [])];
+
+  // A plan that has been paid off is not an ongoing plan. Leaving it under
+  // "On a plan" showing zero tells Zo there is still something to collect
+  // from somebody who has finished paying.
+  const onPlan = everyone.filter(
+    (lot) => lot.active_plan && (lot.plan_progress?.remaining ?? 0) > 0,
+  );
+  const planFinished = everyone.filter(
+    (lot) => lot.active_plan && (lot.plan_progress?.remaining ?? 0) <= 0,
   );
   const late = (data?.pastDue ?? []).filter(
     (lot) => !lot.active_plan && lot.is_late,
@@ -191,7 +208,10 @@ export function ZoCollections() {
   const settled = (data?.current ?? []).filter(
     (lot) => !lot.active_plan && lot.occupied,
   );
-  const paid = settled.filter((lot) => lot.paid_this_month);
+  const paid = [
+    ...planFinished,
+    ...settled.filter((lot) => lot.paid_this_month),
+  ];
   const notPaid = [
     ...dueNotLate,
     ...settled.filter((lot) => !lot.paid_this_month),
@@ -747,7 +767,13 @@ function subLine(lot: Lot) {
     return `Notice posted ${when(lot.latest_notice.posted_at)}`;
   if (lot.latest_notice) return "Notice ready to post";
   if (lot.pending_plan) return "Plan waiting on Raj";
-  if (lot.active_plan) return "On an approved plan";
+  if (lot.active_plan) {
+    const pp = lot.plan_progress;
+    if (pp?.next_number && pp.next_due) {
+      return `Payment ${pp.next_number} of ${pp.count} due ${when(pp.next_due)}`;
+    }
+    return "Plan paid off";
+  }
   if (!lot.occupied) return "Nobody living here";
   if (lot.owed < 0) return "Paid ahead";
   if (lot.owed > 0) return lot.is_late ? "Late" : "Due now — not late yet";
@@ -798,7 +824,18 @@ function LotRow({
           <Pill tone={s.tone}>{s.label}</Pill>
           {/* A minus sign in front of a rent figure reads as "owes". Say
               what a negative balance actually is instead. */}
-          {lot.has_ledger ? (
+          {lot.active_plan && lot.plan_progress?.next_amount != null ? (
+            <>
+              {/* The next payment, not the balance. What Zo needs at the door
+                  is the figure to ask for today. */}
+              <div className="mt-1.5 text-[19px] font-bold tracking-[-0.02em] text-[#8A5A00]">
+                {money(lot.plan_progress.next_amount)}
+              </div>
+              <div className="text-[11px] font-bold uppercase tracking-[0.05em] text-[#8A5A00]">
+                Next payment
+              </div>
+            </>
+          ) : lot.has_ledger ? (
             <>
               <div className="mt-1.5 text-[19px] font-bold tracking-[-0.02em]">
                 {money(Math.abs(lot.owed))}
@@ -830,6 +867,30 @@ function LotRow({
           )}
         </div>
       </button>
+
+      {/* How far through the plan they are. A "3 of 6" alone does not show
+          somebody two payments from the end at a glance. */}
+      {lot.active_plan && lot.plan_progress && lot.plan_progress.total > 0 && (
+        <div className="mt-2.5">
+          <div className="h-2 w-full overflow-hidden rounded-full bg-[#EEF0F3]">
+            <div
+              className="h-full rounded-full bg-[#D9A227]"
+              style={{
+                width: `${Math.min(
+                  100,
+                  Math.round(
+                    (lot.plan_progress.paid / lot.plan_progress.total) * 100,
+                  ),
+                )}%`,
+              }}
+            />
+          </div>
+          <div className="mt-1 text-[12px] text-[#6C7484]">
+            {money(lot.plan_progress.paid)} of {money(lot.plan_progress.total)}{" "}
+            paid
+          </div>
+        </div>
+      )}
 
       {open && (
         <div className="mt-3 border-t border-[#E3E5E9] pt-3">

@@ -661,6 +661,17 @@ export default async function handler(req, res) {
             const plan = activePlanByLot.get(lot.id) ?? null;
             const notice = noticeByLot.get(lot.id) ?? null;
 
+            // Earliest due date first, so "payment 3 of 6" counts in the order
+            // the resident was given.
+            const planRows = plan
+                ? [
+                      ...(plans.find((p) => p.id === plan.id)?.plan_installments ??
+                          []),
+                  ].sort((a, b) =>
+                      String(a.due_date).localeCompare(String(b.due_date)),
+                  )
+                : [];
+
             return {
                 ...lot,
                 owed,
@@ -701,9 +712,61 @@ export default async function handler(req, res) {
                 active_plan: plan,
                 pending_plan: pendingPlanByLot.get(lot.id) ?? null,
                 latest_notice: notice,
-                installments: plan
-                    ? (plans.find((p) => p.id === plan.id)?.plan_installments ?? [])
-                    : [],
+                installments: planRows,
+                // Where the plan is up to.
+                //
+                // plan_installments.paid_at is never written by anything yet -
+                // payments are logged against the lot, not allocated to an
+                // installment - so progress is derived from what has been paid
+                // since Raj approved the plan. That is the same number as long
+                // as every payment on this lot is going towards the plan,
+                // which is exactly why allocating payments to installments is
+                // worth doing properly.
+                plan_progress: plan
+                    ? (() => {
+                          const total = money(
+                              planRows.reduce((sum, r) => sum + Number(r.amount), 0),
+                          );
+
+                          const paidSince = plan.approved_at
+                              ? money(
+                                    payments
+                                        .filter(
+                                            (p) =>
+                                                p.lot_id === lot.id &&
+                                                new Date(p.received_at) >=
+                                                    new Date(plan.approved_at),
+                                        )
+                                        .reduce((sum, p) => sum + Number(p.amount), 0),
+                                )
+                              : 0;
+
+                          let nextNumber = null;
+                          let nextDue = null;
+                          let nextAmount = null;
+                          let running = 0;
+
+                          for (let i = 0; i < planRows.length; i += 1) {
+                              running = money(running + Number(planRows[i].amount));
+                              if (running > paidSince) {
+                                  nextNumber = i + 1;
+                                  nextDue = planRows[i].due_date;
+                                  nextAmount = money(Number(planRows[i].amount));
+                                  break;
+                              }
+                          }
+
+                          return {
+                              count: planRows.length,
+                              total,
+                              paid: paidSince,
+                              remaining: money(Math.max(total - paidSince, 0)),
+                              next_number: nextNumber,
+                              next_due: nextDue,
+                              next_amount: nextAmount,
+                          };
+                      })()
+                    : null,
             };
         });
 
