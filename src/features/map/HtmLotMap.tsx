@@ -201,6 +201,14 @@ export function paintOf(lot: Lot): Paint {
   return lot.rentState ?? "occupied";
 }
 
+/** Every colour that means somebody lives there. */
+export const OCCUPIED_PAINTS: Paint[] = [
+  "paid",
+  "on_plan",
+  "late",
+  "occupied",
+];
+
 /** Statuses that count as a rentable door. The office is not a door. */
 const RENTABLE: LotStatus[] = [
   "occupied",
@@ -351,7 +359,12 @@ export function HtmLotMap({
   onChanged?: () => void;
 }) {
   const navigate = useNavigate();
-  const [filter, setFilter] = React.useState<Paint | null>(null);
+  // "occupied_any" covers all four occupied colours at once, because the
+  // Occupied tile means "somebody lives here" - not "somebody lives here and
+  // has paid".
+  const [filter, setFilter] = React.useState<Paint | "occupied_any" | null>(
+    null,
+  );
   // The id, not the object. After a save the array is replaced, and a stored
   // object would leave the card showing what the lot used to be.
   const [selectedId, setSelectedId] = React.useState<number | null>(null);
@@ -429,6 +442,35 @@ export function HtmLotMap({
 
   return (
     <div>
+      {/* The three numbers Zo acts on. Tapping one dims the rest of the
+          drawing rather than hiding it - he still needs to see where a lot
+          sits relative to the park to walk to it. */}
+      <div className="mb-3 grid grid-cols-3 gap-2.5">
+        <MapTile
+          active={filter === "occupied_any"}
+          label="Occupied"
+          n={counts.paid + counts.on_plan + counts.late + counts.occupied}
+          onClick={() =>
+            setFilter(filter === "occupied_any" ? null : "occupied_any")
+          }
+          tone="text-[#1B2231]"
+        />
+        <MapTile
+          active={filter === "ready"}
+          label="Ready to rent"
+          n={counts.ready}
+          onClick={() => setFilter(filter === "ready" ? null : "ready")}
+          tone="text-[#0F5C41]"
+        />
+        <MapTile
+          active={filter === "late"}
+          label="Late"
+          n={counts.late}
+          onClick={() => setFilter(filter === "late" ? null : "late")}
+          tone="text-[#B3261E]"
+        />
+      </div>
+
       {/* Filters. Scrolls sideways rather than wrapping to three rows and
           pushing the map off the screen. */}
       <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
@@ -524,7 +566,11 @@ export function HtmLotMap({
             if (!pos) return null;
             const paint = paintOf(lot);
             const meta = PAINT_META[paint];
-            const dimmed = filter !== null && paint !== filter;
+            const dimmed =
+              filter !== null &&
+              (filter === "occupied_any"
+                ? !OCCUPIED_PAINTS.includes(paint)
+                : paint !== filter);
             const isSelected = selectedId === lot.id;
             return (
               <g
@@ -766,6 +812,36 @@ export function HtmLotMap({
         )}
       </div>
     </div>
+  );
+}
+
+function MapTile({
+  n,
+  label,
+  tone,
+  active,
+  onClick,
+}: {
+  n: number;
+  label: string;
+  tone: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      aria-pressed={active}
+      className={`rounded-2xl border p-4 text-left ${
+        active ? "border-[#1E3A8A] bg-[#EEF3FB]" : "border-[#DCE4EE] bg-white"
+      }`}
+      onClick={onClick}
+      type="button"
+    >
+      <div className={`text-[26px] font-bold leading-tight ${tone}`}>{n}</div>
+      <div className="mt-1 text-[11.5px] font-semibold uppercase tracking-[0.04em] text-[#6C7484]">
+        {label}
+      </div>
+    </button>
   );
 }
 
