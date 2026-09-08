@@ -49,12 +49,10 @@ function Shell({
   if (inline) {
     return (
       <div className="mt-4 overflow-hidden rounded-[18px] border border-[#DCE4EE] bg-[#F1F2F4]">
-        <div className="bg-[#1E3A8A] px-5 py-4 text-white">
-          <h2 className="text-[17px] font-bold tracking-[-0.01em]">{title}</h2>
-          {sub && (
-            <div className="mt-0.5 text-[12.5px] text-[#A9B4CC]">{sub}</div>
-          )}
-        </div>
+        {/* No header in here. This is a tab, and the screen's own header
+            already says Rent → Take payment; a second navy bar underneath it
+            only repeats itself. The sheet version below keeps its header,
+            because a sheet thrown over the roll has to say what it is. */}
         <div className="p-5">{children}</div>
         <div className="flex gap-2.5 border-t border-[#E3E5E9] bg-white px-5 py-3.5 [&>button]:flex-1">
           {footer}

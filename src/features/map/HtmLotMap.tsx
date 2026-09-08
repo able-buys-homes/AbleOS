@@ -442,6 +442,22 @@ export function HtmLotMap({
 
   const selected = lots.find((l) => l.id === selectedId) ?? null;
 
+  // A notification asked for one lot. Select it and bring the card to the
+  // eye, exactly as a tap would - arriving with a card open somewhere below
+  // the fold is the same as not opening it.
+  React.useEffect(() => {
+    if (!selectLot) return;
+    setSelectedId(selectLot);
+    window.setTimeout(
+      () =>
+        detailRef.current?.scrollIntoView({
+          behavior: "smooth",
+          block: "nearest",
+        }),
+      80,
+    );
+  }, [selectLot]);
+
   function openEditor() {
     if (!selected) return;
     setDraftStatus(selected.status);
