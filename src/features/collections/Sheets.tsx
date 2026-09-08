@@ -345,7 +345,7 @@ export function Sheets({
 
         {!lot && (
           <div className="mb-4.5">
-            <Label>Which lot</Label>
+            <Label>Who is paying?</Label>
             <select
               className={inputClass}
               onChange={(e) => setRentLotId(e.target.value)}
@@ -458,7 +458,7 @@ export function Sheets({
               }}
               variant="primary"
             >
-              {busy ? "Saving…" : "Save the payment"}
+              {busy ? "Saving…" : "Save payment"}
             </Btn>
           </>
         }
@@ -469,14 +469,17 @@ export function Sheets({
       >
         <div className="mb-5">
           <Stamp>
-            Only for cash and money orders handed to you at the park. Bank deposits, the
-            PO Box, and online payments post on their own — you do not enter those.
+            Three taps: who, how much, how they paid. The receipt goes out by
+            itself.
+            <br />
+            Only for cash and money orders handed to you at the park — bank
+            deposits, the PO Box and online payments post on their own.
           </Stamp>
         </div>
 
         {!lot && (
           <div className="mb-4.5">
-            <Label>Which lot</Label>
+            <Label>Who is paying?</Label>
             <select
               className={inputClass}
               onChange={(e) => setPayLotId(e.target.value)}
@@ -532,37 +535,28 @@ export function Sheets({
         </div>
 
         <div className="mb-4.5">
-          <Label>How it was paid — pick one</Label>
-          <div className="grid gap-2.5">
-            {[
-              ["cash", "Cash", "Handed to you at the park"],
-              ["money_order", "Money order", "Photograph it before you deposit it"],
-              ["cashiers_check", "Cashier's check", "Photograph it before you deposit it"],
-            ].map(([value, title, hint]) => (
-              <label
-                className={`flex cursor-pointer items-start gap-3 rounded-[11px] border bg-white px-4 py-4 ${
-                  method === value ? "border-[#1E3A8A] ring-2 ring-[#1E3A8A]/15" : "border-[#D5D8DE]"
-                }`}
-                key={value}
-              >
-                <input
-                  checked={method === value}
-                  className="mt-0.5 h-5 w-5 flex-none accent-[#1E3A8A]"
-                  name="how"
-                  onChange={() => setMethod(value)}
-                  type="radio"
-                />
-                <span>
-                  <span className="block text-[15.5px] font-bold">{title}</span>
-                  <span className="mt-0.5 block text-[13.5px] text-[#6C7484]">{hint}</span>
-                </span>
-              </label>
-            ))}
-          </div>
+          <Label>How did they pay?</Label>
+          <select
+            className={inputClass}
+            onChange={(e) => setMethod(e.target.value)}
+            value={method}
+          >
+            <option value="cash">Cash</option>
+            <option value="money_order">Money order</option>
+            <option value="cashiers_check">Cashier's check</option>
+          </select>
+          {/* The rule that was written on the cards. A money order
+              photographed after it has been deposited is no longer proof of
+              anything, so the reminder has to survive the change of control. */}
+          {method !== "cash" && (
+            <p className="mt-1.5 text-[13px] leading-relaxed text-[#6C7484]">
+              Photograph it before you deposit it.
+            </p>
+          )}
         </div>
 
         <div className="mb-4.5">
-          <Label>Photo of the money order or your receipt stub</Label>
+          <Label>Photo of the money order or plan (optional)</Label>
           <Shot
             file={payPhoto}
             hint="Skip only for cash with no stub"

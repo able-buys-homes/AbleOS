@@ -632,49 +632,6 @@ export function ZoCollections() {
                 );
               })}
             </Stack>
-            <Stack>
-              <div className="p-4">
-                <ol className="mt-1 list-none p-0">
-                  {[
-                    ["You propose the terms here.", false],
-                    ["Raj approves or rejects on his screen.", false],
-                    [
-                      "The plan document generates from the attorney's template.",
-                      true,
-                    ],
-                    [
-                      "You print it, get the signature, photograph it, upload it.",
-                      true,
-                    ],
-                    ["The plan goes active and the reminders stop.", true],
-                  ].map(([text, pending], i) => (
-                    <li
-                      className={`relative border-t border-[#E3E5E9] py-3 pl-11 text-[14px] ${
-                        pending ? "text-[#6C7484]" : "text-[#1B2231]"
-                      }`}
-                      key={String(text)}
-                    >
-                      <span
-                        className={`absolute left-0 top-3 grid h-[26px] w-[26px] place-items-center rounded-full text-[13px] font-bold ${
-                          pending
-                            ? "bg-[#EEF0F3] text-[#6C7484]"
-                            : "bg-[#1E3A8A] text-white"
-                        }`}
-                      >
-                        {i + 1}
-                      </span>
-                      {text}
-                    </li>
-                  ))}
-                </ol>
-
-                <Note stop title="Never get a signature first">
-                  If a resident signs before Raj approves, the park is arguably
-                  stuck with terms he never agreed to. That is why the print
-                  button does not appear until step 3.
-                </Note>
-              </div>
-            </Stack>
           </>
         )}
 
