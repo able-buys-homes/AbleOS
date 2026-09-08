@@ -16,7 +16,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { randomUUID } from "node:crypto";
 import { requireUser } from "../lib/apiAuth.js";
-import { pastGrace } from "../lib/rentRules.js";
+import { currentPeriod, pastGrace } from "../lib/rentRules.js";
 
 const PROPERTY = "Hometown Meadows MHP";
 
@@ -673,6 +673,7 @@ export default async function handler(req, res) {
         const now = new Date();
         // The same answer for every lot this month, so it is decided once.
         const graceOver = pastGrace();
+        const thisPeriod = currentPeriod();
 
         const enriched = lots.map((lot) => {
             const owed = balanceFor(lot.id, charges, payments);
@@ -732,6 +733,28 @@ export default async function handler(req, res) {
                 pending_plan: pendingPlanByLot.get(lot.id) ?? null,
                 latest_notice: notice,
                 installments: planRows,
+                // This month on its own, so a row can show how much of what
+                // was charged has actually come in. The lifetime balance
+                // cannot do that - a resident in credit from August would
+                // read as having paid September.
+                month_charged: money(
+                    charges
+                        .filter(
+                            (c) =>
+                                c.lot_id === lot.id &&
+                                String(c.period) === thisPeriod,
+                        )
+                        .reduce((sum, c) => sum + Number(c.amount), 0),
+                ),
+                month_paid: money(
+                    payments
+                        .filter(
+                            (p) =>
+                                p.lot_id === lot.id &&
+                                String(p.received_at).slice(0, 10) >= thisPeriod,
+                        )
+                        .reduce((sum, p) => sum + Number(p.amount), 0),
+                ),
                 // Where the plan is up to.
                 //
                 // plan_installments.paid_at is never written by anything yet -

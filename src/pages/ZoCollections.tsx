@@ -56,6 +56,8 @@ type Lot = {
   rent_set_by: string | null;
   rent_confirmed_at: string | null;
   is_late: boolean;
+  month_charged: number;
+  month_paid: number;
   plan_progress: {
     count: number;
     total: number;
@@ -868,29 +870,42 @@ function LotRow({
         </div>
       </button>
 
-      {/* How far through the plan they are. A "3 of 6" alone does not show
-          somebody two payments from the end at a glance. */}
-      {lot.active_plan && lot.plan_progress && lot.plan_progress.total > 0 && (
-        <div className="mt-2.5">
-          <div className="h-2 w-full overflow-hidden rounded-full bg-[#EEF0F3]">
-            <div
-              className="h-full rounded-full bg-[#D9A227]"
-              style={{
-                width: `${Math.min(
-                  100,
-                  Math.round(
-                    (lot.plan_progress.paid / lot.plan_progress.total) * 100,
-                  ),
-                )}%`,
-              }}
-            />
+      {/* One bar, two meanings. On a plan it is progress through the plan; on
+          any other lot it is how much of this month's charge has come in.
+          A balance or a "3 of 6" alone does not show somebody one payment
+          from the end at a glance. */}
+      {(() => {
+        const bar = lot.active_plan
+          ? lot.plan_progress && lot.plan_progress.total > 0
+            ? { paid: lot.plan_progress.paid, total: lot.plan_progress.total }
+            : null
+          : lot.month_charged > 0
+            ? { paid: lot.month_paid, total: lot.month_charged }
+            : null;
+
+        if (!bar) return null;
+
+        // The bar stops at full, but the figures below it do not - somebody
+        // who has overpaid should see that they have.
+        const pct = Math.min(100, Math.round((bar.paid / bar.total) * 100));
+
+        return (
+          <div className="mt-2.5">
+            <div className="h-2 w-full overflow-hidden rounded-full bg-[#EEF0F3]">
+              <div
+                className={`h-full rounded-full ${
+                  pct >= 100 ? "bg-[#1B7A4B]" : "bg-[#D9A227]"
+                }`}
+                style={{ width: `${pct}%` }}
+              />
+            </div>
+            <div className="mt-1 text-[12px] text-[#6C7484]">
+              {money(bar.paid)} of {money(bar.total)} paid
+              {lot.active_plan ? " on the plan" : " this month"}
+            </div>
           </div>
-          <div className="mt-1 text-[12px] text-[#6C7484]">
-            {money(lot.plan_progress.paid)} of {money(lot.plan_progress.total)}{" "}
-            paid
-          </div>
-        </div>
-      )}
+        );
+      })()}
 
       {open && (
         <div className="mt-3 border-t border-[#E3E5E9] pt-3">
