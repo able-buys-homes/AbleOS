@@ -15,6 +15,7 @@
 //     a machine must not walk through it.
 import { createClient } from "@supabase/supabase-js";
 import {
+    LAST_DAY_TO_PAY,
     LATE_FEE,
     currentPeriod,
     parkToday,
@@ -125,6 +126,28 @@ export default async function handler(req, res) {
 
             if (rentDue <= 0) {
                 passed.push({ lot: lot.lot_number, why: "nothing charged" });
+                continue;
+            }
+
+            // A resident cannot be late for a bill that did not exist. If the
+            // rent was first recorded after the 5th, no fee applies for this
+            // month - the same rule the roll uses to decide who is late. From
+            // next month it behaves normally.
+            const firstRentCharge = charges
+                .filter((c) => c.lot_id === lot.id && c.charge_type === "rent")
+                .sort((a, b) =>
+                    String(a.created_at).localeCompare(String(b.created_at)),
+                )[0];
+
+            if (
+                firstRentCharge &&
+                parkToday(new Date(firstRentCharge.created_at)).day >
+                    LAST_DAY_TO_PAY
+            ) {
+                passed.push({
+                    lot: lot.lot_number,
+                    why: "rent recorded after the 5th",
+                });
                 continue;
             }
 

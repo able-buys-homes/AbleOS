@@ -16,7 +16,12 @@
 import { createClient } from "@supabase/supabase-js";
 import { randomUUID } from "node:crypto";
 import { requireUser } from "../lib/apiAuth.js";
-import { currentPeriod, pastGrace } from "../lib/rentRules.js";
+import {
+    LAST_DAY_TO_PAY,
+    currentPeriod,
+    parkToday,
+    pastGrace,
+} from "../lib/rentRules.js";
 
 const PROPERTY = "Hometown Meadows MHP";
 
@@ -685,12 +690,42 @@ export default async function handler(req, res) {
             // the resident was given.
             const planRows = plan
                 ? [
-                      ...(plans.find((p) => p.id === plan.id)?.plan_installments ??
-                          []),
-                  ].sort((a, b) =>
-                      String(a.due_date).localeCompare(String(b.due_date)),
-                  )
+                    ...(plans.find((p) => p.id === plan.id)
+                        ?.plan_installments ?? []),
+                ].sort((a, b) =>
+                    String(a.due_date).localeCompare(String(b.due_date)),
+                )
                 : [];
+
+            // A resident cannot be late for a bill that did not exist yet.
+            // If the rent was first recorded after the 5th, this month is due
+            // but not late and no fee may rest on it. From next month it
+            // behaves normally.
+            //
+            // Money owed from an earlier month is a different matter - that
+            // was always late, whatever was entered when.
+            const thisRentCharge =
+                charges
+                    .filter(
+                        (c) =>
+                            c.lot_id === lot.id &&
+                            c.charge_type === "rent" &&
+                            String(c.period) === thisPeriod,
+                    )
+                    .sort((a, b) =>
+                        String(a.created_at).localeCompare(String(b.created_at)),
+                    )[0] ?? null;
+
+            const chargedInTime = thisRentCharge
+                ? parkToday(new Date(thisRentCharge.created_at)).day <=
+                LAST_DAY_TO_PAY
+                : false;
+
+            const hasOlderCharge = charges.some(
+                (c) => c.lot_id === lot.id && String(c.period) < thisPeriod,
+            );
+
+            const lateEligible = hasOlderCharge || chargedInTime;
 
             return {
                 ...lot,
@@ -724,7 +759,7 @@ export default async function handler(req, res) {
                 // the 5th is the last day. Filing them under Late is how
                 // someone gets chased on the 3rd for rent they still have two
                 // days to pay.
-                is_late: owed > 0 && graceOver,
+                is_late: owed > 0 && graceOver && lateEligible,
                 // A lot with counsel is locked to everyone but Raj. Taking
                 // money on it can get the case dismissed.
                 locked: Boolean(openCase),
@@ -766,64 +801,64 @@ export default async function handler(req, res) {
                 // worth doing properly.
                 plan_progress: plan
                     ? (() => {
-                          const total = money(
-                              planRows.reduce((sum, r) => sum + Number(r.amount), 0),
-                          );
+                        const total = money(
+                            planRows.reduce((sum, r) => sum + Number(r.amount), 0),
+                        );
 
-                          // From the start of the day Raj approved it, not the
-                          // exact minute. Zo enters a payment as a date, which
-                          // lands at midnight, so a payment taken on the same
-                          // day the plan was approved read as earlier than the
-                          // approval and was ignored.
-                          const planDayStart = plan.approved_at
-                              ? new Date(
-                                    `${String(plan.approved_at).slice(0, 10)}T00:00:00Z`,
-                                )
-                              : null;
+                        // From the start of the day Raj approved it, not the
+                        // exact minute. Zo enters a payment as a date, which
+                        // lands at midnight, so a payment taken on the same
+                        // day the plan was approved read as earlier than the
+                        // approval and was ignored.
+                        const planDayStart = plan.approved_at
+                            ? new Date(
+                                `${String(plan.approved_at).slice(0, 10)}T00:00:00Z`,
+                            )
+                            : null;
 
-                          const paidSince = planDayStart
-                              ? money(
-                                    payments
-                                        .filter(
-                                            (p) =>
-                                                p.lot_id === lot.id &&
-                                                new Date(p.received_at) >=
-                                                    planDayStart,
-                                        )
-                                        .reduce((sum, p) => sum + Number(p.amount), 0),
-                                )
-                              : 0;
+                        const paidSince = planDayStart
+                            ? money(
+                                payments
+                                    .filter(
+                                        (p) =>
+                                            p.lot_id === lot.id &&
+                                            new Date(p.received_at) >=
+                                            planDayStart,
+                                    )
+                                    .reduce((sum, p) => sum + Number(p.amount), 0),
+                            )
+                            : 0;
 
-                          let nextNumber = null;
-                          let nextDue = null;
-                          let nextAmount = null;
-                          let running = 0;
+                        let nextNumber = null;
+                        let nextDue = null;
+                        let nextAmount = null;
+                        let running = 0;
 
-                          for (let i = 0; i < planRows.length; i += 1) {
-                              running = money(running + Number(planRows[i].amount));
-                              if (running > paidSince) {
-                                  nextNumber = i + 1;
-                                  nextDue = planRows[i].due_date;
-                                  // The unpaid part of this instalment, not the
-                                  // scheduled figure. $500 agreed over two
-                                  // payments with $450 already in means $50 is
-                                  // due, and asking for $250 would be asking
-                                  // for money she does not owe.
-                                  nextAmount = money(running - paidSince);
-                                  break;
-                              }
-                          }
+                        for (let i = 0; i < planRows.length; i += 1) {
+                            running = money(running + Number(planRows[i].amount));
+                            if (running > paidSince) {
+                                nextNumber = i + 1;
+                                nextDue = planRows[i].due_date;
+                                // The unpaid part of this instalment, not the
+                                // scheduled figure. $500 agreed over two
+                                // payments with $450 already in means $50 is
+                                // due, and asking for $250 would be asking
+                                // for money she does not owe.
+                                nextAmount = money(running - paidSince);
+                                break;
+                            }
+                        }
 
-                          return {
-                              count: planRows.length,
-                              total,
-                              paid: paidSince,
-                              remaining: money(Math.max(total - paidSince, 0)),
-                              next_number: nextNumber,
-                              next_due: nextDue,
-                              next_amount: nextAmount,
-                          };
-                      })()
+                        return {
+                            count: planRows.length,
+                            total,
+                            paid: paidSince,
+                            remaining: money(Math.max(total - paidSince, 0)),
+                            next_number: nextNumber,
+                            next_due: nextDue,
+                            next_amount: nextAmount,
+                        };
+                    })()
                     : null,
             };
         });
@@ -904,4 +939,4 @@ export default async function handler(req, res) {
         console.error("collections failed:", err);
         return res.status(500).json({ error: "Could not load collections" });
     }
-}
+}   
