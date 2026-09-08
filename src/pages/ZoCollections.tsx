@@ -573,27 +573,65 @@ export function ZoCollections() {
                   No active plans.
                 </div>
               )}
-              {data.plans.active.map((p) => (
-                <Item
-                  key={p.id}
-                  lines={planTerms(p)}
-                  meta={`Approved ${when(p.approved_at)} by ${p.approved_by ?? "someone"}`}
-                  title={planTitle(p, data)}
-                >
-                  <div className="mt-3.5 flex gap-2.5">
-                    {p.signed_photo_path && (
-                      <Btn
-                        onClick={() => say("Signed plan — opens from Drive")}
-                      >
-                        See signed plan
-                      </Btn>
-                    )}
-                  </div>
-                </Item>
-              ))}
-            </Stack>
+                            {data.plans.active.map((p) => {
+                // Progress comes off the lot, not the plan - the lot is where
+                // the payments are counted, and two places counting the same
+                // money is how they end up disagreeing.
+                const lot = lotOf(p.lot_id, data);
+                const pp = lot?.plan_progress ?? null;
 
-            <SectionBar title="How a plan gets made" />
+                const rows = [...(p.plan_installments ?? [])].sort(
+                  (a: any, b: any) =>
+                    String(a.due_date).localeCompare(String(b.due_date)),
+                );
+
+                const each = rows[0] ? Number(rows[0].amount) : 0;
+                const pct =
+                  pp && pp.total > 0
+                    ? Math.min(100, Math.round((pp.paid / pp.total) * 100))
+                    : 0;
+
+                return (
+                  <Item
+                    key={p.id}
+                    meta={`Approved ${when(p.approved_at)} by ${p.approved_by ?? "someone"}`}
+                    title={planTitle(p, data)}
+                  >
+                    <p className="mt-1 text-[14px] text-[#6C7484]">
+                      {money(each)} {planCadence(p, rows)}
+                    </p>
+
+                    <div className="mt-2.5 h-2 w-full overflow-hidden rounded-full bg-[#EEF0F3]">
+                      <div
+                        className={`h-full rounded-full ${
+                          pct >= 100 ? "bg-[#1B7A4B]" : "bg-[#D9A227]"
+                        }`}
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+
+                    <p className="mt-1.5 text-[13px] text-[#6C7484]">
+                      {pp?.next_number && pp.next_due
+                        ? `Payment ${pp.next_number} of ${pp.count} — next due ${when(
+                            pp.next_due,
+                          )}`
+                        : "Paid off"}
+                      {pp ? ` · ${money(pp.paid)} of ${money(pp.total)} paid` : ""}
+                    </p>
+
+                    {p.signed_photo_path && (
+                      <div className="mt-3.5 flex gap-2.5">
+                        <Btn
+                          onClick={() => say("Signed plan — opens from Drive")}
+                        >
+                          See signed plan
+                        </Btn>
+                      </div>
+                    )}
+                  </Item>
+                );
+              })}
+            </Stack>
             <Stack>
               <div className="p-4">
                 <ol className="mt-1 list-none p-0">
@@ -1100,6 +1138,29 @@ function lotOf(id: string, data: Payload | null) {
     ...(data?.withCounsel ?? []),
     ...(data?.current ?? []),
   ].find((l) => l.id === id);
+}
+
+function ordinal(n: number) {
+  const suffix = ["th", "st", "nd", "rd"];
+  const v = n % 100;
+  return `${n}${suffix[(v - 20) % 10] ?? suffix[v] ?? suffix[0]}`;
+}
+
+/**
+ * The cadence in the words a resident would use: "due the 20th of each
+ * month", not "Monthly". Zo reads this out at a door.
+ */
+function planCadence(p: any, rows: any[]) {
+  const first = rows[0]?.due_date ?? null;
+  const freq = String(p.frequency ?? "Every two weeks");
+
+  if (freq === "Monthly" && first) {
+    return `due the ${ordinal(Number(String(first).slice(8, 10)))} of each month`;
+  }
+  if (freq === "Weekly") {
+    return `every week${first ? ` from ${when(first)}` : ""}`;
+  }
+  return `every two weeks${first ? ` from ${when(first)}` : ""}`;
 }
 
 function planTitle(p: any, data: Payload | null) {
