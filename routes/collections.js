@@ -411,6 +411,43 @@ export default async function handler(req, res) {
                 return res.status(400).json({ error: "Fill in the amount and the first date" });
             }
 
+            // A plan is an arrangement to clear what is owed. Terms adding up
+            // to more than the balance would collect money the resident does
+            // not owe, and a plan on a lot that owes nothing is not a plan at
+            // all - it is a payment schedule somebody invented.
+            const [planCharges, planPayments] = await Promise.all([
+                supabase.from("rent_ledger").select("amount").eq("lot_id", lotId),
+                supabase.from("payments").select("amount").eq("lot_id", lotId),
+            ]);
+
+            if (planCharges.error) throw planCharges.error;
+            if (planPayments.error) throw planPayments.error;
+
+            const balance = money(
+                (planCharges.data ?? []).reduce(
+                    (sum, c) => sum + Number(c.amount),
+                    0,
+                ) -
+                    (planPayments.data ?? []).reduce(
+                        (sum, p) => sum + Number(p.amount),
+                        0,
+                    ),
+            );
+
+            if (balance <= 0) {
+                return res.status(409).json({
+                    error: "Nothing is owed on this lot, so there is nothing to put on a plan.",
+                });
+            }
+
+            const planTotal = money(each * count);
+
+            if (planTotal > balance) {
+                return res.status(400).json({
+                    error: `Those terms add up to $${planTotal}, but only $${balance} is owed. Lower the amount or the number of payments.`,
+                });
+            }
+
             const FREQUENCIES = ["Weekly", "Every two weeks", "Monthly"];
             const frequency = FREQUENCIES.includes(String(req.body?.frequency))
                 ? String(req.body.frequency)

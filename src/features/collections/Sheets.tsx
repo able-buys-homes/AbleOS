@@ -6,7 +6,7 @@
 // he must not collect a signature before Raj approves, why two photos are
 // required. Raj wrote them as training. Do not shorten them.
 import React from "react";
-import { Btn } from "./parts";
+import { Btn, money } from "./parts";
 
 type Lot = {
   id: string;
@@ -16,6 +16,7 @@ type Lot = {
   contract_rent?: string | number | null;
   tenant_portion?: string | number | null;
   rent_confirmed_at?: string | null;
+  owed?: number;
 };
 
 type Props = {
@@ -235,6 +236,15 @@ export function Sheets({
   // Only lots with a rent recorded can take a payment. The server refuses the
   // rest, so they are not offered here either.
   const payable = choosable.filter((l) => l.contract_rent != null);
+
+  // A plan clears what is owed and no more. Worked out here so Zo sees it
+  // while he types, rather than finding out when the save is refused.
+  const planable = choosable.filter((l) => Number(l.owed ?? 0) > 0);
+  const planLot = choosable.find((l) => l.id === planLotId) ?? null;
+  const planOwed = Number(planLot?.owed ?? 0);
+  const planTotal =
+    Math.round(Number(each || 0) * Number(count || 0) * 100) / 100;
+  const planOver = planOwed > 0 && planTotal > planOwed;
 
   /**
    * Mint a signed URL, PUT the bytes straight to storage. The file never goes
@@ -589,7 +599,7 @@ export function Sheets({
           <>
             <Btn onClick={onClose}>Cancel</Btn>
             <Btn
-              disabled={busy || !planLotId || !each || !firstDue}
+              disabled={busy || !planLotId || !each || !firstDue || planOver}
               onClick={() =>
                 send(
                   "/api/collections?plan=1",
@@ -622,15 +632,29 @@ export function Sheets({
             value={planLotId}
           >
             <option value="">Pick a lot</option>
-            {choosable.map((l) => (
+            {planable.map((l) => (
               <option key={l.id} value={l.id}>
                 Lot {l.lot_number} — {l.tenant_name}
               </option>
             ))}
           </select>
-          <p className="mt-2 text-[13px] text-[#6C7484]">
-            Lots already with Barrett do not appear here.
+          <p className="mt-2 text-[13px] leading-relaxed text-[#6C7484]">
+            Only lots that owe something appear here. Lots already with Barrett
+            never do.
           </p>
+
+          {/* The balance and the running total, side by side. A plan for more
+              than is owed would collect money the resident does not owe. */}
+          {planLot && (
+            <p
+              className={`mt-2 text-[13.5px] font-semibold leading-relaxed ${
+                planOver ? "text-[#B91C1C]" : "text-[#1B2231]"
+              }`}
+            >
+              Owes {money(planOwed)} · this plan adds up to {money(planTotal)}
+              {planOver ? " — that is more than is owed." : ""}
+            </p>
+          )}
         </div>
 
         <div className="mb-4.5 grid grid-cols-2 gap-3">
