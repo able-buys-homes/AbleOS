@@ -232,6 +232,10 @@ export function Sheets({
   // Lots with counsel never appear here.
   const choosable = [...(data?.pastDue ?? []), ...(data?.current ?? [])];
 
+  // Only lots with a rent recorded can take a payment. The server refuses the
+  // rest, so they are not offered here either.
+  const payable = choosable.filter((l) => l.contract_rent != null);
+
   /**
    * Mint a signed URL, PUT the bytes straight to storage. The file never goes
    * through Vercel, which keeps it under the body limit and off our logs.
@@ -469,12 +473,21 @@ export function Sheets({
               value={payLotId}
             >
               <option value="">Pick a lot</option>
-              {choosable.map((l) => (
+              {payable.map((l) => (
                 <option key={l.id} value={l.id}>
                   Lot {l.lot_number} — {l.tenant_name}
                 </option>
               ))}
             </select>
+            {/* A dropdown that is quietly missing homes reads as a bug. Say
+                which ones are absent and why. */}
+            {payable.length < choosable.length && (
+              <p className="mt-1.5 text-[13px] leading-relaxed text-[#6C7484]">
+                {choosable.length - payable.length} of {choosable.length} homes
+                are not listed because no rent is recorded for them yet. Set
+                the rent on the roll first.
+              </p>
+            )}
           </div>
         )}
 

@@ -185,6 +185,25 @@ export default async function handler(req, res) {
                 });
             }
 
+            // No rent recorded means a payment against nothing. It cannot
+            // reduce a balance, cannot count towards a month, and leaves a
+            // receipt that says somebody paid without saying what for - which
+            // is worse than no receipt when they ask about it in March.
+            const { data: payLot, error: payLotError } = await supabase
+                .from("lots")
+                .select("lot_number, contract_rent")
+                .eq("id", lotId)
+                .maybeSingle();
+
+            if (payLotError) throw payLotError;
+            if (!payLot) return res.status(404).json({ error: "No such lot" });
+
+            if (payLot.contract_rent == null) {
+                return res.status(409).json({
+                    error: `No rent is recorded for Lot ${payLot.lot_number}. Set the rent first — a payment with no rent behind it cannot be applied to anything.`,
+                });
+            }
+
             const amount = Number(req.body?.amount);
             if (!Number.isFinite(amount) || amount <= 0) {
                 return res.status(400).json({ error: "Enter the amount received" });

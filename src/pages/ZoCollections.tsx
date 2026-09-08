@@ -918,7 +918,8 @@ function LotRow({
           {!lot.contract_rent && (
             <p className="mt-2 text-[13.5px] leading-relaxed text-[#6C7484]">
               No rent amount is recorded for this home yet — it comes from the
-              lease. You can still log a payment.
+              lease. Set it before taking a payment, or there is nothing for
+              the payment to go against.
             </p>
           )}
 
@@ -956,7 +957,13 @@ function LotRow({
                 See proof of service
               </Btn>
             )}
-            <Btn onClick={onPay}>Log a payment</Btn>
+            {lot.contract_rent ? (
+              <Btn onClick={onPay}>Log a payment</Btn>
+            ) : (
+              /* The server refuses this too. Greyed out here so Zo is not
+                 walked through a whole form that cannot be saved. */
+              <Btn disabled>Set the rent before taking a payment</Btn>
+            )}
             {/* The amount is a lease term and nobody has typed it in yet.
                 Until it is set this row cannot say what is owed, nothing can
                 be late, and no fee can apply. */}
