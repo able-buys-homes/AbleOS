@@ -598,6 +598,14 @@ export function ZoInspect() {
           </p>
         ) : null}
 
+        {/* History first, then the form for a new one. It is the same card
+            Raj has, reading the same endpoint - which returns only the
+            caller's own walks unless the caller is Raj. One description of an
+            inspection rather than two that can drift apart. */}
+        <div className="mt-4">
+          <UnitInspectionsCard mine />
+        </div>
+
         <section className="mt-4 rounded-2xl border border-[#DCE4EE] bg-white p-4">
           <div className="grid grid-cols-2 gap-3">
             <Field
@@ -944,12 +952,6 @@ export function ZoInspect() {
       </div>
 
       {/* Sticky footer, same as the standalone form */}
-      {/* The same card Raj has, reading the same endpoint. It returns only
-          the caller's own walks unless the caller is Raj, so Zo gets his own
-          history in the identical layout - one description of an inspection
-          rather than two that can drift apart. */}
-      <UnitInspectionsCard mine />
-
       {/* Clears the action bar, which now sits above the tab bar rather than
           on the floor of the screen. */}
       <div aria-hidden="true" className="h-[78px]" />
