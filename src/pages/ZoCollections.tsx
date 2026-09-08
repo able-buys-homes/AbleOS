@@ -25,6 +25,7 @@ import {
   Toast,
   money,
 } from "../features/collections/parts";
+import { planTerms } from "../features/collections/planTerms";
 import { Sheets } from "../features/collections/Sheets";
 import { ProofSheet } from "../features/collections/ProofSheet";
 
@@ -483,14 +484,10 @@ export function ZoCollections() {
                 <Item
                   awaiting
                   key={p.id}
-                  meta={`Proposed ${when(p.proposed_at)}`}
+                  lines={planTerms(p)}
+                  meta={`Proposed ${when(p.proposed_at)} by ${p.proposed_by ?? "someone"}`}
                   title={planTitle(p, data)}
                 >
-                  {p.reason && (
-                    <ul className="mt-3 list-disc pl-5 text-[14.5px]">
-                      <li>Reason given: {p.reason}</li>
-                    </ul>
-                  )}
                   <Note>
                     You cannot print anything or collect a signature until Raj
                     approves. The document does not exist yet.
@@ -512,7 +509,8 @@ export function ZoCollections() {
               {data.plans.active.map((p) => (
                 <Item
                   key={p.id}
-                  meta={`Approved ${when(p.approved_at)}`}
+                  lines={planTerms(p)}
+                  meta={`Approved ${when(p.approved_at)} by ${p.approved_by ?? "someone"}`}
                   title={planTitle(p, data)}
                 >
                   <div className="mt-3.5 flex gap-2.5">

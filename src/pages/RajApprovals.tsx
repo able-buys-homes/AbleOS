@@ -20,6 +20,7 @@ import {
   Toast,
   money,
 } from "../features/collections/parts";
+import { planTerms } from "../features/collections/planTerms";
 
 type Lot = {
   id: string;
@@ -188,7 +189,7 @@ export function RajApprovals() {
               awaiting
               key={plan.id}
               lines={[
-                plan.reason ? `Reason given: ${plan.reason}` : "",
+                ...planTerms(plan),
                 `Proposed by ${plan.proposed_by}`,
               ].filter(Boolean)}
               meta={new Date(plan.proposed_at).toLocaleString()}
@@ -201,7 +202,8 @@ export function RajApprovals() {
               <Note>
                 Approve, then Zo prints and collects the signature. The document
                 does not exist until you approve — and a signature collected
-                first would arguably bind Kubera to terms you never agreed to.
+                first would arguably bind the park to terms you never agreed
+                to.
               </Note>
 
               <div className="mt-3.5 flex flex-wrap gap-2.5">

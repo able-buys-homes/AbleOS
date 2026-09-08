@@ -384,6 +384,11 @@ export default async function handler(req, res) {
                 return res.status(400).json({ error: "Fill in the amount and the first date" });
             }
 
+            const FREQUENCIES = ["Weekly", "Every two weeks", "Monthly"];
+            const frequency = FREQUENCIES.includes(String(req.body?.frequency))
+                ? String(req.body.frequency)
+                : "Every two weeks";
+
             // Proposed only. No document, no signature - the constraints on the
             // table would refuse either one before an approval exists.
             const { data: plan, error: planError } = await supabase
@@ -392,6 +397,7 @@ export default async function handler(req, res) {
                     lot_id: lotId,
                     proposed_by: profile.cockpit,
                     reason: req.body?.reason ? String(req.body.reason).slice(0, 500) : null,
+                    frequency,
                     status: "proposed",
                 })
                 .select("id")
@@ -399,13 +405,43 @@ export default async function handler(req, res) {
 
             if (planError) throw planError;
 
-            const stepDays =
-                req.body?.frequency === "Weekly" ? 7 : req.body?.frequency === "Monthly" ? 30 : 14;
+            const [fy, fm, fd] = firstDue.split("-").map(Number);
 
+            // Monthly means the same date next month, not thirty days later.
+            // Thirty days from 31 January is 2 March, and a resident who paid
+            // on the date they were given would be marked late for it. The
+            // 31st in a short month lands on that month's last day rather
+            // than sliding into the next one.
             const installments = Array.from({ length: count }, (_, i) => {
-                const due = new Date(firstDue);
-                due.setDate(due.getDate() + i * stepDays);
-                return { plan_id: plan.id, due_date: due.toISOString().slice(0, 10), amount: each };
+                let due;
+
+                if (frequency === "Monthly") {
+                    const target = new Date(Date.UTC(fy, fm - 1 + i, 1));
+                    const lastDay = new Date(
+                        Date.UTC(
+                            target.getUTCFullYear(),
+                            target.getUTCMonth() + 1,
+                            0,
+                        ),
+                    ).getUTCDate();
+
+                    due = new Date(
+                        Date.UTC(
+                            target.getUTCFullYear(),
+                            target.getUTCMonth(),
+                            Math.min(fd, lastDay),
+                        ),
+                    );
+                } else {
+                    const stepDays = frequency === "Weekly" ? 7 : 14;
+                    due = new Date(Date.UTC(fy, fm - 1, fd + i * stepDays));
+                }
+
+                return {
+                    plan_id: plan.id,
+                    due_date: due.toISOString().slice(0, 10),
+                    amount: each,
+                };
             });
 
             const { error: instError } = await supabase
