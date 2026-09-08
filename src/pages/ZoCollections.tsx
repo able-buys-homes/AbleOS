@@ -281,9 +281,24 @@ export function ZoCollections() {
         {tab === "roll" && data && (
           <>
             <div className="grid grid-cols-3 gap-2.5">
-              <Tile l="Not paid yet" n={String(notPaid.length)} tone="late" />
-              <Tile l="On a plan" n={String(onPlan.length)} tone="plan" />
-              <Tile l="Paid" n={String(paid.length)} tone="paid" />
+              <Tile
+                l="Late"
+                n={String(late.length)}
+                onClick={() => goTo("sec-late")}
+                tone="late"
+              />
+              <Tile
+                l="On a plan"
+                n={String(onPlan.length)}
+                onClick={() => goTo("sec-plan")}
+                tone="plan"
+              />
+              <Tile
+                l="Paid"
+                n={String(paid.length)}
+                onClick={() => goTo("sec-paid")}
+                tone="paid"
+              />
             </div>
 
             {/* Kept out of the three-across row on purpose. A court deadline
@@ -306,6 +321,7 @@ export function ZoCollections() {
                 it. The empty line says why it is empty. It must never read as
                 "nobody is late" - that is a claim about the residents, and
                 this is a gap in the records. */}
+            <div className="scroll-mt-4" id="sec-late" />
             <SectionBar count={late.length} title="Late" />
             <Stack>
               {late.length === 0 && (
@@ -378,6 +394,7 @@ export function ZoCollections() {
               </>
             )}
 
+            <div className="scroll-mt-4" id="sec-plan" />
             <SectionBar count={onPlan.length} title="On a plan" />
             <Stack>
               {onPlan.length === 0 && (
@@ -708,14 +725,25 @@ function SampleTag() {
   );
 }
 
+// Scrolls to a section rather than filtering the list. Zo taps a number to
+// find those people, and a filter would hide the rest of the roll without
+// saying so.
+function goTo(id: string) {
+  document
+    .getElementById(id)
+    ?.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
 function Tile({
   n,
   l,
   tone = "plain",
+  onClick,
 }: {
   n: string;
   l: string;
   tone?: "plain" | "late" | "plan" | "paid" | "flag";
+  onClick?: () => void;
 }) {
   // Colour carries the meaning here, so it has to survive being read in
   // sunlight on a cracked screen. These are the darkest usable shades.
@@ -727,19 +755,27 @@ function Tile({
     flag: "text-[#A83A2A]",
   }[tone];
 
-  return (
-    <div
-      className={`rounded-2xl border p-4 ${
-        tone === "flag"
-          ? "border-[#EBC9C1] bg-[#FDF6F4]"
-          : "border-[#DCE4EE] bg-white"
-      }`}
-    >
+  const shell = `rounded-2xl border p-4 text-left ${
+    tone === "flag"
+      ? "border-[#EBC9C1] bg-[#FDF6F4]"
+      : "border-[#DCE4EE] bg-white"
+  }`;
+
+  const body = (
+    <>
       <div className={`text-[26px] font-bold leading-tight ${colour}`}>{n}</div>
       <div className="mt-1 text-[11.5px] font-semibold uppercase tracking-[0.04em] text-[#6C7484]">
         {l}
       </div>
-    </div>
+    </>
+  );
+
+  if (!onClick) return <div className={shell}>{body}</div>;
+
+  return (
+    <button className={`${shell} w-full`} onClick={onClick} type="button">
+      {body}
+    </button>
   );
 }
 

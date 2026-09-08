@@ -497,7 +497,7 @@ export function Sheets({
             edge. min-w-0 stops the cell doing the same on wider screens. */}
         <div className="mb-4.5 grid gap-3 sm:grid-cols-2">
           <div className="min-w-0">
-            <Label>Amount received</Label>
+           <Label>How much?</Label>
             <input
               className={inputClass}
               inputMode="decimal"
