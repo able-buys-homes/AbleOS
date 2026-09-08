@@ -962,7 +962,7 @@ function LotRow({
             ) : (
               /* The server refuses this too. Greyed out here so Zo is not
                  walked through a whole form that cannot be saved. */
-              <Btn disabled>Set the rent before taking a payment</Btn>
+              <Btn disabled>Set the rent amount before taking a payment</Btn>
             )}
             {/* The amount is a lease term and nobody has typed it in yet.
                 Until it is set this row cannot say what is owed, nothing can
