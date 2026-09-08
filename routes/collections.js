@@ -747,14 +747,25 @@ export default async function handler(req, res) {
                               planRows.reduce((sum, r) => sum + Number(r.amount), 0),
                           );
 
-                          const paidSince = plan.approved_at
+                          // From the start of the day Raj approved it, not the
+                          // exact minute. Zo enters a payment as a date, which
+                          // lands at midnight, so a payment taken on the same
+                          // day the plan was approved read as earlier than the
+                          // approval and was ignored.
+                          const planDayStart = plan.approved_at
+                              ? new Date(
+                                    `${String(plan.approved_at).slice(0, 10)}T00:00:00Z`,
+                                )
+                              : null;
+
+                          const paidSince = planDayStart
                               ? money(
                                     payments
                                         .filter(
                                             (p) =>
                                                 p.lot_id === lot.id &&
                                                 new Date(p.received_at) >=
-                                                    new Date(plan.approved_at),
+                                                    planDayStart,
                                         )
                                         .reduce((sum, p) => sum + Number(p.amount), 0),
                                 )
