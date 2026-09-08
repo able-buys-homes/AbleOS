@@ -13,7 +13,7 @@
 import React from "react";
 import { Btn, Stack, money } from "../collections/parts";
 
-export type Priority = "emergency" | "urgent" | "routine";
+export type Priority = "emergency" | "urgent" | "routine" | "cosmetic";
 export type JobStatus =
   | "new"
   | "assigned"
@@ -92,6 +92,14 @@ const PRIO: Record<Priority, { label: string; chip: string; bar: string }> = {
     chip: "bg-[#EEF0F3] text-[#6C7484] border-[#DCE4EE]",
     bar: "#9AA4B2",
   },
+  // Below routine on purpose. A scuffed door is worth writing down so it is
+  // not forgotten, and worth keeping out of the same bucket as a job somebody
+  // is actually waiting on.
+  cosmetic: {
+    label: "Cosmetic",
+    chip: "bg-[#F4F6F9] text-[#8A929E] border-[#E3E8EF]",
+    bar: "#C7CFDA",
+  },
 };
 
 const STATUS: Record<JobStatus, string> = {
@@ -119,9 +127,10 @@ const rank: Record<Priority, number> = {
   emergency: 0,
   urgent: 1,
   routine: 2,
+  cosmetic: 3,
 };
 
-function ago(iso: string) {
+function ago(iso: string) { 
   const mins = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
   if (mins < 1) return "just now";
   if (mins < 60) return `${mins} min ago`;
@@ -669,7 +678,6 @@ function NewJobSheet({
               {lots.map((l) => (
                 <option key={l.number} value={l.number}>
                   Lot {l.number}
-                  {l.tenant ? ` — ${l.tenant}` : ""}
                 </option>
               ))}
             </select>
@@ -724,19 +732,14 @@ function NewJobSheet({
             }
             value={j.priority}
           >
-            {(["emergency", "urgent", "routine"] as Priority[]).map((p) => (
+            {(
+              ["emergency", "urgent", "routine", "cosmetic"] as Priority[]
+            ).map((p) => (
               <option key={p} value={p}>
                 {PRIO[p].label}
               </option>
             ))}
           </select>
-
-          {/* The definition, not a feeling. Without it every job is an
-              emergency and the word stops meaning anything. */}
-          <p className="mt-2 text-[12.5px] leading-relaxed text-[#6C7484]">
-            Emergency means no water, no heat in winter, sewage, or a fire or
-            electrical hazard. Anything else is urgent at most.
-          </p>
 
           <Label>Photo of the problem</Label>
           <label
@@ -770,11 +773,6 @@ function NewJobSheet({
                 : "Tap to add a photo"}
             </span>
           </label>
-          <p className="mt-2 text-[12.5px] leading-relaxed text-[#6C7484]">
-            Not required, but a photo of the problem now is what settles an
-            argument later about whether it was ever fixed.
-          </p>
-
           {problem && (
             <p className="mt-3 text-[15px] text-[#B91C1C]">{problem}</p>
           )}

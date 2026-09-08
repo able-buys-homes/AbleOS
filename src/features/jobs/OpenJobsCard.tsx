@@ -21,7 +21,7 @@ type Row = {
   tenant_name: string | null;
   title: string;
   category: string;
-  priority: "emergency" | "urgent" | "routine";
+  priority: "emergency" | "urgent" | "routine" | "cosmetic";
   status: string;
   opened_at: string;
   assigned_to: string | null;
@@ -45,6 +45,11 @@ const PRIO: Record<
     label: "Routine",
     chip: "bg-[#EEF0F3] text-[#6C7484] border-[#DCE4EE]",
     bar: "#9AA4B2",
+  },
+  cosmetic: {
+    label: "Cosmetic",
+    chip: "bg-[#F4F6F9] text-[#8A929E] border-[#E3E8EF]",
+    bar: "#C7CFDA",
   },
 };
 
@@ -74,6 +79,7 @@ const rank: Record<Row["priority"], number> = {
   emergency: 0,
   urgent: 1,
   routine: 2,
+  cosmetic: 3,
 };
 
 function ago(iso: string) {
