@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { MobileScreenShell } from "../components/MobileScreenShell";
 import { ZoScreenHeader } from "../components/ZoScreenHeader";
+import { MyInspectionsCard } from "../features/inspections/MyInspectionsCard";
 import { ZoTabBar } from "../components/ZoTabBar";
 import { apiFetch } from "../lib/apiFetch";
 import { useAuth } from "../lib/AuthProvider";
@@ -943,6 +944,10 @@ export function ZoInspect() {
       </div>
 
       {/* Sticky footer, same as the standalone form */}
+      {/* His own record, under the form. Filing used to clear the screen and
+          leave nothing at all on Zo's side - the only copy went to Raj. */}
+      <MyInspectionsCard />
+
       {/* Clears the action bar, which now sits above the tab bar rather than
           on the floor of the screen. */}
       <div aria-hidden="true" className="h-[78px]" />
