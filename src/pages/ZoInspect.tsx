@@ -17,6 +17,7 @@ import {
   XIcon,
 } from "lucide-react";
 import { MobileScreenShell } from "../components/MobileScreenShell";
+import { NotificationBell } from "../components/NotificationBell";
 import { UserMenu } from "../components/UserMenu";
 import { ZoTabBar } from "../components/ZoTabBar";
 import { apiFetch } from "../lib/apiFetch";
@@ -512,7 +513,7 @@ export function ZoInspect() {
                   src="/able-logo.png"
                 />
               </Link>
-              <UserMenu />
+              <div className="flex items-center gap-2"><NotificationBell /><UserMenu /></div>
             </div>
             <h1 className="mt-6 text-[30px] font-semibold leading-tight tracking-[-0.04em]">
               Unit {draft.unit_number} filed

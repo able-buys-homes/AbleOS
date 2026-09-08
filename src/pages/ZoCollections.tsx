@@ -11,6 +11,7 @@ import React from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { ArrowLeftIcon } from "lucide-react";
 import { MobileScreenShell } from "../components/MobileScreenShell";
+import { NotificationBell } from "../components/NotificationBell";
 import { UserMenu } from "../components/UserMenu";
 import { ZoTabBar } from "../components/ZoTabBar";
 import { apiFetch } from "../lib/apiFetch";
@@ -223,7 +224,7 @@ export function ZoCollections() {
             <Link aria-label="Back to your cockpit" to="/zo">
               <ArrowLeftIcon aria-hidden="true" size={22} />
             </Link>
-            <UserMenu />
+            <div className="flex items-center gap-2"><NotificationBell /><UserMenu /></div>
           </div>
 
           <h1 className="mt-3 text-[27px] font-bold tracking-[-0.015em]">

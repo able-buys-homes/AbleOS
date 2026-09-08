@@ -8,6 +8,7 @@
 
 import React from "react";
 import { MobileScreenShell } from "../components/MobileScreenShell";
+import { NotificationBell } from "../components/NotificationBell";
 import { UserMenu } from "../components/UserMenu";
 import { ZoTabBar } from "../components/ZoTabBar";
 import {
@@ -97,7 +98,7 @@ export function ZoMap() {
       headerContent={
         <>
           <div className="flex items-center justify-end">
-            <UserMenu />
+            <div className="flex items-center gap-2"><NotificationBell /><UserMenu /></div>
           </div>
           <h1 className="mt-3 text-[27px] font-bold tracking-[-0.015em]">
             Map
