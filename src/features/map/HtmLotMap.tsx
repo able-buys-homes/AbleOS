@@ -37,6 +37,10 @@ export interface Lot {
   /** The date somebody intends to walk this home. Not proof they did. */
   nextInspectionAt?: string;
   nextInspectionSetBy?: string;
+  /** What this lot owes today, across every month. */
+  owed?: number;
+  openJobCount?: number;
+  topJob?: { id: string; title: string; priority: string };
   /** Where the rent stands. Only meaningful when the home is occupied. */
   rentState?: "paid" | "on_plan" | "late" | "occupied";
   bed?: number;
@@ -197,6 +201,50 @@ export const PAINT_META: Record<
     text: "#713F12",
   },
 };
+
+function dollars(n: number) {
+  return n.toLocaleString(undefined, {
+    style: "currency",
+    currency: "USD",
+  });
+}
+
+/**
+ * The rent line on a lot card, in the same words the rent roll uses. If the
+ * two screens describe the same resident differently, Zo has to decide which
+ * one to believe, and there is no way for him to find out.
+ */
+function rentLine(lot: Lot) {
+  const owed = lot.owed ?? 0;
+
+  if (lot.rentState === "on_plan") return "On a plan";
+  if (lot.rentState === "late") return `Late · ${dollars(owed)} owed`;
+  if (lot.rentState === "paid") {
+    return owed < 0 ? `Paid · ${dollars(-owed)} in credit` : "Paid";
+  }
+  if (owed > 0) return `Due · ${dollars(owed)} owed`;
+  return "No rent recorded";
+}
+
+function rentTone(lot: Lot) {
+  if (lot.rentState === "late") return "text-[#B3261E]";
+  if (lot.rentState === "on_plan") return "text-[#8A5A00]";
+  if (lot.rentState === "paid") return "text-[#1B7A4B]";
+  return undefined;
+}
+
+function jobWord(priority: string) {
+  if (priority === "emergency") return "Emergency";
+  if (priority === "urgent") return "Urgent";
+  if (priority === "cosmetic") return "Cosmetic";
+  return "Routine";
+}
+
+function jobTone(priority: string) {
+  if (priority === "emergency") return "text-[#B3261E]";
+  if (priority === "urgent") return "text-[#92600A]";
+  return undefined;
+}
 
 /** An occupied home is painted by its rent. Everything else by its status. */
 export function paintOf(lot: Lot): Paint {
@@ -737,6 +785,9 @@ export function HtmLotMap({
             <div className="flex items-start justify-between gap-3">
               <div className="text-[17px] font-bold tracking-[-0.01em]">
                 Lot {selected.id}
+                {selected.status === "occupied" && selected.tenant
+                  ? ` — ${selected.tenant}`
+                  : ""}
               </div>
               <span
                 className="shrink-0 rounded-full border-2 px-2.5 py-1 text-[12px] font-bold"
@@ -751,24 +802,52 @@ export function HtmLotMap({
             </div>
 
             <dl className="mt-3 text-[14.5px]">
-              {selected.bed != null && (
-                <Row
-                  label="Home"
-                  value={`${selected.bed} bd / ${selected.bath} ba${
-                    selected.sqft
-                      ? ` · ${selected.sqft.toLocaleString()} sq ft`
-                      : ""
-                  }`}
-                />
-              )}
-              {/* Only when someone lives here. A name shown on an empty home
-                  is how a former resident gets chased for a lot they left. */}
+              <Row
+                label="Home"
+                value={[
+                  PAINT_META[paintOf(selected)].label,
+                  selected.bed != null
+                    ? `${selected.bed} bd / ${selected.bath} ba`
+                    : null,
+                  selected.sqft
+                    ? `${selected.sqft.toLocaleString()} sq ft`
+                    : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
+              />
+
+              {/* Only for a home with somebody in it. An empty lot cannot owe
+                  rent, and giving it a rent line invites someone to chase a
+                  home nobody lives in. */}
               {selected.status === "occupied" && (
                 <Row
-                  label="Resident"
-                  value={selected.tenant ?? "Not recorded"}
+                  label="Rent"
+                  tone={rentTone(selected)}
+                  value={rentLine(selected)}
                 />
               )}
+
+              {/* Names the worst one and counts the rest. "Water leak
+                  (Emergency)" tells Zo where to walk; "3 jobs" does not. */}
+              <Row
+                label="Open jobs"
+                tone={
+                  selected.topJob ? jobTone(selected.topJob.priority) : undefined
+                }
+                value={
+                  selected.topJob
+                    ? `${selected.topJob.title} (${jobWord(
+                        selected.topJob.priority,
+                      )})${
+                        (selected.openJobCount ?? 0) > 1
+                          ? ` +${(selected.openJobCount ?? 0) - 1} more`
+                          : ""
+                      }`
+                    : "None"
+                }
+              />
+
               {selected.nextInspectionAt && (
                 <Row
                   label="Next inspection"
@@ -926,12 +1005,16 @@ export function HtmLotMap({
                     Open in Inspect
                   </button>
                 )}
+                {/* Jobs exists now, so this goes somewhere real. It lands on
+                    the board rather than on this one job — the board sorts
+                    emergencies to the top, so it will be the first thing
+                    there. Deep-linking to a single job is worth doing later. */}
                 <button
-                  className="rounded-[10px] border border-[#DCE4EE] bg-white px-3.5 py-2.5 text-[14px] font-semibold text-[#9AA1AC]"
-                  disabled
+                  className="rounded-[10px] border border-[#DCE4EE] bg-whit e px-3.5 py-2.5 text-[14px] font-semibold text-[#1B2231]"
+                  onClick={() => navigate("/zo/jobs")}
                   type="button"
                 >
-                  New job — not built yet
+                  {selected.topJob ? "Open the job" : "New job"}
                 </button>
               </div>
             )}
@@ -976,11 +1059,20 @@ function MapTile({
   );
 }
 
-function Row({ label, value }: { label: string; value: string }) {
+function Row({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: string;
+  /** Colour carries the urgency here, so it has to survive sunlight. */
+  tone?: string;
+}) {
   return (
     <div className="flex items-baseline justify-between gap-3 border-t border-[#E3E5E9] py-2 first:border-t-0 first:pt-0">
       <dt className="shrink-0 text-[#6C7484]">{label}</dt>
-      <dd className="text-right font-semibold">{value}</dd>
+      <dd className={`text-right font-semibold ${tone ?? ""}`}>{value}</dd>
     </div>
   );
 }

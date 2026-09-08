@@ -16,6 +16,9 @@ const PROPERTY = "Hometown Meadows MHP";
 
 const CAN_USE = ["zo", "raj", "dane"];
 
+/** Which open job to name on a lot card when there is more than one. */
+const JOB_RANK = { emergency: 0, urgent: 1, routine: 2, cosmetic: 3 };
+
 const STATUSES = [
     "occupied",
     "ready",
@@ -71,7 +74,7 @@ export default async function handler(req, res) {
         const supabase = getClient();
 
         if (req.method === "GET") {
-            const [lotsRes, chargesRes, paymentsRes, plansRes] =
+            const [lotsRes, chargesRes, paymentsRes, plansRes, jobsRes] =
                 await Promise.all([
                     supabase
                         .from("lots")
@@ -82,11 +85,25 @@ export default async function handler(req, res) {
                     supabase.from("rent_ledger").select("lot_id, amount"),
                     supabase.from("payments").select("lot_id, amount"),
                     supabase.from("payment_plans").select("lot_id, status"),
+                    // Open work only. A finished job on the card would read as
+                    // something still waiting to be done.
+                    supabase
+                        .from("work_orders")
+                        .select("id, lot_id, title, priority, status")
+                        .not("status", "in", "(completed,cancelled)"),
                 ]);
 
-            for (const r of [lotsRes, chargesRes, paymentsRes, plansRes]) {
+            for (const r of [
+                lotsRes,
+                chargesRes,
+                paymentsRes,
+                plansRes,
+                jobsRes,
+            ]) {
                 if (r.error) throw r.error;
             }
+
+            const openJobs = jobsRes.data ?? [];
 
             const charges = chargesRes.data ?? [];
             const payments = paymentsRes.data ?? [];
@@ -132,7 +149,30 @@ export default async function handler(req, res) {
                     }
                 }
 
-                return { ...lot, owed, rent_state: rentState };
+                // The worst open job on this lot, and how many there are. The
+                // card names one and counts the rest - "Water leak
+                // (Emergency)" tells Zo where to walk; "3 jobs" does not.
+                const mine = openJobs
+                    .filter((j) => j.lot_id === lot.id)
+                    .sort(
+                        (a, b) =>
+                            (JOB_RANK[a.priority] ?? 9) -
+                            (JOB_RANK[b.priority] ?? 9),
+                    );
+
+                return {
+                    ...lot,
+                    owed,
+                    rent_state: rentState,
+                    open_job_count: mine.length,
+                    top_job: mine[0]
+                        ? {
+                              id: mine[0].id,
+                              title: mine[0].title,
+                              priority: mine[0].priority,
+                          }
+                        : null,
+                };
             });
 
             return res.status(200).json({ lots, statuses: STATUSES });
