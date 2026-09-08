@@ -751,7 +751,12 @@ export default async function handler(req, res) {
                               if (running > paidSince) {
                                   nextNumber = i + 1;
                                   nextDue = planRows[i].due_date;
-                                  nextAmount = money(Number(planRows[i].amount));
+                                  // The unpaid part of this instalment, not the
+                                  // scheduled figure. $500 agreed over two
+                                  // payments with $450 already in means $50 is
+                                  // due, and asking for $250 would be asking
+                                  // for money she does not owe.
+                                  nextAmount = money(running - paidSince);
                                   break;
                               }
                           }
