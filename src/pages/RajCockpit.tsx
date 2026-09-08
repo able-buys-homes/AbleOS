@@ -19,6 +19,7 @@ import { NavCard } from "../components/NavCard";
 import { UnitInspectionsCard } from "../features/inspections/UnitInspectionsCard";
 import { SocialQueueCard } from "../features/social/SocialQueueCard";
 import { CollectionsApprovalsCard } from "../features/collections/ApprovalsCard";
+import { OpenJobsCard } from "../features/jobs/OpenJobsCard";
 import {
   CameraIcon,
   FileTextIcon,
@@ -625,6 +626,9 @@ export function RajCockpit() {
             <UnitInspectionsCard />
             <div className="mt-4">
               <CollectionsApprovalsCard />
+            </div>
+            <div className="mt-4">
+              <OpenJobsCard />
             </div>
             <div className="mt-4">
               <SocialQueueCard />
