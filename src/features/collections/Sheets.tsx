@@ -490,15 +490,6 @@ export function Sheets({
                 </option>
               ))}
             </select>
-            {/* A dropdown that is quietly missing homes reads as a bug. Say
-                which ones are absent and why. */}
-            {payable.length < choosable.length && (
-              <p className="mt-1.5 text-[13px] leading-relaxed text-[#6C7484]">
-                {choosable.length - payable.length} of {choosable.length} homes
-                are not listed because no rent is recorded for them yet. Set
-                the rent on the roll first.
-              </p>
-            )}
           </div>
         )}
 
