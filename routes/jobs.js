@@ -223,7 +223,10 @@ export default async function handler(req, res) {
                         ? `Emergency — Lot ${openedLot?.lot_number ?? "?"}`
                         : `New job — Lot ${openedLot?.lot_number ?? "?"}`,
                 body: `${profile.cockpit} opened "${title}" as ${priority}. Nobody is assigned to it yet.`,
-                link: "/raj",
+                // The id in the link is what opens the right job when Raj taps
+                // the notification, instead of dropping him on the cockpit to
+                // go and find it himself.
+                link: `/raj?job=${created?.id ?? ""}`,
             });
 
             return res.status(201).json({
@@ -357,7 +360,7 @@ export default async function handler(req, res) {
                               patch.parts_cost ? ` · parts $${patch.parts_cost}` : ""
                           }.`
                         : `${profile.cockpit} is waiting on parts. The resident is still waiting too.`,
-                link: "/raj",
+                link: `/raj?job=${jobId}`,
             });
         }
 

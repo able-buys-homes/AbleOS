@@ -86,7 +86,12 @@ function ago(iso: string) {
   return days === 1 ? "yesterday" : `${days} days ago`;
 }
 
-export function OpenJobsCard() {
+export function OpenJobsCard({
+  openJobId,
+}: {
+  /** Set when a notification asked for one particular job. */
+  openJobId?: string | null;
+}) {
   const [jobs, setJobs] = React.useState<Row[] | null>(null);
   const [problem, setProblem] = React.useState("");
   const [open, setOpen] = React.useState(false);
@@ -148,6 +153,12 @@ export function OpenJobsCard() {
       document.removeEventListener("visibilitychange", onVisible);
     };
   }, [load]);
+
+  // A notification asked for one job, so put the list on screen rather than
+  // leaving Raj on the cockpit wondering which row it meant.
+  React.useEffect(() => {
+    if (openJobId) setOpen(true);
+  }, [openJobId]);
 
   const emergencies = (jobs ?? []).filter(
     (j) => j.priority === "emergency",
@@ -212,10 +223,22 @@ export function OpenJobsCard() {
                 </p>
               )}
 
+              {/* A "job finished" notification points at a job that is no
+                  longer open, so it will not be in this list. Say so rather
+                  than showing him a list without the thing he tapped. */}
+              {openJobId && jobs && !jobs.some((j) => j.id === openJobId) && (
+                <p className="mb-2.5 rounded-2xl border border-[#DCE4EE] bg-white p-4 text-[14px] text-[#6C7484]">
+                  The job you were notified about is no longer open — it has
+                  been finished or cancelled.
+                </p>
+              )}
+
               <div className="flex flex-col gap-2.5">
                 {(jobs ?? []).map((j) => (
                   <div
-                    className="rounded-2xl border border-l-4 border-[#DCE4EE] bg-white p-4"
+                    className={`rounded-2xl border border-l-4 border-[#DCE4EE] bg-white p-4 ${
+                      j.id === openJobId ? "ring-4 ring-[#1E3A8A]/25" : ""
+                    }`}
                     key={j.id}
                     style={{ borderLeftColor: PRIO[j.priority].bar }}
                   >

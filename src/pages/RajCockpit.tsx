@@ -181,11 +181,20 @@ export function RajCockpit() {
   const [tasksOpen, setTasksOpen] = React.useState(false);
   const [savingTask, setSavingTask] = React.useState<string | null>(null);
   const [chatTask, setChatTask] = React.useState<Task | null>(null);
+  const [jobTarget, setJobTarget] = React.useState<string | null>(null);
 
   /* Notifications deep-link into here, e.g. /raj?task=<id>&chat=1 */
   const { clear, target } = useNotificationTarget();
 
   React.useEffect(() => {
+    // Jobs first. The card owns its own modal, so this only has to say which
+    // job it is and get out of the way.
+    if (target.job) {
+      setJobTarget(target.job);
+      clear();
+      return;
+    }
+
     if (target.order) {
       // Wait for the list before deciding the id is missing.
       if (ordersLoading) return;
@@ -628,7 +637,7 @@ export function RajCockpit() {
               <CollectionsApprovalsCard />
             </div>
             <div className="mt-4">
-              <OpenJobsCard />
+              <OpenJobsCard openJobId={jobTarget} />
             </div>
             <div className="mt-4">
               <SocialQueueCard />
