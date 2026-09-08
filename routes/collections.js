@@ -378,7 +378,10 @@ export default async function handler(req, res) {
                 type: "rent_set",
                 title: `Rent set on Lot ${lot.lot_number}`,
                 body: `${profile.cockpit} entered $${money(tenantPortion)} a month, and this month is charged at that amount. If it is wrong, have it entered again — the charge moves with it.`,
-                link: "/zo/collections",
+                // Raj cannot open /zo/collections - that route is Zo's. A
+                // notification that lands on a locked screen is worse than one
+                // with no link at all.
+                link: "/raj",
             });
 
             return res.status(200).json({

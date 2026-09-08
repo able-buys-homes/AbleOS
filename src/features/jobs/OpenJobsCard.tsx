@@ -183,11 +183,11 @@ export function OpenJobsCard({
 
       {open && (
         <div
-          className="fixed inset-0 z-[60] flex items-end justify-center bg-[#141A28]/55 sm:items-center"
+          className="fixed inset-0 z-40 flex items-end justify-center overflow-hidden bg-[#1A1A2E]/50 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-[max(0.75rem,env(safe-area-inset-top))] sm:items-center sm:px-4 sm:py-6"
           onClick={() => setOpen(false)}
         >
           <div
-            className="flex max-h-[92vh] w-full max-w-[560px] flex-col overflow-hidden rounded-t-[20px] bg-[#F1F2F4] sm:rounded-[18px]"
+            className="flex h-full max-h-full w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-[#EEF2F6] shadow-[0_20px_40px_rgba(30,58,138,0.18)] sm:h-[85vh]"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex flex-none items-center justify-between gap-3 bg-[#1E3A8A] px-5 py-4 text-white">
@@ -211,7 +211,7 @@ export function OpenJobsCard({
               </button>
             </div>
 
-            <div className="overflow-y-auto p-5">
+            <div className="flex-1 overflow-y-auto p-5">
               {problem && (
                 <p className="text-[15px] text-[#B91C1C]">{problem}</p>
               )}
