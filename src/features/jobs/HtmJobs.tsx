@@ -52,11 +52,14 @@ export interface Job {
 
 export interface NewJobInput {
   lot: number;
+  /** What is wrong, as it was said. Its first line becomes the card title. */
   title: string;
-  resident?: string;
+  /** Who Zo was told lives there, standing at the door. */
+  occupantName?: string;
   category: Category;
   priority: Priority;
-  note?: string;
+  /** The photo of the problem, taken when the job was opened. */
+  openedPhotoPath?: string;
 }
 
 interface Props {
@@ -66,7 +69,9 @@ interface Props {
   onComplete: (id: string) => Promise<void> | void;
   onUploadPhoto: (id: string, file: File) => Promise<string>;
   onSetStatus: (id: string, status: JobStatus) => Promise<void> | void;
-  lots?: number[];
+  /** The photo of the problem, uploaded before the job exists. */
+  onUploadOpenPhoto: (file: File) => Promise<{ path: string; url: string }>;
+  lots?: Array<{ number: number; tenant?: string }>;
 }
 
 // Emergency reads red because it means somebody has no water or no heat.
@@ -154,6 +159,7 @@ export default function HtmJobs({
   onComplete,
   onUploadPhoto,
   onSetStatus,
+  onUploadOpenPhoto,
   lots,
 }: Props) {
   const [open, setOpen] = React.useState<string | null>(null);
@@ -561,6 +567,7 @@ export default function HtmJobs({
         <NewJobSheet
           lots={lots}
           onClose={() => setCreating(false)}
+          onUploadPhoto={onUploadOpenPhoto}
           onCreate={async (j) => {
             await onCreate(j);
             setCreating(false);
@@ -575,22 +582,52 @@ function NewJobSheet({
   lots,
   onClose,
   onCreate,
+  onUploadPhoto,
 }: {
-  lots?: number[];
+  lots?: Array<{ number: number; tenant?: string }>;
   onClose: () => void;
   onCreate: (j: NewJobInput) => Promise<void> | void;
+  onUploadPhoto: (file: File) => Promise<{ path: string; url: string }>;
 }) {
+  const first = lots?.[0];
+
   const [j, setJ] = React.useState<NewJobInput>({
-    lot: lots?.[0] ?? 1,
+    lot: first?.number ?? 1,
     title: "",
+    occupantName: first?.tenant ?? "",
     category: "plumbing",
     priority: "routine",
-    note: "",
   });
+  const [photoUrl, setPhotoUrl] = React.useState<string | null>(null);
   const [busy, setBusy] = React.useState(false);
   const [problem, setProblem] = React.useState("");
 
   const ok = j.title.trim().length > 2 && j.lot > 0;
+
+  // Changing the lot brings that home's recorded resident with it, so Zo is
+  // correcting a name rather than typing one from nothing - and if the name
+  // he is told at the door differs from the record, that difference is kept.
+  function pickLot(n: number) {
+    const match = lots?.find((l) => l.number === n);
+    setJ((s) => ({ ...s, lot: n, occupantName: match?.tenant ?? "" }));
+  }
+
+  async function addPhoto(file?: File) {
+    if (!file) return;
+    setBusy(true);
+    setProblem("");
+    try {
+      const { path, url } = await onUploadPhoto(file);
+      setJ((s) => ({ ...s, openedPhotoPath: path }));
+      setPhotoUrl(url);
+    } catch (err) {
+      setProblem(
+        err instanceof Error ? err.message : "The photo did not upload.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
 
   return (
     <div
@@ -626,12 +663,13 @@ function NewJobSheet({
           {lots && lots.length > 0 ? (
             <select
               className={inputClass}
-              onChange={(e) => setJ({ ...j, lot: Number(e.target.value) })}
+              onChange={(e) => pickLot(Number(e.target.value))}
               value={j.lot}
             >
               {lots.map((l) => (
-                <option key={l} value={l}>
-                  Lot {l}
+                <option key={l.number} value={l.number}>
+                  Lot {l.number}
+                  {l.tenant ? ` — ${l.tenant}` : ""}
                 </option>
               ))}
             </select>
@@ -645,53 +683,53 @@ function NewJobSheet({
             />
           )}
 
-          <Label>What is wrong</Label>
+          <Label>Who lives there</Label>
           <input
             className={inputClass}
-            onChange={(e) => setJ({ ...j, title: e.target.value })}
-            placeholder="No hot water"
+            onChange={(e) => setJ({ ...j, occupantName: e.target.value })}
+            placeholder="Name"
             type="text"
+            value={j.occupantName ?? ""}
+          />
+
+          <Label>What kind of problem</Label>
+          <select
+            className={inputClass}
+            onChange={(e) =>
+              setJ({ ...j, category: e.target.value as Category })
+            }
+            value={j.category}
+          >
+            {(Object.keys(CAT) as Category[]).map((k) => (
+              <option key={k} value={k}>
+                {CAT[k]}
+              </option>
+            ))}
+          </select>
+
+          <Label>What is wrong</Label>
+          <textarea
+            className={`${inputClass} leading-relaxed`}
+            onChange={(e) => setJ({ ...j, title: e.target.value })}
+            placeholder="Say it like you'd say it out loud"
+            rows={3}
             value={j.title}
           />
 
-          <Label>What kind of work</Label>
-          <div className="flex flex-wrap gap-2">
-            {(Object.keys(CAT) as Category[]).map((k) => (
-              <button
-                className={`rounded-full border px-3 py-1.5 text-[13px] font-semibold ${
-                  j.category === k
-                    ? "border-[#1E3A8A] bg-[#1E3A8A] text-white"
-                    : "border-[#DCE4EE] bg-white text-[#1B2231]"
-                }`}
-                key={k}
-                onClick={() => setJ({ ...j, category: k })}
-                type="button"
-              >
-                {CAT[k]}
-              </button>
-            ))}
-          </div>
-
           <Label>How urgent</Label>
-          <div className="flex gap-2.5">
+          <select
+            className={inputClass}
+            onChange={(e) =>
+              setJ({ ...j, priority: e.target.value as Priority })
+            }
+            value={j.priority}
+          >
             {(["emergency", "urgent", "routine"] as Priority[]).map((p) => (
-              <button
-                className={`flex-1 rounded-[10px] border-2 px-2 py-2.5 text-[13px] font-bold ${
-                  j.priority === p
-                    ? "border-transparent text-white"
-                    : "border-[#DCE4EE] bg-white text-[#1B2231]"
-                }`}
-                key={p}
-                onClick={() => setJ({ ...j, priority: p })}
-                style={
-                  j.priority === p ? { background: PRIO[p].bar } : undefined
-                }
-                type="button"
-              >
+              <option key={p} value={p}>
                 {PRIO[p].label}
-              </button>
+              </option>
             ))}
-          </div>
+          </select>
 
           {/* The definition, not a feeling. Without it every job is an
               emergency and the word stops meaning anything. */}
@@ -700,14 +738,42 @@ function NewJobSheet({
             electrical hazard. Anything else is urgent at most.
           </p>
 
-          <Label>Anything the person fixing it should know</Label>
-          <textarea
-            className={`${inputClass} leading-relaxed`}
-            onChange={(e) => setJ({ ...j, note: e.target.value })}
-            placeholder="Optional"
-            rows={3}
-            value={j.note}
-          />
+          <Label>Photo of the problem</Label>
+          <label
+            className={`${inputClass} flex cursor-pointer items-center gap-3`}
+          >
+            <input
+              accept="image/*"
+              capture="environment"
+              className="hidden"
+              onChange={(e) => addPhoto(e.target.files?.[0])}
+              type="file"
+            />
+            {photoUrl ? (
+              <img
+                alt=""
+                className="h-14 w-14 shrink-0 rounded-lg object-cover"
+                src={photoUrl}
+              />
+            ) : (
+              <span className="grid h-14 w-14 shrink-0 place-items-center rounded-lg bg-[#EEF0F3] text-[12px] font-bold text-[#6C7484]">
+                NONE
+              </span>
+            )}
+            <span
+              className={
+                photoUrl ? "text-[#1B2231]" : "text-[15px] text-[#6C7484]"
+              }
+            >
+              {photoUrl
+                ? "Photo attached — tap to replace"
+                : "Tap to add a photo"}
+            </span>
+          </label>
+          <p className="mt-2 text-[12.5px] leading-relaxed text-[#6C7484]">
+            Not required, but a photo of the problem now is what settles an
+            argument later about whether it was ever fixed.
+          </p>
 
           {problem && (
             <p className="mt-3 text-[15px] text-[#B91C1C]">{problem}</p>
@@ -733,7 +799,7 @@ function NewJobSheet({
             }}
             variant="primary"
           >
-            {busy ? "Opening…" : "Open the job"}
+            {busy ? "Saving…" : "Save job"}
           </Btn>
         </div>
       </div>

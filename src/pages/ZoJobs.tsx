@@ -124,10 +124,14 @@ export function ZoJobs() {
       method: "POST",
       body: JSON.stringify({
         lot_number: String(input.lot),
+        // The whole paragraph. The server takes its first line as the card's
+        // title and keeps the rest, so nothing said at the door is dropped to
+        // make a heading fit.
         title: input.title,
+        occupant_name: input.occupantName || null,
+        opened_photo_path: input.openedPhotoPath || null,
         category: input.category,
         priority: input.priority,
-        note: input.note || null,
       }),
     });
     await load();
@@ -164,6 +168,35 @@ export function ZoJobs() {
       }),
     });
     await load();
+  }
+
+  /**
+   * The photo of the problem, taken before the job exists. Hands back both
+   * the stored path - which is what gets saved on the row - and a short-lived
+   * link for the preview.
+   */
+  async function uploadOpenPhoto(file: File) {
+    const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
+
+    const ticket = await send("/api/jobs?photo=1", {
+      method: "POST",
+      body: JSON.stringify({ ext, kind: "open" }),
+    });
+
+    const put = await fetch(ticket.signedUrl, {
+      method: "PUT",
+      headers: { "Content-Type": file.type || "image/jpeg" },
+      body: file,
+    });
+
+    if (!put.ok) throw new Error(`Photo upload failed (${put.status})`);
+
+    const view = await send(
+      `/api/jobs?photo=${encodeURIComponent(ticket.path)}`,
+      { method: "GET" },
+    );
+
+    return { path: ticket.path as string, url: view.url as string };
   }
 
   /**
@@ -229,12 +262,16 @@ export function ZoJobs() {
         {jobs && (
           <HtmJobs
             jobs={jobs}
-            lots={lots.map((l) => Number(l.lot_number))}
+            lots={lots.map((l) => ({
+            number: Number(l.lot_number),
+            tenant: l.tenant_name ?? undefined,
+          }))}
             onComplete={complete}
             onCreate={create}
             onSaveCloseout={saveCloseout}
-            onSetStatus={setStatus}
-            onUploadPhoto={uploadPhoto}
+                      onSetStatus={setStatus}
+          onUploadOpenPhoto={uploadOpenPhoto}
+          onUploadPhoto={uploadPhoto}
           />
         )}
       </div>

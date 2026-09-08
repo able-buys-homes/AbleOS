@@ -68,7 +68,10 @@ export default async function handler(req, res) {
 
             // Only ever inside the jobs folder. Without this, any stored path
             // in the bucket could be fetched by asking for it.
-            if (!path.startsWith("htm/job_done/")) {
+            if (
+                !path.startsWith("htm/job_done/") &&
+                !path.startsWith("htm/job_open/")
+            ) {
                 return res.status(400).json({ error: "Not a job photo" });
             }
 
@@ -117,7 +120,7 @@ export default async function handler(req, res) {
             // One call for every photo rather than one per job. These links
             // expire - nothing here is a permanent URL.
             const paths = jobs
-                .map((j) => j.photo_path)
+                .flatMap((j) => [j.photo_path, j.opened_photo_path])
                 .filter((p) => typeof p === "string" && p.length > 0);
 
             if (paths.length > 0) {
@@ -133,6 +136,9 @@ export default async function handler(req, res) {
                     j.photo_url = j.photo_path
                         ? (urlByPath.get(j.photo_path) ?? null)
                         : null;
+                    j.opened_photo_url = j.opened_photo_path
+                        ? (urlByPath.get(j.opened_photo_path) ?? null)
+                        : null;
                 }
             }
 
@@ -145,7 +151,13 @@ export default async function handler(req, res) {
                 .replace(/[^a-z0-9]/gi, "")
                 .slice(0, 5);
 
-            const path = `htm/job_done/${randomUUID()}.${ext || "jpg"}`;
+            // "open" is the photo of the problem, "done" is the photo of the
+            // finished work. Both sit in the same private bucket and are only
+            // ever reached through a link minted per request.
+            const folder =
+                String(req.body?.kind) === "open" ? "job_open" : "job_done";
+
+            const path = `htm/${folder}/${randomUUID()}.${ext || "jpg"}`;
 
             const { data: signed, error } = await supabase.storage
                 .from(BUCKET)
@@ -158,10 +170,20 @@ export default async function handler(req, res) {
 
         /* ---- open a job ---- */
         if (req.method === "POST") {
-            const title = String(req.body?.title || "").trim();
-            if (title.length < 3) {
+            // The form asks "what's wrong?" as a paragraph, because that is
+            // how somebody says it standing at a door. The card needs
+            // something short, so the first line becomes the title and the
+            // whole thing is kept as the note. Nothing the resident said is
+            // thrown away to make a heading fit.
+            const said = String(req.body?.title ?? req.body?.note ?? "").trim();
+
+            if (said.length < 3) {
                 return res.status(400).json({ error: "Say what is wrong" });
             }
+
+            const firstLine = said.split("\n")[0].trim();
+            const title =
+                firstLine.length > 90 ? `${firstLine.slice(0, 87)}…` : firstLine;
 
             // A job has to hang off a real lot, so it can be found again by
             // walking to it.
@@ -189,8 +211,14 @@ export default async function handler(req, res) {
                 .from("work_orders")
                 .insert({
                     lot_id: lotId,
-                    title: title.slice(0, 200),
-                    note: req.body?.note ? String(req.body.note).slice(0, 2000) : null,
+                    title,
+                    note: said.slice(0, 2000),
+                    occupant_name: req.body?.occupant_name
+                        ? String(req.body.occupant_name).trim().slice(0, 120)
+                        : null,
+                    opened_photo_path: req.body?.opened_photo_path
+                        ? String(req.body.opened_photo_path)
+                        : null,
                     category,
                     priority,
                     status: "new",
