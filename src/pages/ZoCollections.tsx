@@ -8,8 +8,7 @@
 // unchanged. The copy is the training - it is written for someone standing in
 // a gravel driveway on a phone, so none of it is shortened here.
 import React from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { ArrowLeftIcon } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { MobileScreenShell } from "../components/MobileScreenShell";
 import { ZoScreenHeader } from "../components/ZoScreenHeader";
 import { ZoTabBar } from "../components/ZoTabBar";
@@ -220,11 +219,6 @@ export function ZoCollections() {
       headerContent={
         <>
           <ZoScreenHeader
-            back={
-              <Link aria-label="Back to your cockpit" to="/zo">
-                <ArrowLeftIcon aria-hidden="true" size={22} />
-              </Link>
-            }
             eyebrow="Hometown Meadows MHP"
             subtitle="Who has paid, who owes, and who is late."
             title="Rent"
@@ -238,7 +232,7 @@ export function ZoCollections() {
                   tab === key
                     ? "border-white text-white"
                     : "border-transparent text-white/70"
-                }`}
+                }`} 
                 key={key}
                 onClick={() => {
                   setTab(key);
