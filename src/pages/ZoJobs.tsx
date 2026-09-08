@@ -18,8 +18,7 @@ import HtmJobs, {
   type Priority,
 } from "../features/jobs/HtmJobs";
 import { MobileScreenShell } from "../components/MobileScreenShell";
-import { NotificationBell } from "../components/NotificationBell";
-import { UserMenu } from "../components/UserMenu";
+import { ZoScreenHeader } from "../components/ZoScreenHeader";
 import { ZoTabBar } from "../components/ZoTabBar";
 import { apiFetch } from "../lib/apiFetch";
 
@@ -201,21 +200,16 @@ export function ZoJobs() {
     <MobileScreenShell
       headerContent={
         <>
-          <div className="flex items-center justify-end">
-            <div className="flex items-center gap-2"><NotificationBell /><UserMenu /></div>
-          </div>
-
-          <h1 className="mt-3 text-[27px] font-bold tracking-[-0.015em]">
-            Jobs
-          </h1>
-          <p className="mt-1.5 text-[13.5px] text-white/75">
-            Hometown Meadows MHP &nbsp;•&nbsp; 121 Smith Lane, Nashville AR
-          </p>
-          {jobs && (
-            <p className="mt-3 text-[15px] font-semibold">
-              {openCount} {openCount === 1 ? "job" : "jobs"} open
-            </p>
-          )}
+          <ZoScreenHeader
+            eyebrow="Hometown Meadows MHP"
+            stat={
+              jobs
+                ? `${openCount} ${openCount === 1 ? "job" : "jobs"} open`
+                : undefined
+            }
+            subtitle="Work orders for the community. Emergencies first."
+            title="Jobs"
+          />
         </>
       }
     >

@@ -17,8 +17,7 @@ import {
   XIcon,
 } from "lucide-react";
 import { MobileScreenShell } from "../components/MobileScreenShell";
-import { NotificationBell } from "../components/NotificationBell";
-import { UserMenu } from "../components/UserMenu";
+import { ZoScreenHeader } from "../components/ZoScreenHeader";
 import { ZoTabBar } from "../components/ZoTabBar";
 import { apiFetch } from "../lib/apiFetch";
 import { useAuth } from "../lib/AuthProvider";
@@ -505,19 +504,20 @@ export function ZoInspect() {
       <MobileScreenShell
         headerContent={
           <>
-            <div className="flex items-center justify-between">
-              <Link aria-label="Back to your cockpit" to="/zo">
-                <img
-                  alt="Able Buys Homes"
-                  className="h-12 w-12 rounded-xl bg-[#191919] p-0.5 object-contain"
-                  src="/able-logo.png"
-                />
-              </Link>
-              <div className="flex items-center gap-2"><NotificationBell /><UserMenu /></div>
-            </div>
-            <h1 className="mt-6 text-[30px] font-semibold leading-tight tracking-[-0.04em]">
-              Unit {draft.unit_number} filed
-            </h1>
+            <ZoScreenHeader
+              back={
+                <Link aria-label="Back to your cockpit" to="/zo">
+                  <img
+                    alt="Able Buys Homes"
+                    className="h-12 w-12 rounded-xl bg-[#191919] p-0.5 object-contain shadow-sm"
+                    src="/able-logo.png"
+                  />
+                </Link>
+              }
+              eyebrow="Hometown Meadows MHP"
+              subtitle="The record is saved. Nothing on it can be edited now."
+              title={`Unit ${draft.unit_number} filed`}
+            />
           </>
         }
       >
@@ -582,24 +582,11 @@ export function ZoInspect() {
     <MobileScreenShell
       headerContent={
         <>
-          <div className="flex items-center justify-between">
-            <img
-              alt="Able Buys Homes"
-              className="h-12 w-12 rounded-xl bg-[#191919] p-0.5 object-contain"
-              src="/able-logo.png"
-            />
-            <div className="flex items-center gap-3">
-              {/* Removed along with the one on the Rehab screen. The bottom
-                  bar is the only navigation now. */}
-              <UserMenu />
-            </div>
-          </div>
-          <h1 className="mt-6 text-[30px] font-semibold leading-tight tracking-[-0.04em]">
-            Unit Inspection
-          </h1>
-          <p className="mt-1 text-[16px] font-medium text-white/85">
-            Hometown Meadows MHP · 121 Smith Lane, Nashville AR
-          </p>
+          <ZoScreenHeader
+            eyebrow="Hometown Meadows MHP"
+            subtitle="Walk the home, tick what is there, photograph what is not."
+            title="Unit Inspection"
+          />
         </>
       }
     >

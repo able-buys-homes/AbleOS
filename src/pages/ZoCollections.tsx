@@ -11,8 +11,7 @@ import React from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { ArrowLeftIcon } from "lucide-react";
 import { MobileScreenShell } from "../components/MobileScreenShell";
-import { NotificationBell } from "../components/NotificationBell";
-import { UserMenu } from "../components/UserMenu";
+import { ZoScreenHeader } from "../components/ZoScreenHeader";
 import { ZoTabBar } from "../components/ZoTabBar";
 import { apiFetch } from "../lib/apiFetch";
 import {
@@ -220,19 +219,16 @@ export function ZoCollections() {
     <MobileScreenShell
       headerContent={
         <>
-          <div className="flex items-center justify-between">
-            <Link aria-label="Back to your cockpit" to="/zo">
-              <ArrowLeftIcon aria-hidden="true" size={22} />
-            </Link>
-            <div className="flex items-center gap-2"><NotificationBell /><UserMenu /></div>
-          </div>
-
-          <h1 className="mt-3 text-[27px] font-bold tracking-[-0.015em]">
-            Rent
-          </h1>
-          <p className="mt-1.5 text-[13.5px] text-white/75">
-            Hometown Meadows MHP &nbsp;•&nbsp; 121 Smith Lane, Nashville AR
-          </p>
+          <ZoScreenHeader
+            back={
+              <Link aria-label="Back to your cockpit" to="/zo">
+                <ArrowLeftIcon aria-hidden="true" size={22} />
+              </Link>
+            }
+            eyebrow="Hometown Meadows MHP"
+            subtitle="Who has paid, who owes, and who is late."
+            title="Rent"
+          />
 
           <div className="mt-4 flex gap-6 overflow-x-auto">
             {tabs.map(([key, label]) => (

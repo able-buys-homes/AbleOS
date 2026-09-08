@@ -8,8 +8,7 @@
 
 import React from "react";
 import { MobileScreenShell } from "../components/MobileScreenShell";
-import { NotificationBell } from "../components/NotificationBell";
-import { UserMenu } from "../components/UserMenu";
+import { ZoScreenHeader } from "../components/ZoScreenHeader";
 import { ZoTabBar } from "../components/ZoTabBar";
 import {
   HtmLotMap,
@@ -97,21 +96,16 @@ export function ZoMap() {
     <MobileScreenShell
       headerContent={
         <>
-          <div className="flex items-center justify-end">
-            <div className="flex items-center gap-2"><NotificationBell /><UserMenu /></div>
-          </div>
-          <h1 className="mt-3 text-[27px] font-bold tracking-[-0.015em]">
-            Map
-          </h1>
-          <p className="mt-1.5 text-[13.5px] text-white/75">
-            Hometown Meadows MHP &nbsp;•&nbsp; 121 Smith Lane, Nashville AR
-          </p>
-          {lots && (
-            <p className="mt-3 text-[15px] font-semibold">
-              {occupiedTotal} of {doors} doors occupied &nbsp;•&nbsp;{" "}
-              {occupancy}%
-            </p>
-          )}
+          <ZoScreenHeader
+            eyebrow="Hometown Meadows MHP"
+            stat={
+              lots
+                ? `${occupiedTotal} of ${doors} doors occupied · ${occupancy}%`
+                : undefined
+            }
+            subtitle="Every lot, what is in it, and what it needs."
+            title="Map"
+          />
         </>
       }
     >
