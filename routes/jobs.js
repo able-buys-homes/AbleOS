@@ -201,15 +201,30 @@ export default async function handler(req, res) {
 
             if (insertError) throw insertError;
 
-            if (priority === "emergency") {
-                await supabase.from("notifications").insert({
-                    recipient: "raj",
-                    type: "job_emergency",
-                    title: `Emergency job opened`,
-                    body: `${profile.cockpit} opened an emergency: ${title}. Nobody has been assigned to it yet.`,
-                    link: "/zo/jobs",
-                });
-            }
+            // Every job gets a notification, not only the emergencies. A
+            // system that speaks up only when something is on fire teaches
+            // Raj that silence means nothing is happening - and the routine
+            // job nobody mentioned is the one that turns into a complaint.
+            //
+            // The link goes to /raj, not Zo's board. Raj cannot open that
+            // route, and a notification that leads to a locked screen is
+            // worse than one with no link at all.
+            const { data: openedLot } = await supabase
+                .from("lots")
+                .select("lot_number")
+                .eq("id", lotId)
+                .maybeSingle();
+
+            await supabase.from("notifications").insert({
+                recipient: "raj",
+                type: priority === "emergency" ? "job_emergency" : "job_opened",
+                title:
+                    priority === "emergency"
+                        ? `Emergency — Lot ${openedLot?.lot_number ?? "?"}`
+                        : `New job — Lot ${openedLot?.lot_number ?? "?"}`,
+                body: `${profile.cockpit} opened "${title}" as ${priority}. Nobody is assigned to it yet.`,
+                link: "/raj",
+            });
 
             return res.status(201).json({
                 ok: true,
@@ -224,7 +239,7 @@ export default async function handler(req, res) {
 
         const { data: job, error: jobError } = await supabase
             .from("work_orders")
-            .select("id, status, fix, photo_path")
+            .select("id, lot_id, status, fix, photo_path")
             .eq("id", jobId)
             .maybeSingle();
 
@@ -313,6 +328,38 @@ export default async function handler(req, res) {
             .eq("id", jobId);
 
         if (updateError) throw updateError;
+
+        // Told, not left to be discovered. Finished and stuck are both things
+        // Raj wants to hear without opening a screen - one is a bill coming,
+        // the other is a resident still waiting.
+        if (patch.status === "completed" || patch.status === "waiting_parts") {
+            const { data: patchedLot } = await supabase
+                .from("lots")
+                .select("lot_number")
+                .eq("id", job.lot_id)
+                .maybeSingle();
+
+            const lotLabel = patchedLot?.lot_number ?? "?";
+
+            await supabase.from("notifications").insert({
+                recipient: "raj",
+                type:
+                    patch.status === "completed"
+                        ? "job_completed"
+                        : "job_waiting_parts",
+                title:
+                    patch.status === "completed"
+                        ? `Job finished — Lot ${lotLabel}`
+                        : `Job stuck — Lot ${lotLabel}`,
+                body:
+                    patch.status === "completed"
+                        ? `${profile.cockpit} closed it out with a photo${
+                              patch.parts_cost ? ` · parts $${patch.parts_cost}` : ""
+                          }.`
+                        : `${profile.cockpit} is waiting on parts. The resident is still waiting too.`,
+                link: "/raj",
+            });
+        }
 
         return res.status(200).json({
             ok: true,

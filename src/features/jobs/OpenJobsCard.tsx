@@ -67,6 +67,9 @@ const CAT: Record<string, string> = {
   other: "Other",
 };
 
+/** How often Raj's cockpit re-reads the board. */
+const REFRESH_MS = 5000;
+
 const rank: Record<Row["priority"], number> = {
   emergency: 0,
   urgent: 1,
@@ -88,38 +91,63 @@ export function OpenJobsCard() {
   const [problem, setProblem] = React.useState("");
   const [open, setOpen] = React.useState(false);
 
-  React.useEffect(() => {
-    (async () => {
-      try {
-        const res = await apiFetch("/api/jobs");
-        if (res.status === 401) return;
+  const load = React.useCallback(async () => {
+    try {
+      const res = await apiFetch("/api/jobs");
+      if (res.status === 401) return;
 
-        const type = res.headers.get("content-type") ?? "";
-        if (!type.includes("application/json")) {
-          throw new Error("The work orders did not come back.");
-        }
-
-        const body = await res.json().catch(() => null);
-        if (!res.ok) throw new Error(body?.error || "Could not load the jobs");
-
-        // Emergencies first, then oldest. A list that buries an emergency
-        // under a loose porch step is worse than no list.
-        setJobs(
-          ((body?.jobs ?? []) as Row[])
-            .filter((j) => j.status !== "completed" && j.status !== "cancelled")
-            .sort(
-              (a, b) =>
-                rank[a.priority] - rank[b.priority] ||
-                +new Date(a.opened_at) - +new Date(b.opened_at),
-            ),
-        );
-      } catch (err) {
-        setProblem(
-          err instanceof Error ? err.message : "Could not load the jobs",
-        );
+      const type = res.headers.get("content-type") ?? "";
+      if (!type.includes("application/json")) {
+        throw new Error("The work orders did not come back.");
       }
-    })();
+
+      const body = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(body?.error || "Could not load the jobs");
+
+      // Emergencies first, then oldest. A list that buries an emergency
+      // under a loose porch step is worse than no list.
+      setJobs(
+        ((body?.jobs ?? []) as Row[])
+          .filter((j) => j.status !== "completed" && j.status !== "cancelled")
+          .sort(
+            (a, b) =>
+              rank[a.priority] - rank[b.priority] ||
+              +new Date(a.opened_at) - +new Date(b.opened_at),
+          ),
+      );
+
+      // Clear a previous failure once a read succeeds, so a one-off network
+      // blip does not leave "could not load" sitting there over good data.
+      setProblem("");
+    } catch (err) {
+      setProblem(err instanceof Error ? err.message : "Could not load the jobs");
+    }
   }, []);
+
+  // Zo opens a job standing in a driveway; Raj should see it without
+  // reloading anything.
+  //
+  // Paused while the tab is hidden. Polling every five seconds into a
+  // background tab all day is thousands of calls nobody reads, and this is a
+  // Hobby plan with a function budget.
+  React.useEffect(() => {
+    load();
+
+    const timer = window.setInterval(() => {
+      if (!document.hidden) load();
+    }, REFRESH_MS);
+
+    function onVisible() {
+      if (!document.hidden) load();
+    }
+
+    document.addEventListener("visibilitychange", onVisible);
+
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [load]);
 
   const emergencies = (jobs ?? []).filter(
     (j) => j.priority === "emergency",
