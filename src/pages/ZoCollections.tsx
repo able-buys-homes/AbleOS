@@ -124,21 +124,10 @@ export function ZoCollections() {
   const [toast, setToast] = React.useState<{ msg: string; stop?: boolean }>({
     msg: "",
   });
-  // Which section was just jumped to. The last section on the page cannot
-  // scroll to the top - the page runs out first - so a tap on Paid can move
-  // the screen barely at all. The highlight is how Zo knows it answered him.
-  const [flash, setFlash] = React.useState<string | null>(null);
-
-  function jumpTo(id: string) {
-    goTo(id);
-    setFlash(id);
-    window.setTimeout(() => setFlash(null), 1400);
-  }
-
-  const ring = (id: string) =>
-    `scroll-mt-4 rounded-xl transition-shadow duration-300 ${
-      flash === id ? "ring-4 ring-[#1E3A8A]/25" : ""
-    }`;
+  // Which group a tile opened. A modal rather than a scroll: the last section
+  // on the page cannot reach the top of the screen, so tapping Paid used to
+  // move the page barely at all and read as a broken button.
+  const [kpi, setKpi] = React.useState<null | "late" | "plan" | "paid">(null);
 
   const [sheet, setSheet] = React.useState<
     null | "pay" | "plan" | "post" | "rent"
@@ -205,6 +194,9 @@ export function ZoCollections() {
   }
 
   function openSheet(kind: "pay" | "plan" | "post" | "rent", lot?: Lot) {
+    // Close the group modal first. Two overlays on top of each other leaves
+    // Zo tapping a form he cannot see the edges of.
+    setKpi(null);
     setSheetLot(lot ?? null);
     setSheet(kind);
   }
@@ -247,6 +239,9 @@ export function ZoCollections() {
     ...planFinished,
     ...settled.filter((lot) => lot.paid_this_month),
   ];
+
+  const kpiRows =
+    kpi === "late" ? late : kpi === "plan" ? onPlan : kpi === "paid" ? paid : [];
   const notPaid = [
     ...dueNotLate,
     ...settled.filter((lot) => !lot.paid_this_month),
@@ -317,19 +312,19 @@ export function ZoCollections() {
               <Tile
                 l="Late"
                 n={String(late.length)}
-                onClick={() => jumpTo("sec-late")}
+                onClick={() => setKpi("late")}
                 tone="late"
               />
               <Tile
                 l="On a plan"
                 n={String(onPlan.length)}
-                onClick={() => jumpTo("sec-plan")}
+                onClick={() => setKpi("plan")}
                 tone="plan"
               />
               <Tile
                 l="Paid"
                 n={String(paid.length)}
-                onClick={() => jumpTo("sec-paid")}
+                onClick={() => setKpi("paid")}
                 tone="paid"
               />
             </div>
@@ -354,9 +349,7 @@ export function ZoCollections() {
                 it. The empty line says why it is empty. It must never read as
                 "nobody is late" - that is a claim about the residents, and
                 this is a gap in the records. */}
-            <div className={ring("sec-late")} id="sec-late">
-              <SectionBar count={late.length} title="Late" />
-            </div>
+            <SectionBar count={late.length} title="Late" />
             <Stack>
               {late.length === 0 && (
                 <div className="p-4 text-[15px] text-[#6C7484]">
@@ -428,9 +421,7 @@ export function ZoCollections() {
               </>
             )}
 
-            <div className={ring("sec-plan")} id="sec-plan">
-              <SectionBar count={onPlan.length} title="On a plan" />
-            </div>
+            <SectionBar count={onPlan.length} title="On a plan" />
             <Stack>
               {onPlan.length === 0 && (
                 <div className="p-4 text-[15px] text-[#6C7484]">
@@ -450,9 +441,7 @@ export function ZoCollections() {
               ))}
             </Stack>
 
-            <div className={ring("sec-paid")} id="sec-paid">
-              <SectionBar count={paid.length} title="Paid" />
-            </div>
+            <SectionBar count={paid.length} title="Paid" />
             <Stack>
               {paid.map((lot) => (
                 <LotRow
@@ -720,6 +709,68 @@ export function ZoCollections() {
       {/* The old action dock is gone. Two fixed bars were fighting for the
           bottom of the screen, and taking a payment is about to become a tab
           of its own rather than a button that throws a sheet over the list. */}
+      {kpi && (
+        <div
+          className="fixed inset-0 z-[60] flex items-end justify-center overflow-hidden bg-[#141A28]/55 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-[max(0.75rem,env(safe-area-inset-top))] sm:items-center sm:px-4 sm:py-6"
+          onClick={() => setKpi(null)}
+        >
+          <div
+            className="flex h-full max-h-full w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-[#EEF2F6] shadow-[0_20px_40px_rgba(30,58,138,0.18)] sm:h-[85vh]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex flex-none items-center justify-between gap-3 bg-[#1E3A8A] px-5 py-4 text-white">
+              <div>
+                <h2 className="text-[17px] font-bold tracking-[-0.01em]">
+                  {kpi === "late"
+                    ? "Late"
+                    : kpi === "plan"
+                      ? "On a plan"
+                      : "Paid"}
+                </h2>
+                <div className="mt-0.5 text-[12.5px] text-[#A9B4CC]">
+                  {kpiRows.length} {kpiRows.length === 1 ? "home" : "homes"}
+                </div>
+              </div>
+              <button
+                aria-label="Close"
+                className="grid h-8 w-8 flex-none place-items-center rounded-full bg-white/15 text-[19px] leading-none"
+                onClick={() => setKpi(null)}
+                type="button"
+              >
+                ×
+              </button>
+            </div>
+
+            {/* The same row as the roll, so a lot behaves identically whether
+                Zo reached it by scrolling or by tapping a number. */}
+            <div className="flex-1 overflow-y-auto p-5">
+              <Stack>
+                {kpiRows.length === 0 && (
+                  <div className="p-4 text-[15px] text-[#6C7484]">
+                    {kpi === "late"
+                      ? "Nobody with a recorded rent is late."
+                      : kpi === "plan"
+                        ? "Nobody is on a payment plan right now."
+                        : "Nobody has paid yet this month."}
+                  </div>
+                )}
+                {kpiRows.map((lot) => (
+                  <LotRow
+                    key={lot.id}
+                    lot={lot}
+                    onPay={() => openSheet("pay", lot)}
+                    onPlan={() => openSheet("plan", lot)}
+                    onPost={() => openSheet("post", lot)}
+                    onProof={setProofId}
+                    onSetRent={() => openSheet("rent", lot)}
+                  />
+                ))}
+              </Stack>
+            </div>
+          </div>
+        </div>
+      )}
+
       <ZoTabBar />
 
       <Toast message={toast.msg} stop={toast.stop} />
@@ -755,15 +806,6 @@ function SampleTag() {
       Sample data — not a real resident
     </div>
   );
-}
-
-// Scrolls to a section rather than filtering the list. Zo taps a number to
-// find those people, and a filter would hide the rest of the roll without
-// saying so.
-function goTo(id: string) {
-  document
-    .getElementById(id)
-    ?.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
 function Tile({
