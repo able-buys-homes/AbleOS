@@ -25,6 +25,7 @@ import {
   Toast,
   money,
 } from "../features/collections/parts";
+import { ApplicationsCard } from "../features/applications/ApplicationsCard";
 import { planTerms } from "../features/collections/planTerms";
 import { Sheets } from "../features/collections/Sheets";
 import { ProofSheet } from "../features/collections/ProofSheet";
@@ -503,6 +504,10 @@ export function ZoCollections() {
                   )}
                 </div>
               </div>
+
+              {/* What he has already taken, under the button that takes them.
+                  The form used to be a one-way door. */}
+              <ApplicationsCard />
             </Stack>
           </>
         )}
