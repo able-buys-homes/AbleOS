@@ -14,6 +14,7 @@
 // Somebody filled in thirteen sections standing in a driveway - that must
 // never be lost to a webhook being down.
 import { createClient } from "@supabase/supabase-js";
+import { applicationPdf } from "../lib/applicationPdf.js";
 import { requireUser } from "../lib/apiAuth.js";
 
 const CAN_TAKE = ["zo", "raj", "dane"];
@@ -33,6 +34,31 @@ function getClient() {
         auth: { persistSession: false, autoRefreshToken: false },
     });
     return cachedClient;
+}
+
+/** 2026-09-09_Dowey-Jeffery_Lot-14_Application.pdf */
+function pdfName(row) {
+    const date = String(row?.created_at ?? "").slice(0, 10) || "undated";
+
+    const parts = String(row?.applicant_name ?? "")
+        .trim()
+        .split(/\s+/)
+        .filter(Boolean);
+
+    // Surname first, so the folder sorts and searches by the name somebody
+    // would actually go looking for.
+    const last = parts.length > 1 ? parts[parts.length - 1] : (parts[0] ?? "");
+    const first = parts.length > 1 ? parts.slice(0, -1).join("-") : "";
+
+    const who =
+        [last, first].filter(Boolean).join("-").replace(/[^A-Za-z0-9-]/g, "") ||
+        "Unnamed";
+
+    const lot = row?.lot_number
+        ? `Lot-${String(row.lot_number).replace(/[^A-Za-z0-9]/g, "-")}`
+        : "No-lot";
+
+    return `${date}_${who}_${lot}_Application.pdf`;
 }
 
 /** Columns safe for a list. `data` holds the SSN and licence number. */
@@ -80,6 +106,81 @@ export default async function handler(req, res) {
         } catch (err) {
             console.error("applications drive callback failed:", err);
             return res.status(500).json({ error: "Could not record the file" });
+        }
+    }
+
+    /* ---- the application as a PDF ---- */
+    //
+    // Reachable two ways: by a signed-in person for the button in the
+    // cockpit, and by n8n with the shared secret so it can file the copy.
+    // The visibility rule is applied for people and skipped for n8n, which is
+    // filing the document it was just told about.
+    if (req.method === "GET" && req.query?.pdf) {
+        const id = String(req.query.pdf);
+        const hookSecret = process.env.N8N_SHARED_SECRET;
+        const viaSecret =
+            Boolean(hookSecret) &&
+            req.headers.authorization === `Bearer ${hookSecret}`;
+
+        let restrictTo = null;
+
+        if (!viaSecret) {
+            let pdfCaller;
+            try {
+                pdfCaller = await requireUser(req);
+            } catch (err) {
+                return res
+                    .status(err?.status || 401)
+                    .json({ error: err?.message || "Not authorised" });
+            }
+
+            if (!CAN_TAKE.includes(pdfCaller.profile.cockpit)) {
+                return res.status(403).json({ error: "Not your screen" });
+            }
+
+            if (!CAN_SEE_ALL.includes(pdfCaller.profile.cockpit)) {
+                restrictTo = pdfCaller.user.id;
+            }
+        }
+
+        try {
+            const supabase = getClient();
+
+            let query = supabase
+                .from("htm_applications")
+                .select(
+                    "id, data, taken_by, applicant_name, lot_number, created_at",
+                )
+                .eq("id", id);
+
+            if (restrictTo) query = query.eq("taken_by", restrictTo);
+
+            const { data: row, error } = await query.maybeSingle();
+
+            if (error) throw error;
+            if (!row) return res.status(404).json({ error: "Not found" });
+
+            const { data: taker } = await supabase
+                .from("profiles")
+                .select("cockpit")
+                .eq("id", row.taken_by)
+                .maybeSingle();
+
+            const pdf = await applicationPdf(row.data, {
+                id: row.id,
+                takenBy: taker?.cockpit ?? "unknown",
+            });
+
+            res.setHeader("Content-Type", "application/pdf");
+            res.setHeader(
+                "Content-Disposition",
+                `inline; filename="${pdfName(row)}"`,
+            );
+
+            return res.status(200).send(pdf);
+        } catch (err) {
+            console.error("application pdf failed:", err);
+            return res.status(500).json({ error: "Could not build the PDF" });
         }
     }
 
@@ -170,7 +271,7 @@ export default async function handler(req, res) {
                 data: app,
                 taken_by: user.id,
             })
-            .select("id")
+            .select("id, created_at")
             .single();
 
         if (insertError) throw insertError;
@@ -217,6 +318,17 @@ export default async function handler(req, res) {
                 body: JSON.stringify({
                     id: created.id,
                     taken_by: profile.cockpit,
+                    // n8n gets the name and the URL so it does no templating
+                    // and holds no applicant details of its own.
+                    file_name: pdfName({
+                        created_at: created.created_at,
+                        applicant_name: name,
+                        lot_number: app?.lot ?? null,
+                    }),
+                    pdf_url: `${
+                        process.env.APP_BASE_URL ??
+                        `https://${process.env.VERCEL_URL}`
+                    }/api/applications?pdf=${created.id}`,
                     application: app,
                 }),
             });
