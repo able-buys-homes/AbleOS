@@ -14,35 +14,23 @@ import { UserMenu } from "../components/UserMenu";
 import HtmRentalApplication, {
   type Application,
 } from "../features/applications/HtmRentalApplication";
-import { supabase } from "../lib/supabase";
+import { apiFetch } from "../lib/apiFetch";
 
 export function HtmApplication() {
   async function submit(app: Application) {
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
-
-    if (authError || !user) {
-      throw new Error(
-        "You are signed out, so nothing was saved. Sign in again — what you typed is still on screen.",
-      );
-    }
-
-    // The whole form goes into `data`, identifying details included. That
-    // column is why this table has row level security on it.
-    const { error } = await supabase.from("htm_applications").insert({
-      applicant_name: app.applicant.name,
-      applicant_phone: app.applicant.phone,
-      lot_number: app.lot || null,
-      applying_for: app.applyingFor || null,
-      data: app,
-      taken_by: user.id,
+    // Through the server, not straight to the database. The n8n webhook needs
+    // a shared secret, and a secret held in a browser is not a secret.
+    const res = await apiFetch("/api/applications", {
+      method: "POST",
+      body: JSON.stringify({ data: app }),
     });
 
-    if (error) {
+    const body = await res.json().catch(() => ({}));
+
+    if (!res.ok) {
       throw new Error(
-        `The application was not saved and nothing has been sent. ${error.message}`,
+        body?.error ??
+          "The application was not saved and nothing has been sent.",
       );
     }
   }
