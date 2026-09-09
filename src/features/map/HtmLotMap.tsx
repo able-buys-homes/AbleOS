@@ -656,44 +656,6 @@ export function HtmLotMap({
           tone="text-[#B3261E]"
         />
       </div>
-
-      {/* Filters. Scrolls sideways rather than wrapping to three rows and
-          pushing the map off the screen. */}
-      <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
-        {(Object.keys(PAINT_META) as Paint[]).map((key) => {
-          const meta = PAINT_META[key];
-          const active = filter === key;
-          return (
-            <button
-              aria-pressed={active}
-              className={`flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-[13px] font-semibold ${
-                active
-                  ? "border-[#1E3A8A] bg-[#1E3A8A] text-white"
-                  : "border-[#DCE4EE] bg-white text-[#1B2231]"
-              }`}
-              key={key}
-              onClick={() => setFilter(active ? null : key)}
-              type="button"
-            >
-              {/* The swatch has to be the same shape as the box on the map.
-                  A solid chip beside a dashed lot is a legend that lies. */}
-              <span
-                className="h-3.5 w-3.5 shrink-0 rounded-[3px] border-2"
-                style={{
-                  background: meta.fill,
-                  borderColor: meta.stroke,
-                  borderStyle: meta.dashed ? "dashed" : "solid",
-                }}
-              />
-              {meta.label}
-              <span className={active ? "text-white/70" : "text-[#6C7484]"}>
-                {counts[key]}
-              </span>
-            </button>
-          );
-        })}
-      </div>
-
       <svg
         aria-label="Hometown Meadows lot map"
         className="mt-3 block h-auto w-full rounded-2xl border border-[#DCE4EE] bg-white"
@@ -798,6 +760,45 @@ export function HtmLotMap({
           })}
         </g>
       </svg>
+
+      {/* The key, under the drawing it explains - and still the filter, so
+          tapping one dims everything else. It wraps into rows now rather than
+          scrolling sideways, because down here it is not competing with the
+          map for vertical space. */}
+      <div className="mt-3 flex flex-wrap gap-2">
+        {(Object.keys(PAINT_META) as Paint[]).map((key) => {
+          const meta = PAINT_META[key];
+          const active = filter === key;
+          return (
+            <button
+              aria-pressed={active}
+              className={`flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-[13px] font-semibold ${
+                active
+                  ? "border-[#1E3A8A] bg-[#1E3A8A] text-white"
+                  : "border-[#DCE4EE] bg-white text-[#1B2231]"
+              }`}
+              key={key}
+              onClick={() => setFilter(active ? null : key)}
+              type="button"
+            >
+              {/* The swatch has to be the same shape as the box on the map.
+                  A solid chip beside a dashed lot is a legend that lies. */}
+              <span
+                className="h-3.5 w-3.5 shrink-0 rounded-[3px] border-2"
+                style={{
+                  background: meta.fill,
+                  borderColor: meta.stroke,
+                  borderStyle: meta.dashed ? "dashed" : "solid",
+                }}
+              />
+              {meta.label}
+              <span className={active ? "text-white/70" : "text-[#6C7484]"}>
+                {counts[key]}
+              </span>
+            </button>
+          );
+        })}
+      </div>
 
       <div ref={detailRef}>
         {selected ? (
