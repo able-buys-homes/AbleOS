@@ -72,15 +72,18 @@ export function ScheduledUnitField({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Matches the Field component sitting next to it exactly. Any difference in
+  // the label and the two inputs start at different heights, which reads as a
+  // broken row rather than a deliberate one.
   const label = (
-    <div className="mb-1.5 text-[12px] font-bold uppercase tracking-[0.05em] text-[#6C7484]">
+    <span className="mb-1 text-[13px] font-bold uppercase tracking-[0.07em] text-[#7A8AA3]">
       Unit #
-    </div>
+    </span>
   );
 
   if (rows === null) {
     return (
-      <div>
+      <div className="flex h-full min-w-0 flex-col">
         {label}
         <input className={inputClass} disabled placeholder="Loading…" />
       </div>
@@ -89,7 +92,7 @@ export function ScheduledUnitField({
 
   if (free || rows.length === 0) {
     return (
-      <div>
+      <div className="flex h-full min-w-0 flex-col">
         {label}
         <input
           className={inputClass}
@@ -118,7 +121,7 @@ export function ScheduledUnitField({
   }
 
   return (
-    <div>
+    <div className="flex h-full min-w-0 flex-col">
       {label}
       <select
         className={inputClass}
