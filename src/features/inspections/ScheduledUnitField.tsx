@@ -3,21 +3,25 @@
 //
 // It lists the homes somebody has scheduled on the Map, whatever their date -
 // Zo may walk one early because he is standing next to it, or late because
-// the resident was out. Filtering by date would hide the home he is actually
-// in front of.
+// the resident was out. Filtering by date would hide the home he is in front
+// of.
 //
-// It is not a wall, though. A home that was never scheduled still has to be
-// fileable, so there is a way back to a plain box. A dropdown that cannot
-// name the home you are standing in is a dead end, and the walk goes
-// unrecorded.
+// It is not a wall. A home that was never scheduled still has to be fileable,
+// so "Another unit…" drops back to a plain box. A dropdown that cannot name
+// the home you are standing in is a dead end, and the walk goes unrecorded.
+//
+// The markup deliberately mirrors the Field component next to it - same
+// wrapper, same label, same input classes including mt-auto. Field pushes its
+// input to the bottom of the grid cell, so anything different here and the
+// two boxes do not line up.
 
 import React from "react";
 import { apiFetch } from "../../lib/apiFetch";
 
 type Row = { lot_number: string; next_inspection_at: string };
 
-const inputClass =
-  "w-full rounded-[10px] border border-[#DCE4EE] bg-white px-3.5 py-2.5 text-[16px] text-[#1B2231]";
+const CONTROL =
+  "mt-auto w-full min-w-0 appearance-none rounded-xl border border-[#DCE4EE] bg-white px-3 py-3 text-[17px] text-[#0F1E33] placeholder:text-[#A3B0C0] focus:border-[#418BFF] focus:outline-none";
 
 function due(iso: string) {
   return new Date(`${iso}T00:00:00`).toLocaleDateString(undefined, {
@@ -56,8 +60,8 @@ export function ScheduledUnitField({
 
         setRows(scheduled);
 
-        // A draft already part-filled for a home that is not on the list
-        // must not be silently emptied.
+        // A draft already part-filled for a home that is not on the list must
+        // not be silently emptied.
         if (value && !scheduled.some((r) => r.lot_number === value)) {
           setFree(true);
         }
@@ -68,13 +72,10 @@ export function ScheduledUnitField({
         setFree(true);
       }
     })();
-    // Only on mount. Re-running this on every keystroke would fight the box.
+    // Only on mount. Re-running on every keystroke would fight the box.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Matches the Field component sitting next to it exactly. Any difference in
-  // the label and the two inputs start at different heights, which reads as a
-  // broken row rather than a deliberate one.
   const label = (
     <span className="mb-1 text-[13px] font-bold uppercase tracking-[0.07em] text-[#7A8AA3]">
       Unit #
@@ -83,48 +84,34 @@ export function ScheduledUnitField({
 
   if (rows === null) {
     return (
-      <div className="flex h-full min-w-0 flex-col">
+      <label className="flex h-full min-w-0 flex-col">
         {label}
-        <input className={inputClass} disabled placeholder="Loading…" />
-      </div>
+        <input className={CONTROL} disabled placeholder="Loading…" />
+      </label>
     );
   }
 
   if (free || rows.length === 0) {
     return (
-      <div className="flex h-full min-w-0 flex-col">
+      <label className="flex h-full min-w-0 flex-col">
         {label}
         <input
-          className={inputClass}
+          className={CONTROL}
           inputMode="numeric"
           onChange={(e) => onChange(e.target.value)}
           placeholder="12"
           type="text"
           value={value}
         />
-        {rows.length > 0 && (
-          <button
-            className="mt-1.5 text-[13px] font-semibold text-[#1E3A8A] underline"
-            onClick={() => setFree(false)}
-            type="button"
-          >
-            Pick from the scheduled homes
-          </button>
-        )}
-        {rows.length === 0 && (
-          <p className="mt-1.5 text-[12.5px] leading-relaxed text-[#6C7484]">
-            No homes are scheduled on the Map. You can still file this one.
-          </p>
-        )}
-      </div>
+      </label>
     );
   }
 
   return (
-    <div className="flex h-full min-w-0 flex-col">
+    <label className="flex h-full min-w-0 flex-col">
       {label}
       <select
-        className={inputClass}
+        className={CONTROL}
         onChange={(e) => {
           if (e.target.value === "__other") {
             setFree(true);
@@ -143,9 +130,6 @@ export function ScheduledUnitField({
         ))}
         <option value="__other">Another unit…</option>
       </select>
-      <p className="mt-1.5 text-[12.5px] leading-relaxed text-[#6C7484]">
-        Scheduled on the Map. Filing one clears its date.
-      </p>
-    </div>
+    </label>
   );
 }
