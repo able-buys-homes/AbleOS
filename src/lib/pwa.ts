@@ -1,9 +1,9 @@
 // Keeps the installed home-screen app up to date.
 //
 // Checks every 60 seconds while the app is open, and the moment it returns to
-// the foreground. Applies straight away if the app is in the background;
-// otherwise it tells the UI so the user can tap Update, and applies on the
-// next foreground transition regardless.
+// the foreground. Applies on its own - there is no Update button any more. It takes the new
+// version immediately unless somebody is part-way through typing something,
+// in which case it waits until they are not.
 //
 // iOS runs none of this while the PWA is closed, so an update is always
 // discovered on the next open at the latest.
@@ -11,33 +11,6 @@
 import { registerSW } from "virtual:pwa-register";
 
 const UPDATE_CHECK_MS = 60 * 1000;
-
-type Listener = (ready: boolean) => void;
-
-const listeners = new Set<Listener>();
-let updateReady = false;
-let applyUpdate: (() => void) | null = null;
-
-/** Subscribe to "a new version is waiting". Returns an unsubscribe function. */
-export function onUpdateReady(listener: Listener) {
-  listeners.add(listener);
-  listener(updateReady);
-  // Braces matter: Set.delete returns a boolean, and React's cleanup
-  // function must return void.
-  return () => {
-    listeners.delete(listener);
-  };
-}
-
-/** Force the swap now. Reloads the page. */
-export function applyPendingUpdate() {
-  if (applyUpdate) applyUpdate();
-}
-
-function announce(ready: boolean) {
-  updateReady = ready;
-  listeners.forEach((listener) => listener(ready));
-}
 
 export function setupPwaUpdates() {
   const updateSW = registerSW({
@@ -55,45 +28,37 @@ export function setupPwaUpdates() {
       });
     },
 
-        onNeedRefresh() {
-      applyUpdate = () => updateSW(true);
-      // In the background already - just take it.
-      if (document.hidden) {
+    onNeedRefresh() {
+      // Anything typed into any field counts as work in progress. A residency
+      // application is thirteen sections long and lives only in the browser
+      // until it is submitted - reloading over it loses all of it, and the
+      // person filling it in is standing in a driveway with a resident.
+      function midSomething() {
+        return Array.from(
+          document.querySelectorAll("input, textarea"),
+        ).some((el) => (el as HTMLInputElement).value?.trim());
+      }
+
+      // Nobody looking, or nothing typed: take it now.
+      if (document.hidden || !midSomething()) {
         updateSW(true);
         return;
       }
 
-      // The public site has no update button, so it takes updates silently.
-      // The cockpit keeps the prompt: a crew lead mid-upload should decide
-      // when the page reloads, not the service worker.
-      const publicPaths = ["/", "/sell", "/login"];
-      const onPublicSite = publicPaths.includes(window.location.pathname);
+      // Otherwise wait for a safe moment - when they switch away and back, or
+      // when the fields go empty because the form was submitted. Checked on a
+      // timer as well, because finishing a form fires no event of its own.
+      const timer = window.setInterval(applyWhenSafe, 10_000);
+      document.addEventListener("visibilitychange", applyWhenSafe);
 
-      if (onPublicSite) {
-        // Unless they are part-way through the deal form. Reloading over a
-        // half-typed submission loses a lead, which is worse than being a
-        // version behind for another minute.
-        const typing = Array.from(
-          document.querySelectorAll("input, textarea"),
-        ).some((el) => (el as HTMLInputElement).value?.trim());
-
-        if (!typing) {
-          updateSW(true);
-          return;
-        }
-      }
-
-      // In use. Offer it, and take it the moment they switch away and back,
-      // so a photo upload in progress isn't interrupted.
-      announce(true);
-
-      function applyWhenVisible() {
+      function applyWhenSafe() {
         if (document.hidden) return;
-        document.removeEventListener("visibilitychange", applyWhenVisible);
+        if (midSomething()) return;
+
+        document.removeEventListener("visibilitychange", applyWhenSafe);
+        window.clearInterval(timer);
         updateSW(true);
       }
-
-      document.addEventListener("visibilitychange", applyWhenVisible);
     },
 
     onRegisterError(error) {
