@@ -295,6 +295,11 @@ export default async function handler(req, res) {
         if (req.body?.hours !== undefined) {
             patch.hours = req.body.hours === null ? null : Number(req.body.hours);
         }
+        if (req.body?.receipt_number !== undefined) {
+            patch.receipt_number = req.body.receipt_number
+                ? String(req.body.receipt_number).trim().slice(0, 80)
+                : null;
+        }
         if (req.body?.photo_path !== undefined) {
             patch.photo_path = req.body.photo_path
                 ? String(req.body.photo_path)

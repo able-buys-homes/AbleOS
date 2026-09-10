@@ -40,6 +40,7 @@ type Row = {
   hours: string | number | null;
   photo_path: string | null;
   photo_url?: string | null;
+  receipt_number: string | null;
   completed_at: string | null;
 };
 
@@ -94,6 +95,7 @@ export function ZoJobs() {
                   fix: r.fix ?? "",
                   partsCost: Number(r.parts_cost ?? 0),
                   hours: Number(r.hours ?? 0),
+                  receiptNumber: r.receipt_number ?? undefined,
                   photoUrl: r.photo_url ?? undefined,
                   completedAt: r.completed_at ?? undefined,
                 }
@@ -160,6 +162,7 @@ export function ZoJobs() {
         fix: c?.fix ?? null,
         parts_cost: c?.partsCost ?? null,
         hours: c?.hours ?? null,
+        receipt_number: c?.receiptNumber ?? null,
         // The path, never the signed preview link.
         photo_path: photoPaths.current[id] ?? undefined,
       }),

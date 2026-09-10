@@ -45,6 +45,8 @@ export interface Job {
     fix: string;
     partsCost: number;
     hours: number;
+    /** Ties a line on a card statement to the home it was spent on. */
+    receiptNumber?: string;
     photoUrl?: string;
     completedAt?: string;
   };
@@ -247,6 +249,7 @@ export default function HtmJobs({
         fix: c.fix ?? "",
         partsCost: Number(c.partsCost ?? 0),
         hours: Number(c.hours ?? 0),
+        receiptNumber: c.receiptNumber,
         photoUrl: c.photoUrl,
       });
     } catch (err) {
@@ -280,6 +283,7 @@ export default function HtmJobs({
         fix: c.fix ?? "",
         partsCost: Number(c.partsCost ?? 0),
         hours: Number(c.hours ?? 0),
+        receiptNumber: c.receiptNumber,
         photoUrl: c.photoUrl,
       });
       await onComplete(id);
@@ -449,6 +453,15 @@ export default function HtmJobs({
               </div>
             </div>
 
+            <Label>Receipt or invoice # (optional)</Label>
+            <input
+              className={inputClass}
+              onChange={(e) => setD(j.id, { receiptNumber: e.target.value })}
+              placeholder="Optional"
+              type="text"
+              value={c.receiptNumber ?? ""}
+            />
+
             <Label>Photo of the finished work — required</Label>
             <label
               className={`${inputClass} flex cursor-pointer items-center gap-3`}
@@ -494,16 +507,24 @@ export default function HtmJobs({
               <p className="mt-3 text-[15px] text-[#B91C1C]">{problem}</p>
             )}
 
+            {/* Says why the button is off. A disabled button with no
+                explanation reads as broken, and Zo taps it three times. */}
+            {!c.photoUrl && (
+              <p className="mt-3 rounded-[9px] border-l-4 border-l-[#B3261E] bg-[#FDF3F2] px-3.5 py-3 text-[13.5px] leading-relaxed text-[#B3261E]">
+                Add the photo first — then the Done button turns on.
+              </p>
+            )}
+
             <div className="mt-3.5 flex flex-wrap gap-2.5">
               <Btn disabled={busy === j.id} onClick={() => save(j.id)}>
                 {busy === j.id ? "Saving…" : "Save for later"}
               </Btn>
               <Btn
-                disabled={busy === j.id}
+                disabled={busy === j.id || !c.photoUrl}
                 onClick={() => complete(j.id)}
                 variant="primary"
               >
-                Mark it done
+                Done — job finished
               </Btn>
             </div>
           </div>
