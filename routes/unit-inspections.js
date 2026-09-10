@@ -345,6 +345,28 @@ export default async function handler(req, res) {
 
             if (error) throw error;
 
+            // The walk has happened, so the plan to walk it is spent. Leaving
+            // the date behind would keep the home in the "due an inspection"
+            // dropdown and on the map, and sooner or later somebody walks it
+            // twice while a home nobody has looked at waits.
+            const { error: clearError } = await supabase
+                .from("lots")
+                .update({
+                    next_inspection_at: null,
+                    next_inspection_set_by: null,
+                    next_inspection_set_at: null,
+                    updated_at: new Date().toISOString(),
+                })
+                .eq("property", data.property)
+                .eq("lot_number", data.unit_number);
+
+            // A failure here cannot lose the inspection - that is already
+            // saved. It only leaves a stale date on the map, which is visible
+            // and fixable, so it is logged rather than thrown.
+            if (clearError) {
+                console.error("could not clear next_inspection_at:", clearError);
+            }
+
             // Raj hears about the walk the moment it is filed. occupancy_flagged
             // is computed by the database, so this cannot disagree with the row.
             // A notification failure is logged and swallowed - the inspection is

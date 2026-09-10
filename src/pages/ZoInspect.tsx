@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { MobileScreenShell } from "../components/MobileScreenShell";
 import { ZoScreenHeader } from "../components/ZoScreenHeader";
+import { ScheduledUnitField } from "../features/inspections/ScheduledUnitField";
 import { UnitInspectionsCard } from "../features/inspections/UnitInspectionsCard";
 import { ZoTabBar } from "../components/ZoTabBar";
 import { apiFetch } from "../lib/apiFetch";
@@ -608,10 +609,8 @@ export function ZoInspect() {
 
         <section className="mt-4 rounded-2xl border border-[#DCE4EE] bg-white p-4">
           <div className="grid grid-cols-2 gap-3">
-            <Field
-              label="Unit #"
+            <ScheduledUnitField
               onChange={(v) => set("unit_number", v)}
-              placeholder="12"
               value={draft.unit_number}
             />
             <Field
