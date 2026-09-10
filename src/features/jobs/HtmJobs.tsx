@@ -659,9 +659,7 @@ function NewJobSheet({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex flex-none items-center justify-between gap-3 bg-[#1E3A8A] px-5 py-4 text-white">
-          <h2 className="text-[17px] font-bold tracking-[-0.01em]">
-            Open a job
-          </h2>
+          <h2 className="text-[17px] font-bold tracking-[-0.01em]">New job</h2>
           <button
             aria-label="Close"
             className="grid h-8 w-8 flex-none place-items-center rounded-full bg-white/15 text-[19px] leading-none"

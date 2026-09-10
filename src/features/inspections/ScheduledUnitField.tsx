@@ -93,8 +93,26 @@ export function ScheduledUnitField({
 
   if (free || rows.length === 0) {
     return (
-      <label className="flex h-full min-w-0 flex-col">
-        {label}
+      // A div rather than a label, because the way back is a button and a
+      // button inside a label steals its own click.
+      <div className="flex h-full min-w-0 flex-col">
+        {/* The link sits on the label line. Under the input it would make
+            this cell taller than the date cell next to it, and the two boxes
+            would stop lining up again. */}
+        <span className="mb-1 flex items-baseline justify-between gap-2">
+          <span className="text-[13px] font-bold uppercase tracking-[0.07em] text-[#7A8AA3]">
+            Unit #
+          </span>
+          {rows.length > 0 && (
+            <button
+              className="text-[12px] font-semibold text-[#1E3A8A] underline"
+              onClick={() => setFree(false)}
+              type="button"
+            >
+              Back to list
+            </button>
+          )}
+        </span>
         <input
           className={CONTROL}
           inputMode="numeric"
@@ -103,7 +121,7 @@ export function ScheduledUnitField({
           type="text"
           value={value}
         />
-      </label>
+      </div>
     );
   }
 
