@@ -13,6 +13,19 @@ const COCKPIT_LABELS: Record<string, string> = {
   zo: "Zo",
 };
 
+/**
+ * Where each cockpit starts. Zo opens on the Map because that is the screen he
+ * works from on his feet. /zo is still Rehab, and rehab notifications deep-link
+ * there, so the route is left alone and only the landing moves.
+ */
+const HOME_PATH: Record<string, string> = {
+  zo: "/zo/map",
+};
+
+function homePath(cockpit: string) {
+  return HOME_PATH[cockpit] ?? `/${cockpit}`;
+}
+
 /** Shown while the stored session is being restored. */
 function AuthLoading() {
   return (
@@ -75,7 +88,7 @@ function VisitingBanner({
       </span>
       <Link
         className="text-[10px] font-extrabold uppercase tracking-wide text-white underline decoration-white/40 hover:decoration-white"
-        to={`/${homeCockpit}`}
+        to={homePath(homeCockpit)}
       >
         Back to yours
       </Link>
@@ -108,7 +121,7 @@ export function ProtectedRoute({ cockpit, children }: ProtectedRouteProps) {
 
   // Not yours, and you're not an admin — go home.
   if (profile.cockpit !== cockpit && !profile.is_admin) {
-    return <Navigate replace to={`/${profile.cockpit}`} />;
+    return <Navigate replace to={homePath(profile.cockpit)} />;
   }
 
   return (
@@ -129,5 +142,5 @@ export function HomeRedirect() {
   if (!session) return <Navigate replace to="/login" />;
   if (!profile) return <NoProfile />;
 
-  return <Navigate replace to={`/${profile.cockpit}`} />;
+  return <Navigate replace to={homePath(profile.cockpit)} />;
 }
