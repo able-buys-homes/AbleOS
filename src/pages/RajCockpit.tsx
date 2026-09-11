@@ -226,8 +226,12 @@ export function RajCockpit() {
       return;
     }
 
-    // Raj's gate queue is already on the page, so there is nothing to open.
-    if (target.stage) clear();
+    // The queue lives inside a modal, so the card sitting on the page is not
+    // enough - the notification has to open it.
+    if (target.stage) {
+      setGatesOpen(true);
+      clear();
+    }
   }, [clear, orders, ordersLoading, target, tasks, tasksLoaded]);
   const [commentCounts, setCommentCounts] = React.useState<
     Record<string, number>

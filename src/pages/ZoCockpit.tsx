@@ -400,23 +400,6 @@ export function ZoCockpit() {
           </div>
         </motion.section>
 
-        <motion.section
-          animate="visible"
-          className="pt-6"
-          initial="hidden"
-          transition={{ delay: 0.12, duration: 0.35, ease: "easeOut" }}
-          variants={reveal}
-        >
-          <div className="rounded-2xl border border-[#FF7832] bg-[#1A1A2E] px-5 py-4 text-center">
-            <p className="text-[16px] font-semibold tracking-[0.04em] text-[#FF7832]">
-              No photo, no next stage, no draw.
-            </p>
-            <p className="mt-1 text-[16px] font-medium text-white/85">
-              Upload phase-complete photos before requesting advance.
-            </p>
-          </div>
-        </motion.section>
-
         <motion.div
           animate="visible"
           initial="hidden"
