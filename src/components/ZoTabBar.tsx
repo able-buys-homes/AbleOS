@@ -1,6 +1,6 @@
 // src/components/ZoTabBar.tsx
-// The four places Zo goes, fixed to the bottom of every /zo screen.
-// One row, four targets, sized to be hit with a thumb in work gloves.
+// The five places Zo goes, fixed to the bottom of every /zo screen.
+// One row, five targets, sized to be hit with a thumb in work gloves.
 //
 // Labels are the words Zo says out loud - "Rent", not "Collections". The
 // route keeps its existing path so nothing already deployed has to move.

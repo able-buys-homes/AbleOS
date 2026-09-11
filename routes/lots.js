@@ -267,6 +267,33 @@ export default async function handler(req, res) {
                 date = text;
             }
 
+            // A lot that already has a date cannot be given a second one. The
+            // screen refuses it too, but the screen is not the rule - a stale
+            // tab would otherwise overwrite a walk somebody has already
+            // planned. Clearing stays allowed, which is how a date gets
+            // changed rather than silently replaced.
+            if (date) {
+                const { data: booked, error: bookedError } = await supabase
+                    .from("lots")
+                    .select("lot_number")
+                    .in("id", ids)
+                    .not("next_inspection_at", "is", null);
+
+                if (bookedError) throw bookedError;
+
+                if ((booked ?? []).length > 0) {
+                    const names = booked
+                        .map((l) => `Lot ${l.lot_number}`)
+                        .join(", ");
+
+                    return res.status(409).json({
+                        error: `${names} already ${
+                            booked.length === 1 ? "has" : "have"
+                        } an inspection scheduled. Clear that date first if it has changed.`,
+                    });
+                }
+            }
+
             const { error: inspectError } = await supabase
                 .from("lots")
                 .update({

@@ -481,8 +481,7 @@ export function ZoCollections() {
                   Application for residency
                 </div>
                 <p className="mt-1 text-[13.5px] text-[#6C7484]">
-                  Fill it in with them standing there. It saves when you
-                  submit — nothing is kept if you close it half done.
+                  Nothing is kept if you close it half done.
                 </p>
                 <div className="mt-3.5 flex flex-wrap gap-2.5">
                   <Btn onClick={() => navigate("/zo/apply")} variant="primary">

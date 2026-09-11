@@ -552,6 +552,19 @@ export function HtmLotMap({
       // A lot that is not in the database cannot be scheduled, so it cannot
       // be picked either.
       if (!lot.lotId) return;
+
+      // Already booked. Picking it again would quietly replace a walk somebody
+      // has already planned, and the second date would look every bit as
+      // deliberate as the first. Clearing it is still allowed - that is what
+      // the Clear button is for.
+      if (lot.nextInspectionAt) {
+        setProblem(
+          `Lot ${lot.id} already has an inspection scheduled. Clear that date first if it has changed.`,
+        );
+        return;
+      }
+
+      setProblem("");
       const id = lot.lotId;
       setPicked((prev) => {
         const next = new Set(prev);
