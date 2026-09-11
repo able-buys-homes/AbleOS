@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { EyeIcon, EyeOffIcon, LoaderIcon } from "lucide-react";
 import { Navigate } from "react-router-dom";
 import { useAuth } from "../lib/AuthProvider";
+import { homePath } from "../components/ProtectedRoute";
 
 export function Login() {
   const { signIn, session, profile, loading } = useAuth();
@@ -17,7 +18,7 @@ export function Login() {
 
   // Already signed in (or just signed in) - go to their cockpit.
   if (!loading && session && profile) {
-    return <Navigate replace to={`/${profile.cockpit}`} />;
+    return <Navigate replace to={homePath(profile.cockpit)} />;
   }
 
   async function handleSubmit(event: React.FormEvent) {

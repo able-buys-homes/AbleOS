@@ -22,7 +22,7 @@ const HOME_PATH: Record<string, string> = {
   zo: "/zo/map",
 };
 
-function homePath(cockpit: string) {
+export function homePath(cockpit: string) {
   return HOME_PATH[cockpit] ?? `/${cockpit}`;
 }
 
