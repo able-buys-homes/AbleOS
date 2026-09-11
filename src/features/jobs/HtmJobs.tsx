@@ -556,10 +556,6 @@ export default function HtmJobs({
             {waiting && (
               <>
                 <Label>What are you waiting on?</Label>
-                <p className="mb-2 text-[14px] leading-relaxed text-[#6C7484]">
-                  One box per part. Tap a box to fill it in, and add another if
-                  you are waiting on more than one thing.
-                </p>
 
                 <div className="space-y-2">
                   {list.map((p, i) => {
@@ -672,7 +668,10 @@ export default function HtmJobs({
                               <div className="min-w-0">
                                 <Label>When did you order it?</Label>
                                 <input
-                                  className={inputClass}
+                                  // iOS gives a date input an intrinsic width
+                                  // it will not shrink below. Without these it
+                                  // runs off the right edge of the card.
+                                  className={`${inputClass} block w-full min-w-0 appearance-none`}
                                   onChange={(e) =>
                                     editPart(j, i, {
                                       orderedOn: e.target.value,
@@ -685,7 +684,7 @@ export default function HtmJobs({
                               <div className="min-w-0">
                                 <Label>When should it arrive?</Label>
                                 <input
-                                  className={inputClass}
+                                  className={`${inputClass} block w-full min-w-0 appearance-none`}
                                   onChange={(e) =>
                                     editPart(j, i, {
                                       expectedOn: e.target.value,
@@ -736,11 +735,6 @@ export default function HtmJobs({
                     + Add another part
                   </Btn>
                 </div>
-
-                <p className="mt-2.5 text-[14px] leading-relaxed text-[#6C7484]">
-                  Put in when you expect each part. That date is what reminds
-                  everyone to chase it.
-                </p>
 
                 {problem && (
                   <p className="mt-3 text-[15px] text-[#B91C1C]">{problem}</p>
