@@ -50,23 +50,39 @@ export function SectionBar({
   count?: number;
 }) {
   return (
-    <div className="mt-4 flex items-center justify-between rounded-t-2xl bg-[#1E3A8A] px-4 py-3">
-      <span className="text-[12.5px] font-bold uppercase tracking-[0.09em] text-white">
+    <div className="mb-2.5 mt-6 flex items-center gap-1.5 px-1">
+      <span className="text-[12.5px] font-bold uppercase tracking-[0.09em] text-[#6C7484]">
         {title}
       </span>
       {count !== undefined && (
-        <span className="text-[12.5px] font-semibold text-[#A9B4CC]">
-          {count}
+        <span className="text-[12.5px] font-bold uppercase tracking-[0.09em] text-[#6C7484]">
+          — {count}
         </span>
       )}
     </div>
   );
 }
 
+/**
+ * One card per lot with air between them, per the mock. Each child is wrapped
+ * here rather than carrying its own border, so a row can't accidentally be
+ * styled differently depending on which section it lands in.
+ */
 export function Stack({ children }: { children: React.ReactNode }) {
+  // toArray drops the false/null a `{list.length === 0 && ...}` leaves behind,
+  // so an empty section doesn't render an empty card.
+  const cards = React.Children.toArray(children);
+
   return (
-    <div className="divide-y divide-[#E3E5E9] overflow-hidden rounded-b-2xl border border-t-0 border-[#DCE4EE] bg-white">
-      {children}
+    <div className="space-y-2.5">
+      {cards.map((child) => (
+        <div
+          className="overflow-hidden rounded-2xl border border-[#DCE4EE] bg-white shadow-[0_1px_2px_rgba(30,58,138,0.04)]"
+          key={(child as React.ReactElement).key}
+        >
+          {child}
+        </div>
+      ))}
     </div>
   );
 }
