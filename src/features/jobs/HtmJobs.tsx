@@ -135,6 +135,23 @@ const PRIO: Record<Priority, { label: string; chip: string; bar: string }> = {
   },
 };
 
+/**
+ * "2026-09-12" -> "Sat, Sep 12". A hyphenated date is something you decode;
+ * this is something you read.
+ */
+function niceDate(iso?: string) {
+  if (!iso) return "";
+  const [y, m, d] = iso.split("-").map(Number);
+  if (!y || !m || !d) return iso;
+  // Built from the parts rather than new Date(iso), which parses as UTC and
+  // can land on the day before.
+  return new Date(y, m - 1, d).toLocaleDateString(undefined, {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+  });
+}
+
 const STATUS: Record<JobStatus, string> = {
   new: "New",
   assigned: "Assigned",
@@ -455,7 +472,7 @@ export default function HtmJobs({
                       out.length === 1
                         ? out[0].name
                         : `${out[0].name} +${out.length - 1} more`;
-                    return `Waiting on ${who}${due ? ` · due ${due}` : ""}`;
+                    return `Waiting on ${who}${due ? ` · due ${niceDate(due)}` : ""}`;
                   })()}
                 </span>
                 {j.parts.length > 1 && (
@@ -539,6 +556,10 @@ export default function HtmJobs({
             {waiting && (
               <>
                 <Label>What are you waiting on?</Label>
+                <p className="mb-2 text-[14px] leading-relaxed text-[#6C7484]">
+                  One box per part. Tap a box to fill it in, and add another if
+                  you are waiting on more than one thing.
+                </p>
 
                 <div className="space-y-2">
                   {list.map((p, i) => {
@@ -559,7 +580,7 @@ export default function HtmJobs({
                         >
                           <span className="min-w-0 flex-1">
                             <span
-                              className={`block truncate text-[15px] font-semibold ${
+                              className={`block truncate text-[17px] font-semibold ${
                                 !p.name.trim()
                                   ? "text-[#8A929E]"
                                   : here
@@ -569,18 +590,18 @@ export default function HtmJobs({
                             >
                               {p.name.trim() || "New part — tap to fill in"}
                             </span>
-                            <span className="mt-0.5 block truncate text-[12.5px] text-[#6C7484]">
+                            <span className="mt-0.5 block truncate text-[14px] text-[#6C7484]">
                               {[
-                                p.qty ? `×${p.qty}` : "",
-                                p.source || "",
+                                p.qty ? `${p.qty} needed` : "",
+                                p.source ? `from ${p.source}` : "",
                                 here
-                                  ? `arrived ${p.arrivedOn}`
+                                  ? `arrived ${niceDate(p.arrivedOn)}`
                                   : p.expectedOn
-                                    ? `due ${p.expectedOn}`
+                                    ? `due ${niceDate(p.expectedOn)}`
                                     : "",
                               ]
                                 .filter(Boolean)
-                                .join(" · ") || "No details yet"}
+                                .join(" · ") || "Tap to add the details"}
                             </span>
                           </span>
                           {here && (
@@ -588,11 +609,20 @@ export default function HtmJobs({
                               Here
                             </span>
                           )}
+                          {/* Without this the box gives no sign it opens, and
+                              a box that looks like a label does not get
+                              tapped. */}
+                          <span
+                            aria-hidden="true"
+                            className="shrink-0 text-[15px] leading-none text-[#8A929E]"
+                          >
+                            {isPartOpen ? "▴" : "▾"}
+                          </span>
                         </button>
 
                         {isPartOpen && (
                           <div className="border-t border-[#E3E5E9] px-3.5 pb-3.5 pt-1">
-                            <Label>Part</Label>
+                            <Label>What is the part called?</Label>
                             <input
                               className={inputClass}
                               onChange={(e) =>
@@ -605,7 +635,7 @@ export default function HtmJobs({
 
                             <div className="grid gap-3 sm:grid-cols-2">
                               <div className="min-w-0">
-                                <Label>How many</Label>
+                                <Label>How many do you need?</Label>
                                 <input
                                   className={inputClass}
                                   inputMode="numeric"
@@ -625,7 +655,7 @@ export default function HtmJobs({
                                 />
                               </div>
                               <div className="min-w-0">
-                                <Label>Where from</Label>
+                                <Label>Who is it coming from?</Label>
                                 <input
                                   className={inputClass}
                                   onChange={(e) =>
@@ -640,7 +670,7 @@ export default function HtmJobs({
 
                             <div className="grid gap-3 sm:grid-cols-2">
                               <div className="min-w-0">
-                                <Label>Ordered on</Label>
+                                <Label>When did you order it?</Label>
                                 <input
                                   className={inputClass}
                                   onChange={(e) =>
@@ -653,7 +683,7 @@ export default function HtmJobs({
                                 />
                               </div>
                               <div className="min-w-0">
-                                <Label>Expected in</Label>
+                                <Label>When should it arrive?</Label>
                                 <input
                                   className={inputClass}
                                   onChange={(e) =>
@@ -686,7 +716,7 @@ export default function HtmJobs({
                                   setOpenPart(null);
                                 }}
                               >
-                                Remove
+                                Delete this part
                               </Btn>
                             </div>
                           </div>
@@ -707,9 +737,9 @@ export default function HtmJobs({
                   </Btn>
                 </div>
 
-                <p className="mt-2.5 text-[12.5px] leading-relaxed text-[#6C7484]">
-                  The expected date is what gets a part chased. Without it the
-                  job looks the same on day one and day thirty.
+                <p className="mt-2.5 text-[14px] leading-relaxed text-[#6C7484]">
+                  Put in when you expect each part. That date is what reminds
+                  everyone to chase it.
                 </p>
 
                 {problem && (
@@ -722,13 +752,13 @@ export default function HtmJobs({
                     onClick={() => setStatus(j.id, "waiting_parts", named)}
                     variant="primary"
                   >
-                    {busy === j.id ? "Saving…" : "Save — waiting on parts"}
+                    {busy === j.id ? "Saving…" : "Save the parts list"}
                   </Btn>
                 </div>
 
                 {named.length === 0 && (
                   <p className="mt-3 rounded-[9px] border-l-4 border-l-[#B3261E] bg-[#FDF3F2] px-3.5 py-3 text-[13.5px] leading-relaxed text-[#B3261E]">
-                    Name at least one part — then the Save button turns on.
+                    Fill in at least one part — then the Save button turns on.
                   </p>
                 )}
               </>
