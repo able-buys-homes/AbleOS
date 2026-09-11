@@ -277,15 +277,18 @@ export function ZoCollections() {
             title="Rent"
           />
 
-          <div className="mt-4 flex gap-6 overflow-x-auto">
+          {/* Pills rather than an underline, from the mock. Scrolls sideways
+              instead of wrapping, so a fourth tab cannot push the roll off the
+              screen. */}
+          <div className="-mx-1 mt-4 flex gap-2 overflow-x-auto px-1 pb-1">
             {tabs.map(([key, label]) => (
               <button
                 aria-selected={tab === key}
-                className={`whitespace-nowrap border-b-[3px] pb-3 text-[14px] font-semibold ${
+                className={`shrink-0 whitespace-nowrap rounded-full border px-4 py-2 text-[14px] font-semibold transition-colors ${
                   tab === key
-                    ? "border-white text-white"
-                    : "border-transparent text-white/70"
-                }`} 
+                    ? "border-[#FF7832] bg-[#FF7832] text-white"
+                    : "border-white/35 bg-white/10 text-white/85"
+                }`}
                 key={key}
                 onClick={() => {
                   setTab(key);
