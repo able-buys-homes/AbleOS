@@ -286,8 +286,8 @@ export function ZoCollections() {
                 aria-selected={tab === key}
                 className={`shrink-0 whitespace-nowrap rounded-full border px-4 py-2 text-[14px] font-semibold transition-colors ${
                   tab === key
-                    ? "border-[#FF7832] bg-[#FF7832] text-white"
-                    : "border-white/35 bg-white/10 text-white/85"
+                    ? "border-[#1E3A8A] bg-[#1E3A8A] text-white"
+                    : "border-[#DCE4EE] bg-white text-[#1B2231]"
                 }`}
                 key={key}
                 onClick={() => {
