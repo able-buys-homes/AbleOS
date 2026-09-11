@@ -427,6 +427,7 @@ export function HtmLotMap({
   const [draftStatus, setDraftStatus] = React.useState<LotStatus>("verify");
   const [draftName, setDraftName] = React.useState("");
   const [draftRent, setDraftRent] = React.useState("");
+  const [draftMoveIn, setDraftMoveIn] = React.useState("");
   const [draftNote, setDraftNote] = React.useState("");
   const [busy, setBusy] = React.useState(false);
   const [problem, setProblem] = React.useState("");
@@ -471,6 +472,10 @@ export function HtmLotMap({
     // Blank on purpose. This is a new tenancy - carrying the last resident's
     // figure forward is how somebody gets charged the wrong rent.
     setDraftRent("");
+    // Today by default, because most move-ins are recorded as they happen. Zo
+    // can change it, and should if he is catching up on one from Tuesday -
+    // this date fixes the resident's due day for the whole tenancy.
+    setDraftMoveIn(new Date().toLocaleDateString("en-CA"));
     setDraftNote(selected.repairNote ?? "");
     setProblem("");
     setEditing(true);
@@ -510,6 +515,7 @@ export function HtmLotMap({
     tenant_name?: string;
     repair_note?: string | null;
     contract_rent?: number;
+    move_in_on?: string;
   }) {
     if (!selected?.lotId) {
       setProblem(
@@ -976,6 +982,20 @@ export function HtmLotMap({
                     {movingIn && (
                       <>
                         <label className="mt-3 block text-[12px] font-bold uppercase tracking-[0.05em] text-[#6C7484]">
+                          Move-in date
+                        </label>
+                        <input
+                          className="mt-1.5 block w-full min-w-0 appearance-none rounded-[10px] border border-[#DCE4EE] bg-white px-3 py-2.5 text-[15px] text-[#1B2231]"
+                          onChange={(e) => setDraftMoveIn(e.target.value)}
+                          type="date"
+                          value={draftMoveIn}
+                        />
+                        <p className="mt-1.5 text-[13px] leading-relaxed text-[#6C7484]">
+                          Rent falls due on this day every month from now on. If
+                          they moved in on the 11th, they pay on the 11th.
+                        </p>
+
+                        <label className="mt-3 block text-[12px] font-bold uppercase tracking-[0.05em] text-[#6C7484]">
                           Monthly rent
                         </label>
                         <input
@@ -989,9 +1009,8 @@ export function HtmLotMap({
                           value={draftRent}
                         />
                         <p className="mt-1.5 text-[13px] leading-relaxed text-[#6C7484]">
-                          This month is charged at this amount as soon as you
-                          save, and it is what the rent roll chases from here
-                          on.
+                          Charged from the move-in date, then on that day every
+                          month. Five days of grace, and a $75 fee after that.
                         </p>
                       </>
                     )}
@@ -1024,7 +1043,10 @@ export function HtmLotMap({
                   </button>
                   <button
                     className="flex-1 rounded-[10px] bg-[#1E3A8A] px-3.5 py-2.5 text-[14px] font-semibold text-white disabled:opacity-60"
-                    disabled={busy || (movingIn && Number(draftRent) <= 0)}
+                    disabled={
+                      busy ||
+                      (movingIn && (Number(draftRent) <= 0 || !draftMoveIn))
+                    }
                     onClick={() =>
                       save({
                         home_status: draftStatus,
@@ -1037,6 +1059,7 @@ export function HtmLotMap({
                         contract_rent: movingIn
                           ? Number(draftRent)
                           : undefined,
+                        move_in_on: movingIn ? draftMoveIn : undefined,
                       })
                     }
                     type="button"
@@ -1047,9 +1070,10 @@ export function HtmLotMap({
 
                 {/* Says why the button is off. A disabled button with no
                     explanation reads as broken. */}
-                {movingIn && Number(draftRent) <= 0 && (
+                {movingIn && (Number(draftRent) <= 0 || !draftMoveIn) && (
                   <p className="mt-2.5 text-[13px] leading-relaxed text-[#B91C1C]">
-                    Put in the monthly rent — Save turns on once it is there.
+                    Both the move-in date and the monthly rent are needed — Save
+                    turns on once they are there.
                   </p>
                 )}
               </div>

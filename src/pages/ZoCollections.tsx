@@ -356,10 +356,10 @@ export function ZoCollections() {
             <Stack>
               {late.length === 0 && (
                 <div className="p-4 text-[15px] text-[#6C7484]">
-                  Nobody with a recorded rent is late. Rent is due on the 1st,
-                  the 5th is the last day to pay, and a $75 fee is added from
-                  the 6th. A lot with no rent amount recorded cannot appear
-                  here at all.
+                  Nobody is late. Each resident pays on the day of the month
+                  they moved in, gets five days after that, and a $75 fee
+                  applies from the sixth. A lot with no rent or no due day
+                  recorded cannot appear here at all.
                 </div>
               )}
               {late.map((lot) => (

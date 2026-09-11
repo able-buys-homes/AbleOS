@@ -1,6 +1,10 @@
 {
   "crons": [
     {
+      "path": "/api/rent-charges",
+      "schedule": "0 12 * * *"
+    },
+    {
       "path": "/api/late-fees",
       "schedule": "0 13 * * *"
     }

@@ -6,6 +6,10 @@
 //
 // What it deliberately does NOT do:
 //   - charge a lot with no recorded rent. Nothing is owed, so nothing is late.
+//   - charge a lot whose rent is a placeholder, or that has no due day on
+//     file. Both mean nobody has asked the resident what they actually pay,
+//     and a $75 fee resting on a figure we invented is not something anyone
+//     could defend to them, or to a judge.
 //   - charge a lot on an approved payment plan. Those are terms Raj agreed to,
 //     and chasing a resident who is doing exactly what was asked is the whole
 //     failure this build exists to avoid.
@@ -15,11 +19,13 @@
 //     a machine must not walk through it.
 import { createClient } from "@supabase/supabase-js";
 import {
-    LAST_DAY_TO_PAY,
     LATE_FEE,
     currentPeriod,
+    dueDateFor,
+    isLateOn,
+    lastDayToPay,
     parkToday,
-    pastGrace,
+    parkTodayISO,
 } from "../lib/rentRules.js";
 
 const PROPERTY = "Hometown Meadows MHP";
@@ -65,21 +71,16 @@ export default async function handler(req, res) {
             day,
         ).padStart(2, "0")}`;
 
-        if (!pastGrace()) {
-            return res.status(200).json({
-                ok: true,
-                charged: 0,
-                skipped: "Still inside the grace period",
-                period,
-                today,
-            });
-        }
+        // No park-wide gate any more. Every tenancy has its own due day, so
+        // this runs every day and decides lot by lot.
 
         const [lotsRes, chargesRes, paymentsRes, plansRes, casesRes] =
             await Promise.all([
                 supabase
                     .from("lots")
-                    .select("id, lot_number, tenant_name, contract_rent")
+                    .select(
+                        "id, lot_number, tenant_name, contract_rent, rent_placeholder, rent_due_day",
+                    )
                     .eq("property", PROPERTY)
                     .not("contract_rent", "is", null),
                 supabase.from("rent_ledger").select("*").eq("period", period),
@@ -120,6 +121,32 @@ export default async function handler(req, res) {
                 continue;
             }
 
+            // A placeholder is a figure nobody has confirmed with the resident.
+            // Charging $75 for being late on it would be charging them for our
+            // own missing paperwork.
+            if (lot.rent_placeholder) {
+                passed.push({
+                    lot: lot.lot_number,
+                    why: "rent is a placeholder",
+                });
+                continue;
+            }
+
+            const dueThisMonth = dueDateFor(lot.rent_due_day, period);
+
+            if (!dueThisMonth) {
+                passed.push({ lot: lot.lot_number, why: "no due day on file" });
+                continue;
+            }
+
+            if (!isLateOn(dueThisMonth)) {
+                passed.push({
+                    lot: lot.lot_number,
+                    why: `still inside the grace period, due ${dueThisMonth}`,
+                });
+                continue;
+            }
+
             const rentDue = charges
                 .filter((c) => c.lot_id === lot.id && c.charge_type === "rent")
                 .reduce((sum, c) => sum + Number(c.amount), 0);
@@ -130,9 +157,9 @@ export default async function handler(req, res) {
             }
 
             // A resident cannot be late for a bill that did not exist. If the
-            // rent was first recorded after the 5th, no fee applies for this
-            // month - the same rule the roll uses to decide who is late. From
-            // next month it behaves normally.
+            // charge was entered after its own grace period had already run
+            // out, they were never given their five days, so no fee applies
+            // this month. From next month it behaves normally.
             const firstRentCharge = charges
                 .filter((c) => c.lot_id === lot.id && c.charge_type === "rent")
                 .sort((a, b) =>
@@ -141,12 +168,13 @@ export default async function handler(req, res) {
 
             if (
                 firstRentCharge &&
-                parkToday(new Date(firstRentCharge.created_at)).day >
-                    LAST_DAY_TO_PAY
+                parkTodayISO(new Date(firstRentCharge.created_at)) >
+                    (lastDayToPay(firstRentCharge.due_date ?? dueThisMonth) ??
+                        "0000-01-01")
             ) {
                 passed.push({
                     lot: lot.lot_number,
-                    why: "rent recorded after the 5th",
+                    why: "rent recorded after its grace period had passed",
                 });
                 continue;
             }

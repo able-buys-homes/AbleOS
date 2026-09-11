@@ -11,7 +11,13 @@
 import { createClient } from "@supabase/supabase-js";
 import { requireUser } from "../lib/apiAuth.js";
 import { recordRent } from "../lib/recordRent.js";
-import { currentPeriod, parkToday, pastGrace } from "../lib/rentRules.js";
+import {
+    currentPeriod,
+    dueDateFor,
+    isLateOn,
+    parkToday,
+    parkTodayISO,
+} from "../lib/rentRules.js";
 
 const PROPERTY = "Hometown Meadows MHP";
 
@@ -19,6 +25,13 @@ const CAN_USE = ["zo", "raj", "dane"];
 
 /** Which open job to name on a lot card when there is more than one. */
 const JOB_RANK = { emergency: 0, urgent: 1, routine: 2, cosmetic: 3 };
+
+/** "11" -> "11th". This gets said to Zo, so it has to read like speech. */
+function ordinal(n) {
+    const value = Number(n);
+    if (value % 100 >= 11 && value % 100 <= 13) return `${value}th`;
+    return `${value}${["th", "st", "nd", "rd"][value % 10] ?? "th"}`;
+}
 
 const STATUSES = [
     "occupied",
@@ -80,7 +93,7 @@ export default async function handler(req, res) {
                     supabase
                         .from("lots")
                         .select(
-                            "id, lot_number, tenant_name, home_status, repair_note, bed, bath, sq_ft, notes, occupied, status_set_by, status_set_at, hap_household, tenancy_type, contract_rent, tenant_portion, next_inspection_at, next_inspection_set_by, next_inspection_set_at",
+                            "id, lot_number, tenant_name, home_status, repair_note, bed, bath, sq_ft, notes, occupied, status_set_by, status_set_at, hap_household, tenancy_type, contract_rent, tenant_portion, rent_placeholder, rent_due_day, move_in_on, next_inspection_at, next_inspection_set_by, next_inspection_set_at",
                         )
                         .eq("property", PROPERTY),
                     supabase.from("rent_ledger").select("lot_id, amount"),
@@ -115,8 +128,8 @@ export default async function handler(req, res) {
                     .map((p) => p.lot_id),
             );
 
-            // The same answer for every lot this month, decided once.
-            const graceOver = pastGrace();
+            // Lateness is no longer one answer for the whole park. It depends
+            // on the day each tenancy started, so it is worked out per lot.
             const thisPeriod = currentPeriod();
 
             // rent_state is what the map paints an occupied home. It is null
@@ -136,17 +149,29 @@ export default async function handler(req, res) {
 
                 let rentState = null;
 
+                // This tenancy's own due date for the current month, and
+                // whether its five days of grace have run out. A lot with no
+                // due day recorded has neither: it is not billed, so it cannot
+                // be late.
+                const dueThisMonth = dueDateFor(lot.rent_due_day, thisPeriod);
+                const graceOver = isLateOn(dueThisMonth);
+
                 if (lot.occupied) {
                     if (onPlan.has(lot.id)) {
                         rentState = "on_plan";
                     } else if (owed > 0 && graceOver) {
                         rentState = "late";
-                    } else if (lot.contract_rent != null && owed <= 0) {
+                    } else if (
+                        lot.contract_rent != null &&
+                        !lot.rent_placeholder &&
+                        owed <= 0
+                    ) {
                         rentState = "paid";
                     } else {
-                        // Occupied, and nothing to act on. Covers both "no rent
-                        // recorded yet" and "owes but the 5th has not passed" -
-                        // neither is a claim that they have paid.
+                        // Occupied, and nothing to act on. Covers "no rent
+                        // recorded yet", "a placeholder nobody has confirmed"
+                        // and "owes but the grace period has not run out" -
+                        // none of which is a claim that they have paid.
                         rentState = "occupied";
                     }
                 }
@@ -335,11 +360,24 @@ export default async function handler(req, res) {
                 // failed we would have a charge on a lot that is not on the
                 // roll - invisible but harmless. The other order would put a
                 // home on the roll that nobody can charge.
+                // The move-in date sets the due day: somebody who moved in on
+                // the 11th pays on the 11th. Defaults to today, because most
+                // move-ins are recorded as they happen - but Zo can say
+                // otherwise, and recording a move-in three days late must not
+                // silently move a resident's due date.
+                const moveIn = /^\d{4}-\d{2}-\d{2}$/.test(
+                    String(req.body?.move_in_on ?? ""),
+                )
+                    ? String(req.body.move_in_on)
+                    : parkTodayISO();
+
                 const rent = await recordRent({
                     supabase,
                     lotId,
                     contractRent: rentGiven,
                     tenantPortion: req.body?.tenant_portion,
+                    dueDay: Number(moveIn.slice(8, 10)),
+                    moveInOn: moveIn,
                     note: req.body?.rent_note,
                     by: profile.cockpit,
                 });
@@ -358,7 +396,7 @@ export default async function handler(req, res) {
                     link: "/raj",
                 });
 
-                message = `Saved. ${who} is in Lot ${lot.lot_number} at $${money(rent.tenantPortion)} a month, and this month is charged.`;
+                message = `Saved. ${who} is in Lot ${lot.lot_number} at $${money(rent.tenantPortion)} a month, due on the ${ordinal(moveIn.slice(8, 10))} from here on. This month is charged.`;
             }
 
             if (nameGiven) patch.tenant_name = nameGiven;

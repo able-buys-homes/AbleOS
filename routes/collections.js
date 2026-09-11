@@ -18,10 +18,11 @@ import { randomUUID } from "node:crypto";
 import { requireUser } from "../lib/apiAuth.js";
 import { recordRent } from "../lib/recordRent.js";
 import {
-    LAST_DAY_TO_PAY,
     currentPeriod,
-    parkToday,
-    pastGrace,
+    dueDateFor,
+    isLateOn,
+    lastDayToPay,
+    parkTodayISO,
 } from "../lib/rentRules.js";
 
 const PROPERTY = "Hometown Meadows MHP";
@@ -276,6 +277,7 @@ export default async function handler(req, res) {
                 lotId,
                 contractRent: req.body?.contract_rent,
                 tenantPortion: req.body?.tenant_portion,
+                dueDay: req.body?.due_day,
                 note: req.body?.note,
                 by: profile.cockpit,
             });
@@ -631,8 +633,8 @@ export default async function handler(req, res) {
         }
 
         const now = new Date();
-        // The same answer for every lot this month, so it is decided once.
-        const graceOver = pastGrace();
+        // Lateness is no longer one answer for the whole park. Each tenancy has
+        // its own due day, so it is worked out per lot below.
         const thisPeriod = currentPeriod();
 
         const enriched = lots.map((lot) => {
@@ -671,9 +673,19 @@ export default async function handler(req, res) {
                         String(a.created_at).localeCompare(String(b.created_at)),
                     )[0] ?? null;
 
+            // This tenancy's own due date for the current month. A lot with no
+            // due day recorded is not billed, so it has no due date and cannot
+            // be late - which is the honest answer, not a gap.
+            const dueThisMonth = dueDateFor(lot.rent_due_day, thisPeriod);
+            const graceOver = isLateOn(dueThisMonth, now);
+
+            // A charge entered after its own grace period had already run out
+            // must not make somebody instantly late. They were never given the
+            // five days.
             const chargedInTime = thisRentCharge
-                ? parkToday(new Date(thisRentCharge.created_at)).day <=
-                LAST_DAY_TO_PAY
+                ? parkTodayISO(new Date(thisRentCharge.created_at)) <=
+                  (lastDayToPay(thisRentCharge.due_date ?? dueThisMonth) ??
+                      "9999-12-31")
                 : false;
 
             const hasOlderCharge = charges.some(
@@ -715,6 +727,10 @@ export default async function handler(req, res) {
                 // someone gets chased on the 3rd for rent they still have two
                 // days to pay.
                 is_late: owed > 0 && graceOver && lateEligible,
+                // So a row can say when rent is actually due for this tenancy,
+                // rather than implying a park-wide 1st that no longer exists.
+                due_this_month: dueThisMonth,
+                last_day_to_pay: lastDayToPay(dueThisMonth),
                 // A lot with counsel is locked to everyone but Raj. Taking
                 // money on it can get the case dismissed.
                 locked: Boolean(openCase),

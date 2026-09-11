@@ -15,6 +15,7 @@ type Lot = {
   hap_household?: boolean;
   contract_rent?: string | number | null;
   tenant_portion?: string | number | null;
+  rent_due_day?: number | null;
   rent_confirmed_at?: string | null;
   owed?: number;
 };
@@ -198,6 +199,9 @@ export function Sheets({
     lot?.tenant_portion != null ? String(lot.tenant_portion) : "",
   );
   const [rentNote, setRentNote] = React.useState("");
+  const [dueDay, setDueDay] = React.useState(
+    lot?.rent_due_day != null ? String(lot.rent_due_day) : "",
+  );
 
   /* ---- posting ---- */
   const [wide, setWide] = React.useState<File | null>(null);
@@ -307,7 +311,11 @@ export function Sheets({
             <Btn onClick={onClose}>Cancel</Btn>
             <Btn
               disabled={
-                busy || !contractRent || !rentLotId || (hap && !tenantPortion)
+                busy ||
+                !contractRent ||
+                !rentLotId ||
+                !dueDay ||
+                (hap && !tenantPortion)
               }
               onClick={() =>
                 send(
@@ -316,6 +324,7 @@ export function Sheets({
                     lot_id: rentLotId,
                     contract_rent: Number(contractRent),
                     tenant_portion: hap ? Number(tenantPortion) : undefined,
+                    due_day: Number(dueDay),
                     note: rentNote || undefined,
                   },
                   "Rent recorded.",
@@ -386,6 +395,27 @@ export function Sheets({
               />
             </div>
           )}
+        </div>
+
+        <div className="mb-4.5">
+          <Label>Which day of the month do they pay?</Label>
+          <select
+            className={inputClass}
+            onChange={(e) => setDueDay(e.target.value)}
+            value={dueDay}
+          >
+            <option value="">Pick a day</option>
+            {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => (
+              <option key={d} value={d}>
+                {d}
+              </option>
+            ))}
+          </select>
+          <p className="mt-1.5 text-[13.5px] leading-relaxed text-[#6C7484]">
+            The day rent falls due every month, and the day the five days of
+            grace count from. Ask the resident — a wrong day here is a $75 fee
+            charged on the wrong date.
+          </p>
         </div>
 
         {hap && (

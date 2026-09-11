@@ -34,6 +34,7 @@ import pipelineDeals from "../routes/pipeline-deals.js";
 import pof from "../routes/pof.js";
 import pushSubscribe from "../routes/push-subscribe.js";
 import rehabStages from "../routes/rehab-stages.js";
+import rentCharges from "../routes/rent-charges.js";
 import resetRehab from "../routes/reset-rehab.js";
 import subscriptionIntake from "../routes/subscription-intake.js";
 import subscriptions from "../routes/subscriptions.js";
@@ -67,6 +68,7 @@ const ROUTES = {
     documents,
     "drive-upload-url": driveUploadUrl, 
     "late-fees": lateFees,
+    "rent-charges": rentCharges,
     leads,
     lots,
     notifications,
