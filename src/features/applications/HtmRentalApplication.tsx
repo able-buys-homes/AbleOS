@@ -239,7 +239,7 @@ export default function HtmRentalApplication({ initial, lots, onSubmit, onSaveDr
 
       <Section n={1} title="Applicant"><PersonFields p={app.applicant} set={(p) => up("applicant", p)} /></Section>
 
-      <Section n={2} title="Co-Applicant" hint="Leave blank if applying alone.">
+      <Section n={2} title="Co-Applicant">
         <PersonFields p={app.coApplicant} set={(p) => up("coApplicant", p)} />
         <Row><Field label="Relationship to applicant" value={app.coRelationship} onChange={(v) => up("coRelationship", v)} /></Row>
       </Section>

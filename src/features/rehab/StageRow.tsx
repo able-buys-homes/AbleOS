@@ -169,10 +169,6 @@ export function StageRow({
                 {us.error}
               </p>
             )}
-
-            <p className="mt-2 text-[14px] font-medium text-[#A3B0C0]">
-              Goes in the same folder. Nothing gets re-approved.
-            </p>
           </div>
         )}
       </article>

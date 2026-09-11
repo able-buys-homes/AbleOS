@@ -921,11 +921,6 @@ export default function HtmJobs({
 
   return (
     <div className="pb-24">
-      <p className="text-[14px] leading-relaxed text-[#6C7484]">
-        Emergencies are always on top. Tap a job to open it, add the finished
-        photo, then mark it done.
-      </p>
-
       {/* Scrolls sideways rather than wrapping to three rows and pushing the
           board off the screen. */}
       <div className="-mx-1 mt-3 flex gap-2 overflow-x-auto px-1 pb-1">
@@ -1057,12 +1052,6 @@ function NewJobSheet({
         </div>
 
         <div className="overflow-y-auto p-5">
-          <div className="rounded-[9px] bg-[#E9ECF1] px-3.5 py-3 text-[13.5px] leading-relaxed text-[#4A5464]">
-            Open it while you are standing there. A job that lives in your head
-            is one nobody else can pick up, and one nobody can prove you were
-            told about.
-          </div>
-
           <Label>Which lot</Label>
           {lots && lots.length > 0 ? (
             <select

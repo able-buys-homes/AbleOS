@@ -342,7 +342,7 @@ export function ZoCockpit() {
             Rehab
           </h1>
           <p className="mt-2 max-w-md text-[18px] font-medium text-white/85">
-            Phase progress and checklist for your current build.
+            Checklist for your current build.
           </p>
         </div>
       </header>
@@ -456,18 +456,6 @@ export function ZoCockpit() {
                   );
                 })
               )}
-            </div>
-          </section>
-
-          <section aria-labelledby="escalate-heading" className="pt-9">
-            <SectionHeading id="escalate-heading">
-              Escalate only for
-            </SectionHeading>
-            <div className="mt-4 rounded-2xl border border-dashed border-[#DCE4EE] bg-[#F8FAFC] px-5 py-4">
-              <p className="text-[16px] font-medium leading-snug text-[#8A99AC]">
-                Hidden damage · safety issue · budget overage — iMessage
-                Jeremiah directly. Everything else stays in Notion.
-              </p>
             </div>
           </section>
         </motion.div>

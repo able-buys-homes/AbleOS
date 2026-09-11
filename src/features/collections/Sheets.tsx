@@ -343,10 +343,8 @@ export function Sheets({
       >
         <div className="mb-5">
           <Stamp>
-            Copy the figure from the signed lease. Do not work it out from what
-            someone usually pays or what the last resident paid — this number is
-            what a late fee gets charged against, so a guess here turns into a
-            charge on a real person.
+            Copy the figure from the signed lease. A guess here becomes a charge
+            on a real person.
           </Stamp>
         </div>
 
@@ -412,9 +410,7 @@ export function Sheets({
             ))}
           </select>
           <p className="mt-1.5 text-[13.5px] leading-relaxed text-[#6C7484]">
-            The day rent falls due every month, and the day the five days of
-            grace count from. Ask the resident — a wrong day here is a $75 fee
-            charged on the wrong date.
+            Ask the resident — a wrong day is a $75 fee on the wrong date.
           </p>
         </div>
 
@@ -441,13 +437,6 @@ export function Sheets({
         {problem && (
           <p className="mb-3 text-[15px] text-[#B91C1C]">{problem}</p>
         )}
-
-        <Stamp>
-          Saving this charges the month at that amount straight away. Nobody
-          checks it after you — enter the figure Raj gave you, exactly as he
-          gave it. If it turns out wrong, set it again and the charge moves
-          with it.
-        </Stamp>
       </Shell>
     );
   }
@@ -495,16 +484,6 @@ export function Sheets({
         sub={lot ? `Lot ${lot.lot_number}` : undefined}
         title="Log a payment"
       >
-        <div className="mb-5">
-          <Stamp>
-            Three taps: who, how much, how they paid. The receipt goes out by
-            itself.
-            <br />
-            Only for cash and money orders handed to you at the park — bank
-            deposits, the PO Box and online payments post on their own.
-          </Stamp>
-        </div>
-
         {!lot && (
           <div className="mb-4.5">
             <Label>Who is paying?</Label>
@@ -596,11 +575,6 @@ export function Sheets({
         </div>
 
         {problem && <p className="mb-3 text-[15px] text-[#B91C1C]">{problem}</p>}
-
-        <Stamp>
-          A numbered receipt texts and emails to the resident the second you save. That
-          receipt protects you as much as it protects the park.
-        </Stamp>
       </Shell>
     );
   }
@@ -851,9 +825,6 @@ export function Sheets({
           </>
         )}
         {geoState === "asking" && <> · finding your location…</>}
-        <br />
-        Certified mail and the housing authority copy go out automatically today. You do
-        not mail anything.
       </Stamp>
 
       {geoState === "none" && (

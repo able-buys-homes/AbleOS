@@ -588,7 +588,7 @@ export function HtmLotMap({
           </div>
           <div className="mt-0.5 text-[13.5px] text-[#4A5464]">
             {picked.size === 0
-              ? "None picked yet. Tapping a lot picks it instead of opening it."
+              ? "None picked yet."
               : `${picked.size} ${picked.size === 1 ? "home" : "homes"} picked.`}
           </div>
 
@@ -919,8 +919,7 @@ export function HtmLotMap({
                   What needs doing
                 </div>
                 <p className="mt-1 text-[13.5px] leading-relaxed text-[#92600A]">
-                  {selected.repairNote ||
-                    "Nothing written down yet. Nobody knows what this home needs until someone writes it here."}
+                  {selected.repairNote || "Nothing written down yet."}
                 </p>
               </div>
             )}
@@ -991,8 +990,7 @@ export function HtmLotMap({
                           value={draftMoveIn}
                         />
                         <p className="mt-1.5 text-[13px] leading-relaxed text-[#6C7484]">
-                          Rent falls due on this day every month from now on. If
-                          they moved in on the 11th, they pay on the 11th.
+                          Rent falls due on this day every month.
                         </p>
 
                         <label className="mt-3 block text-[12px] font-bold uppercase tracking-[0.05em] text-[#6C7484]">
@@ -1008,10 +1006,6 @@ export function HtmLotMap({
                           type="number"
                           value={draftRent}
                         />
-                        <p className="mt-1.5 text-[13px] leading-relaxed text-[#6C7484]">
-                          Charged from the move-in date, then on that day every
-                          month. Five days of grace, and a $75 fee after that.
-                        </p>
                       </>
                     )}
                   </>

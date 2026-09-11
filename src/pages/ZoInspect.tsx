@@ -620,9 +620,6 @@ export function ZoInspect() {
               value={draft.inspected_at}
             />
           </div>
-          <p className="mt-2 text-[14px] text-[#8291A5]">
-            Saved on this phone. Closing the page won&apos;t lose it.
-          </p>
         </section>
 
         <Section title="Status — pick one">
@@ -678,12 +675,6 @@ export function ZoInspect() {
                 value={draft.baths_half}
               />
             </div>
-
-            <p className="border-l-4 border-[#D95717] bg-[#FFF8F4] px-3 py-2.5 text-[15px] leading-snug text-[#733614]">
-              A room only counts as a bedroom if it has a closet and a window. A
-              half bath is toilet and sink only — no shower or tub.
-            </p>
-
             <div className="grid grid-cols-2 gap-3">
               <Field
                 label="Approx. sq ft"
@@ -810,9 +801,6 @@ export function ZoInspect() {
               <p className="text-[14px] font-bold uppercase tracking-wide text-[#1E3A8A]">
                 Set 1 — Condition. Every unit.
               </p>
-              <p className="mt-1 text-[15px] text-[#5B6B82]">
-                Don&apos;t stage it. Show the damage. Internal only.
-              </p>
               <input
                 accept="image/*"
                 className="hidden"
@@ -836,8 +824,7 @@ export function ZoInspect() {
                 Set 2 — Marketing. Rent ready only.
               </p>
               <p className="mt-1 text-[15px] text-[#3A4A62]">
-                Lights on, blinds open, floors clear, nobody in shot. These get
-                posted publicly.
+                These get posted publicly.
               </p>
               <input
                 accept="image/*"

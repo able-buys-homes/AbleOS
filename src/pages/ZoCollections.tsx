@@ -347,22 +347,15 @@ export function ZoCollections() {
               </div>
             )}
 
-            <p className="mt-3.5 text-[14px] text-[#6C7484]">
-              Tap a name to see what they owe or to take a payment.
-            </p>
-
-            {/* Always on screen now, so the section exists where the mock puts
-                it. The empty line says why it is empty. It must never read as
-                "nobody is late" - that is a claim about the residents, and
-                this is a gap in the records. */}
+            {/* Always on screen, so the section sits where the mock puts it.
+                The empty line stays qualified on purpose: a flat "nobody is
+                late" would be a claim about the residents, and eleven lots
+                have no rent or due day recorded to judge them by. */}
             <SectionBar count={late.length} title="Late" />
             <Stack>
               {late.length === 0 && (
                 <div className="p-4 text-[15px] text-[#6C7484]">
-                  Nobody is late. Each resident pays on the day of the month
-                  they moved in, gets five days after that, and a $75 fee
-                  applies from the sixth. A lot with no rent or no due day
-                  recorded cannot appear here at all.
+                  Nobody with a rent and a due day recorded is late.
                 </div>
               )}
               {late.map((lot) => (
@@ -706,12 +699,6 @@ export function ZoCollections() {
                 />
               ))}
             </Stack>
-
-            <Note stop title="You never create a notice">
-              The system writes it and Raj clears it. You print what is here,
-              post it, and photograph it. Nothing on this screen can be edited
-              or backdated, by design.
-            </Note>
           </>
         )}
       </div>
