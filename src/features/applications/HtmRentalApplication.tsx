@@ -17,7 +17,8 @@ export type ApplyingFor = "community_home" | "lot_only" | "rent_to_own";
 
 export interface Person { name: string; dob: string; ssnLast4: string; phone: string; email: string; idNumber: string; }
 export interface Occupant { name: string; relationship: string; age: string; adultApplied: boolean; }
-export interface Residence { address: string; moveIn: string; payment: string; rentOrOwn: "rent" | "own" | ""; reason: string; landlord: string; landlordPhone: string; landlordEmail: string; }
+/** moveOut is optional: applications filed before Sept 2026 never had it. */
+export interface Residence { address: string; moveIn: string; moveOut?: string; payment: string; rentOrOwn: "rent" | "own" | ""; reason: string; landlord: string; landlordPhone: string; landlordEmail: string; }
 export interface Job { employer: string; position: string; start: string; supervisor: string; income: string; type: "full" | "part" | "self" | ""; }
 export interface Income { source: string; amount: string; recipient: string; }
 export interface Vehicle { ymm: string; color: string; plate: string; owner: string; }
@@ -38,7 +39,7 @@ export interface Application {
 }
 
 const emptyPerson = (): Person => ({ name: "", dob: "", ssnLast4: "", phone: "", email: "", idNumber: "" });
-const emptyRes = (): Residence => ({ address: "", moveIn: "", payment: "", rentOrOwn: "", reason: "", landlord: "", landlordPhone: "", landlordEmail: "" });
+const emptyRes = (): Residence => ({ address: "", moveIn: "", moveOut: "", payment: "", rentOrOwn: "", reason: "", landlord: "", landlordPhone: "", landlordEmail: "" });
 const emptyJob = (): Job => ({ employer: "", position: "", start: "", supervisor: "", income: "", type: "" });
 
 const BACKGROUND_QS: Array<[string, string]> = [
@@ -113,7 +114,15 @@ const ResidenceFields = ({ r, set, prev }: { r: Residence; set: (r: Residence) =
   <>
     <Row><Field label={prev ? "Street address, City / State / ZIP" : "Street address, City / State / ZIP"} value={r.address} onChange={(v) => set({ ...r, address: v })} /></Row>
     <Row>
-      <Field label={prev ? "Dates (from – to)" : "Move-in date"} value={r.moveIn} onChange={(v) => set({ ...r, moveIn: v })} />
+      {/* A previous address is a span, not a moment, so it needs two dates. */}
+      {prev ? (
+        <>
+          <Field label="Moved in" type="date" value={r.moveIn} onChange={(v) => set({ ...r, moveIn: v })} />
+          <Field label="Moved out" type="date" value={r.moveOut || ""} onChange={(v) => set({ ...r, moveOut: v })} />
+        </>
+      ) : (
+        <Field label="Move-in date" type="date" value={r.moveIn} onChange={(v) => set({ ...r, moveIn: v })} />
+      )}
       <Field label="Monthly payment" value={r.payment} onChange={(v) => set({ ...r, payment: v })} />
       <div style={{ flex: 1, minWidth: 140 }}>
         <span style={{ display: "block", fontSize: 12, color: GRAY, marginBottom: 8 }}>Rent or own</span>
@@ -134,7 +143,7 @@ const JobFields = ({ j, set, id }: { j: Job; set: (j: Job) => void; id: string }
     <Row>
       <Field label="Employer" value={j.employer} onChange={(v) => set({ ...j, employer: v })} />
       <Field label="Position" value={j.position} onChange={(v) => set({ ...j, position: v })} />
-      <Field label="Start date" value={j.start} onChange={(v) => set({ ...j, start: v })} />
+      <Field label="Start date" type="date" value={j.start} onChange={(v) => set({ ...j, start: v })} />
     </Row>
     <Row>
       <Field label="Supervisor name & phone" value={j.supervisor} onChange={(v) => set({ ...j, supervisor: v })} />
