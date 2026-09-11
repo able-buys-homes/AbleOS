@@ -17,10 +17,10 @@ import {
 // Hard hat for Rehab and wrench for Jobs, not two spanners. One is a build
 // that runs for months, the other is a leak Zo fixes this afternoon.
 const TABS = [
-  { to: "/zo", label: "Rehab", Icon: HardHatIcon },
+  { to: "/zo/map", label: "Map", Icon: MapIcon },
   { to: "/zo/collections", label: "Rent", Icon: BanknoteIcon },
   { to: "/zo/jobs", label: "Jobs", Icon: WrenchIcon },
-  { to: "/zo/map", label: "Map", Icon: MapIcon },
+  { to: "/zo", label: "Rehab", Icon: HardHatIcon },
   { to: "/zo/inspect", label: "Inspect", Icon: ClipboardCheckIcon },
 ] as const;
 
