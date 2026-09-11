@@ -38,8 +38,11 @@ const COCKPITS = [
   {
     key: "zo",
     name: "Zo",
-    role: "Crew lead, Side B",
-    path: "/zo",
+    // Covers both sides since 3 Sep 2026, so no side is named here.
+    role: "Site manager",
+    // The Map, matching where he lands when he signs in himself - see
+    // HOME_PATH in ProtectedRoute. Rehab is still one tap away on the tab bar.
+    path: "/zo/map",
     initial: "Z",
   },
   {
