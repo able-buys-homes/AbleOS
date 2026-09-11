@@ -426,6 +426,7 @@ export function HtmLotMap({
   const [editing, setEditing] = React.useState(false);
   const [draftStatus, setDraftStatus] = React.useState<LotStatus>("verify");
   const [draftName, setDraftName] = React.useState("");
+  const [draftRent, setDraftRent] = React.useState("");
   const [draftNote, setDraftNote] = React.useState("");
   const [busy, setBusy] = React.useState(false);
   const [problem, setProblem] = React.useState("");
@@ -441,6 +442,11 @@ export function HtmLotMap({
   const detailRef = React.useRef<HTMLDivElement>(null);
 
   const selected = lots.find((l) => l.id === selectedId) ?? null;
+
+  // The move-in moment: a home that was not occupied is about to be. The rent
+  // is asked for here and nowhere else on this screen.
+  const movingIn =
+    draftStatus === "occupied" && selected?.status !== "occupied";
 
   // A notification asked for one lot. Select it and bring the card to the
   // eye, exactly as a tap would - arriving with a card open somewhere below
@@ -462,6 +468,9 @@ export function HtmLotMap({
     if (!selected) return;
     setDraftStatus(selected.status);
     setDraftName(selected.tenant ?? "");
+    // Blank on purpose. This is a new tenancy - carrying the last resident's
+    // figure forward is how somebody gets charged the wrong rent.
+    setDraftRent("");
     setDraftNote(selected.repairNote ?? "");
     setProblem("");
     setEditing(true);
@@ -500,6 +509,7 @@ export function HtmLotMap({
     home_status?: LotStatus;
     tenant_name?: string;
     repair_note?: string | null;
+    contract_rent?: number;
   }) {
     if (!selected?.lotId) {
       setProblem(
@@ -959,6 +969,32 @@ export function HtmLotMap({
                       type="text"
                       value={draftName}
                     />
+
+                    {/* Only on the way in. Changing what somebody already pays
+                        belongs on the Rent screen, next to the balance it
+                        moves - not on a map of the ground. */}
+                    {movingIn && (
+                      <>
+                        <label className="mt-3 block text-[12px] font-bold uppercase tracking-[0.05em] text-[#6C7484]">
+                          Monthly rent
+                        </label>
+                        <input
+                          className="mt-1.5 block w-full min-w-0 appearance-none rounded-[10px] border border-[#DCE4EE] bg-white px-3 py-2.5 text-[15px] text-[#1B2231]"
+                          inputMode="decimal"
+                          min={0}
+                          onChange={(e) => setDraftRent(e.target.value)}
+                          placeholder="0.00"
+                          step="0.01"
+                          type="number"
+                          value={draftRent}
+                        />
+                        <p className="mt-1.5 text-[13px] leading-relaxed text-[#6C7484]">
+                          This month is charged at this amount as soon as you
+                          save, and it is what the rent roll chases from here
+                          on.
+                        </p>
+                      </>
+                    )}
                   </>
                 )}
 
@@ -988,7 +1024,7 @@ export function HtmLotMap({
                   </button>
                   <button
                     className="flex-1 rounded-[10px] bg-[#1E3A8A] px-3.5 py-2.5 text-[14px] font-semibold text-white disabled:opacity-60"
-                    disabled={busy}
+                    disabled={busy || (movingIn && Number(draftRent) <= 0)}
                     onClick={() =>
                       save({
                         home_status: draftStatus,
@@ -998,6 +1034,9 @@ export function HtmLotMap({
                           draftStatus === "full_rehab"
                             ? draftNote.trim() || null
                             : undefined,
+                        contract_rent: movingIn
+                          ? Number(draftRent)
+                          : undefined,
                       })
                     }
                     type="button"
@@ -1005,6 +1044,14 @@ export function HtmLotMap({
                     {busy ? "Saving…" : "Save"}
                   </button>
                 </div>
+
+                {/* Says why the button is off. A disabled button with no
+                    explanation reads as broken. */}
+                {movingIn && Number(draftRent) <= 0 && (
+                  <p className="mt-2.5 text-[13px] leading-relaxed text-[#B91C1C]">
+                    Put in the monthly rent — Save turns on once it is there.
+                  </p>
+                )}
               </div>
             ) : (
               <>

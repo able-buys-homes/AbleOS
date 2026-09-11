@@ -16,6 +16,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { randomUUID } from "node:crypto";
 import { requireUser } from "../lib/apiAuth.js";
+import { recordRent } from "../lib/recordRent.js";
 import {
     LAST_DAY_TO_PAY,
     currentPeriod,
@@ -190,24 +191,20 @@ export default async function handler(req, res) {
                 });
             }
 
-            // No rent recorded means a payment against nothing. It cannot
-            // reduce a balance, cannot count towards a month, and leaves a
-            // receipt that says somebody paid without saying what for - which
-            // is worse than no receipt when they ask about it in March.
+            // The rent amount is no longer checked here. Moving a home to
+            // occupied on the Map demands it, and the lots that predate that
+            // flow carry a placeholder, so an occupied lot with nothing
+            // recorded can no longer exist. Zo standing in front of a resident
+            // holding cash is the worst possible moment to discover a gap in
+            // our own data - the money goes in the record either way.
             const { data: payLot, error: payLotError } = await supabase
                 .from("lots")
-                .select("lot_number, contract_rent")
+                .select("lot_number")
                 .eq("id", lotId)
                 .maybeSingle();
 
             if (payLotError) throw payLotError;
             if (!payLot) return res.status(404).json({ error: "No such lot" });
-
-            if (payLot.contract_rent == null) {
-                return res.status(409).json({
-                    error: `No rent is recorded for Lot ${payLot.lot_number}. Set the rent first — a payment with no rent behind it cannot be applied to anything.`,
-                });
-            }
 
             const amount = Number(req.body?.amount);
             if (!Number.isFinite(amount) || amount <= 0) {
@@ -271,107 +268,23 @@ export default async function handler(req, res) {
             const lotId = String(req.body?.lot_id || "");
             if (!lotId) return res.status(400).json({ error: "Pick a lot" });
 
-            const contractRent = Number(req.body?.contract_rent);
-            if (!Number.isFinite(contractRent) || contractRent <= 0) {
-                return res
-                    .status(400)
-                    .json({ error: "Enter the monthly rent from the lease" });
+            // Both this screen and the Map move-in call the same helper, so
+            // "recording rent" cannot come to mean two different things
+            // depending on which screen Zo happened to be standing on.
+            const result = await recordRent({
+                supabase,
+                lotId,
+                contractRent: req.body?.contract_rent,
+                tenantPortion: req.body?.tenant_portion,
+                note: req.body?.note,
+                by: profile.cockpit,
+            });
+
+            if (!result.ok) {
+                return res.status(result.status).json({ error: result.error });
             }
 
-            const { data: lot, error: lotError } = await supabase
-                .from("lots")
-                .select("id, lot_number, hap_household")
-                .eq("id", lotId)
-                .maybeSingle();
-
-            if (lotError) throw lotError;
-            if (!lot) return res.status(404).json({ error: "No such lot" });
-
-            // An assisted household pays a share, not the contract rent. If the
-            // split is missing it is not assumed - a guess here overcharges
-            // someone on a fixed income.
-            let tenantPortion;
-            if (lot.hap_household) {
-                tenantPortion = Number(req.body?.tenant_portion);
-                if (!Number.isFinite(tenantPortion) || tenantPortion < 0) {
-                    return res.status(400).json({
-                        error:
-                            "This is an assisted household. Enter the tenant's portion as well as the contract rent.",
-                    });
-                }
-                if (tenantPortion > contractRent) {
-                    return res.status(400).json({
-                        error: "The tenant's portion cannot be more than the contract rent.",
-                    });
-                }
-            } else {
-                tenantPortion = contractRent;
-            }
-
-            const now = new Date();
-            const period = `${now.getUTCFullYear()}-${String(
-                now.getUTCMonth() + 1,
-            ).padStart(2, "0")}-01`;
-
-            const { error: updateError } = await supabase
-                .from("lots")
-                .update({
-                    contract_rent: contractRent,
-                    tenant_portion: tenantPortion,
-                    hap_portion: lot.hap_household
-                        ? money(contractRent - tenantPortion)
-                        : null,
-                    rent_set_by: profile.cockpit,
-                    rent_set_at: now.toISOString(),
-                    // The figure comes from Raj and is entered as he gave it,
-                    // so it binds on entry. Who typed it and when is recorded
-                    // here, because that record is now the only check standing
-                    // between a mistyped number and a resident being chased
-                    // for it.
-                    rent_confirmed_by: profile.cockpit,
-                    rent_confirmed_at: now.toISOString(),
-                    rent_note: req.body?.note
-                        ? String(req.body.note).slice(0, 500)
-                        : null,
-                    updated_at: now.toISOString(),
-                })
-                .eq("id", lotId);
-
-            if (updateError) throw updateError;
-
-            // This month's charge, at the amount just entered. A correction has
-            // to move the charge with it or the roll goes on chasing the old
-            // number - so this updates in place rather than inserting a second
-            // row the unique index would refuse anyway.
-            const { data: existingCharge, error: findError } = await supabase
-                .from("rent_ledger")
-                .select("id")
-                .eq("lot_id", lotId)
-                .eq("period", period)
-                .eq("charge_type", "rent")
-                .maybeSingle();
-
-            if (findError) throw findError;
-
-            const chargeRow = {
-                lot_id: lotId,
-                period,
-                charge_type: "rent",
-                amount: tenantPortion,
-                due_date: period,
-                source: "manual",
-                verified_at: now.toISOString(),
-                verified_by: profile.cockpit,
-            };
-
-            const { error: chargeError } = existingCharge
-                ? await supabase
-                    .from("rent_ledger")
-                    .update(chargeRow)
-                    .eq("id", existingCharge.id)
-                : await supabase.from("rent_ledger").insert(chargeRow);
-
-            if (chargeError) throw chargeError;
+            const { lot, tenantPortion } = result;
 
             await supabase.from("notifications").insert({
                 recipient: "raj",

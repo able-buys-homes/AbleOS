@@ -10,6 +10,7 @@
 // they can no longer disagree.
 import { createClient } from "@supabase/supabase-js";
 import { requireUser } from "../lib/apiAuth.js";
+import { recordRent } from "../lib/recordRent.js";
 import { currentPeriod, parkToday, pastGrace } from "../lib/rentRules.js";
 
 const PROPERTY = "Hometown Meadows MHP";
@@ -313,6 +314,51 @@ export default async function handler(req, res) {
                 return res.status(400).json({
                     error: "Who has moved in? Record the name — a home cannot be occupied by nobody.",
                 });
+            }
+
+            // Moving somebody in is the one moment the rent is certainly known
+            // and somebody is certainly standing there to ask. A home that
+            // reaches the roll without an amount cannot be charged, cannot be
+            // chased, and cannot be told apart from one that is paid up.
+            const movingIn =
+                next === "occupied" && lot.home_status !== "occupied";
+            const rentGiven = Number(req.body?.contract_rent);
+
+            if (movingIn && (!Number.isFinite(rentGiven) || rentGiven <= 0)) {
+                return res.status(400).json({
+                    error: "What is the monthly rent? A home cannot go on the roll without an amount.",
+                });
+            }
+
+            if (movingIn) {
+                // Rent before status, deliberately. If the status write then
+                // failed we would have a charge on a lot that is not on the
+                // roll - invisible but harmless. The other order would put a
+                // home on the roll that nobody can charge.
+                const rent = await recordRent({
+                    supabase,
+                    lotId,
+                    contractRent: rentGiven,
+                    tenantPortion: req.body?.tenant_portion,
+                    note: req.body?.rent_note,
+                    by: profile.cockpit,
+                });
+
+                if (!rent.ok) {
+                    return res.status(rent.status).json({ error: rent.error });
+                }
+
+                const who = nameGiven || lot.tenant_name;
+
+                await supabase.from("notifications").insert({
+                    recipient: "raj",
+                    type: "lot_occupied",
+                    title: `Lot ${lot.lot_number} occupied`,
+                    body: `${profile.cockpit} moved ${who} into Lot ${lot.lot_number} at $${money(rent.tenantPortion)} a month. This month is charged at that amount.`,
+                    link: "/raj",
+                });
+
+                message = `Saved. ${who} is in Lot ${lot.lot_number} at $${money(rent.tenantPortion)} a month, and this month is charged.`;
             }
 
             if (nameGiven) patch.tenant_name = nameGiven;

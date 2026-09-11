@@ -37,6 +37,8 @@ type Lot = {
   tenancy_type: "park_owned" | "lot_only" | null;
   hap_household: boolean;
   contract_rent: string | number | null;
+  /** True when contract_rent is a stand-in nobody has confirmed yet. */
+  rent_placeholder: boolean;
   tenant_portion: string | number | null;
   occupied: boolean;
   is_sample: boolean;
@@ -892,6 +894,11 @@ function subLine(lot: Lot) {
     return "Plan paid off";
   }
   if (!lot.occupied) return "Nobody living here";
+  // A stand-in figure is not a rent, and a balance built on one is not a
+  // balance. Said ahead of paid, due and late, because all three would be
+  // claims this row cannot support.
+  if (lot.rent_placeholder)
+    return "Rent not confirmed — ask the resident, then set the real amount";
   if (lot.owed < 0) return "Paid ahead";
   if (lot.owed > 0) return lot.is_late ? "Late" : "Due now — not late yet";
   if (lot.paid_this_month && lot.last_payment)
@@ -1087,13 +1094,11 @@ function LotRow({
                 See proof of service
               </Btn>
             )}
-            {lot.contract_rent ? (
-              <Btn onClick={onPay}>Log a payment</Btn>
-            ) : (
-              /* The server refuses this too. Greyed out here so Zo is not
-                 walked through a whole form that cannot be saved. */
-              <Btn disabled>Set the rent amount before taking a payment</Btn>
-            )}
+            {/* No longer gated on the rent. Money Zo has been handed goes into
+                the record either way - the missing figure is shown on the row
+                instead, where it can be fixed, rather than stopping him dead
+                in front of the person holding the cash. */}
+            <Btn onClick={onPay}>Log a payment</Btn>
             {/* The amount is a lease term and nobody has typed it in yet.
                 Until it is set this row cannot say what is owed, nothing can
                 be late, and no fee can apply. */}
@@ -1103,7 +1108,12 @@ function LotRow({
               </Btn>
             )}
             {lot.occupied && Boolean(lot.contract_rent) && (
-              <Btn onClick={onSetRent}>Change the rent</Btn>
+              <Btn
+                onClick={onSetRent}
+                variant={lot.rent_placeholder ? "primary" : "plain"}
+              >
+                {lot.rent_placeholder ? "Set the real rent" : "Change the rent"}
+              </Btn>
             )}
             {!lot.active_plan && !lot.pending_plan && !lot.latest_notice && (
               <Btn onClick={onPlan}>Propose a plan</Btn>
