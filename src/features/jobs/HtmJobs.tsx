@@ -30,6 +30,19 @@ export type Category =
   | "grounds"
   | "other";
 
+/** One thing a job is waiting on. A job can be waiting on several. */
+export interface Part {
+  /** Absent until the row exists on the server. */
+  id?: string;
+  name: string;
+  qty?: number;
+  source?: string;
+  orderedOn?: string;
+  expectedOn?: string;
+  /** The day it turned up. Absent means still outstanding. */
+  arrivedOn?: string;
+}
+
 export interface Job {
   id: string;
   lot: number;
@@ -45,13 +58,7 @@ export interface Job {
    * What the job is waiting on. Only meaningful while the status is
    * waiting_parts — a job nobody is waiting on has nothing to record here.
    */
-  parts?: {
-    name: string;
-    qty?: number;
-    source?: string;
-    orderedOn?: string;
-    expectedOn?: string;
-  };
+  parts?: Part[];
   /** From the server: the expected date has passed and it is still waiting. */
   partOverdue?: boolean;
   closeout?: {
@@ -156,7 +163,7 @@ const rank: Record<Priority, number> = {
   cosmetic: 3,
 };
 
-function ago(iso: string) { 
+function ago(iso: string) {
   const mins = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
   if (mins < 1) return "just now";
   if (mins < 60) return `${mins} min ago`;
@@ -256,15 +263,32 @@ export default function HtmJobs({
    * type the part name the server insists on.
    */
   const [picked, setPicked] = React.useState<Record<string, JobStatus>>({});
-  const [parts, setParts] = React.useState<
-    Record<string, NonNullable<Job["parts"]>>
-  >({});
+  const [parts, setParts] = React.useState<Record<string, Part[]>>({});
+  /** Which part card is open, as `${jobId}#${index}`. One at a time. */
+  const [openPart, setOpenPart] = React.useState<string | null>(null);
 
-  const setPart = (j: Job, patch: Partial<NonNullable<Job["parts"]>>) =>
-    setParts((s) => ({
-      ...s,
-      [j.id]: { ...(s[j.id] ?? j.parts ?? { name: "" }), ...patch },
-    }));
+  /**
+   * The working list for a job: what Zo has typed, else what is stored, else
+   * one blank line ready to fill in. Never an empty list - an empty screen
+   * gives nobody anywhere to start.
+   */
+  const partList = (j: Job): Part[] => {
+    const stored = parts[j.id] ?? j.parts ?? [];
+    return stored.length > 0 ? stored : [{ name: "" }];
+  };
+
+  const writeParts = (j: Job, next: Part[]) =>
+    setParts((s) => ({ ...s, [j.id]: next }));
+
+  const editPart = (j: Job, index: number, patch: Partial<Part>) =>
+    writeParts(
+      j,
+      partList(j).map((p, i) => (i === index ? { ...p, ...patch } : p)),
+    );
+
+  // en-CA gives YYYY-MM-DD. toISOString would give UTC, which here is
+  // tomorrow's date for most of the evening.
+  const todayISO = () => new Date().toLocaleDateString("en-CA");
 
   // Reads the latest draft inside the updater rather than one captured when
   // the handler was created. Reading a stale copy here can quietly drop the
@@ -378,7 +402,8 @@ export default function HtmJobs({
     const finished = j.status === "completed";
     const selected = picked[j.id] ?? j.status;
     const waiting = selected === "waiting_parts";
-    const part = parts[j.id] ?? j.parts ?? { name: "" };
+    const list = partList(j);
+    const named = list.filter((p) => p.name.trim().length > 0);
 
     return (
       <div
@@ -413,12 +438,32 @@ export default function HtmJobs({
             </div>
             {/* Named on the closed card. "Waiting on parts" by itself tells
                 nobody what to chase or who to ring about it. */}
-            {j.status === "waiting_parts" && j.parts?.name && (
+            {j.status === "waiting_parts" && !!j.parts?.length && (
               <div className="mt-1 flex flex-wrap items-center gap-2">
                 <span className="text-[12.5px] text-[#6C7484]">
-                  Waiting on {j.parts.name}
-                  {j.parts.expectedOn ? ` · due ${j.parts.expectedOn}` : ""}
+                  {/* Says what is still outstanding, not how much was ever
+                      ordered. A part already sitting in the truck is not what
+                      is holding the job up. */}
+                  {(() => {
+                    const out = j.parts.filter((p) => !p.arrivedOn);
+                    if (out.length === 0) return "All parts arrived";
+                    const due = out
+                      .map((p) => p.expectedOn)
+                      .filter(Boolean)
+                      .sort()[0];
+                    const who =
+                      out.length === 1
+                        ? out[0].name
+                        : `${out[0].name} +${out.length - 1} more`;
+                    return `Waiting on ${who}${due ? ` · due ${due}` : ""}`;
+                  })()}
                 </span>
+                {j.parts.length > 1 && (
+                  <span className="text-[12.5px] text-[#8A929E]">
+                    {j.parts.filter((p) => p.arrivedOn).length} of{" "}
+                    {j.parts.length} arrived
+                  </span>
+                )}
                 {j.partOverdue && (
                   <span className="rounded-full border border-[#E9B8B2] bg-[#FDE7E5] px-2 py-0.5 text-[11px] font-bold uppercase tracking-[0.04em] text-[#B3261E]">
                     Part overdue
@@ -493,74 +538,178 @@ export default function HtmJobs({
                 answer. */}
             {waiting && (
               <>
-                <Label>What part are you waiting on?</Label>
-                <input
-                  className={inputClass}
-                  onChange={(e) => setPart(j, { name: e.target.value })}
-                  placeholder="Water heater element, 4500W"
-                  type="text"
-                  value={part.name}
-                />
+                <Label>What are you waiting on?</Label>
 
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <div className="min-w-0">
-                    <Label>How many</Label>
-                    <input
-                      className={inputClass}
-                      inputMode="numeric"
-                      min={1}
-                      onChange={(e) =>
-                        setPart(j, {
-                          qty:
-                            e.target.value === ""
-                              ? undefined
-                              : Number(e.target.value),
-                        })
-                      }
-                      placeholder="1"
-                      step="1"
-                      type="number"
-                      value={part.qty ?? ""}
-                    />
-                  </div>
-                  <div className="min-w-0">
-                    <Label>Where from</Label>
-                    <input
-                      className={inputClass}
-                      onChange={(e) => setPart(j, { source: e.target.value })}
-                      placeholder="Lowe's, Ferguson, ordered online"
-                      type="text"
-                      value={part.source ?? ""}
-                    />
-                  </div>
+                <div className="space-y-2">
+                  {list.map((p, i) => {
+                    const key = `${j.id}#${i}`;
+                    const isPartOpen = openPart === key;
+                    const here = !!p.arrivedOn;
+
+                    return (
+                      <div
+                        className="overflow-hidden rounded-[10px] border border-[#DCE4EE] bg-white"
+                        key={key}
+                      >
+                        <button
+                          aria-expanded={isPartOpen}
+                          className="flex w-full items-center gap-3 px-3.5 py-3 text-left"
+                          onClick={() => setOpenPart(isPartOpen ? null : key)}
+                          type="button"
+                        >
+                          <span className="min-w-0 flex-1">
+                            <span
+                              className={`block truncate text-[15px] font-semibold ${
+                                !p.name.trim()
+                                  ? "text-[#8A929E]"
+                                  : here
+                                    ? "text-[#8A929E] line-through"
+                                    : "text-[#1B2231]"
+                              }`}
+                            >
+                              {p.name.trim() || "New part — tap to fill in"}
+                            </span>
+                            <span className="mt-0.5 block truncate text-[12.5px] text-[#6C7484]">
+                              {[
+                                p.qty ? `×${p.qty}` : "",
+                                p.source || "",
+                                here
+                                  ? `arrived ${p.arrivedOn}`
+                                  : p.expectedOn
+                                    ? `due ${p.expectedOn}`
+                                    : "",
+                              ]
+                                .filter(Boolean)
+                                .join(" · ") || "No details yet"}
+                            </span>
+                          </span>
+                          {here && (
+                            <span className="shrink-0 rounded-full border border-[#B7E2CC] bg-[#E6F5EC] px-2 py-0.5 text-[11px] font-bold uppercase tracking-[0.04em] text-[#1B7A4B]">
+                              Here
+                            </span>
+                          )}
+                        </button>
+
+                        {isPartOpen && (
+                          <div className="border-t border-[#E3E5E9] px-3.5 pb-3.5 pt-1">
+                            <Label>Part</Label>
+                            <input
+                              className={inputClass}
+                              onChange={(e) =>
+                                editPart(j, i, { name: e.target.value })
+                              }
+                              placeholder="Water heater element, 4500W"
+                              type="text"
+                              value={p.name}
+                            />
+
+                            <div className="grid gap-3 sm:grid-cols-2">
+                              <div className="min-w-0">
+                                <Label>How many</Label>
+                                <input
+                                  className={inputClass}
+                                  inputMode="numeric"
+                                  min={1}
+                                  onChange={(e) =>
+                                    editPart(j, i, {
+                                      qty:
+                                        e.target.value === ""
+                                          ? undefined
+                                          : Number(e.target.value),
+                                    })
+                                  }
+                                  placeholder="1"
+                                  step="1"
+                                  type="number"
+                                  value={p.qty ?? ""}
+                                />
+                              </div>
+                              <div className="min-w-0">
+                                <Label>Where from</Label>
+                                <input
+                                  className={inputClass}
+                                  onChange={(e) =>
+                                    editPart(j, i, { source: e.target.value })
+                                  }
+                                  placeholder="Lowe's, Ferguson, online"
+                                  type="text"
+                                  value={p.source ?? ""}
+                                />
+                              </div>
+                            </div>
+
+                            <div className="grid gap-3 sm:grid-cols-2">
+                              <div className="min-w-0">
+                                <Label>Ordered on</Label>
+                                <input
+                                  className={inputClass}
+                                  onChange={(e) =>
+                                    editPart(j, i, {
+                                      orderedOn: e.target.value,
+                                    })
+                                  }
+                                  type="date"
+                                  value={p.orderedOn ?? ""}
+                                />
+                              </div>
+                              <div className="min-w-0">
+                                <Label>Expected in</Label>
+                                <input
+                                  className={inputClass}
+                                  onChange={(e) =>
+                                    editPart(j, i, {
+                                      expectedOn: e.target.value,
+                                    })
+                                  }
+                                  type="date"
+                                  value={p.expectedOn ?? ""}
+                                />
+                              </div>
+                            </div>
+
+                            <div className="mt-3 flex flex-wrap gap-2.5">
+                              <Btn
+                                onClick={() =>
+                                  editPart(j, i, {
+                                    arrivedOn: here ? undefined : todayISO(),
+                                  })
+                                }
+                              >
+                                {here ? "Not here after all" : "It's here"}
+                              </Btn>
+                              <Btn
+                                onClick={() => {
+                                  writeParts(
+                                    j,
+                                    list.filter((_, x) => x !== i),
+                                  );
+                                  setOpenPart(null);
+                                }}
+                              >
+                                Remove
+                              </Btn>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
 
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <div className="min-w-0">
-                    <Label>Ordered on</Label>
-                    <input
-                      className={inputClass}
-                      onChange={(e) => setPart(j, { orderedOn: e.target.value })}
-                      type="date"
-                      value={part.orderedOn ?? ""}
-                    />
-                  </div>
-                  <div className="min-w-0">
-                    <Label>Expected in</Label>
-                    <input
-                      className={inputClass}
-                      onChange={(e) =>
-                        setPart(j, { expectedOn: e.target.value })
-                      }
-                      type="date"
-                      value={part.expectedOn ?? ""}
-                    />
-                  </div>
+                <div className="mt-2.5">
+                  <Btn
+                    onClick={() => {
+                      writeParts(j, [...list, { name: "" }]);
+                      setOpenPart(`${j.id}#${list.length}`);
+                    }}
+                  >
+                    + Add another part
+                  </Btn>
                 </div>
 
-                <p className="mt-2 text-[12.5px] leading-relaxed text-[#6C7484]">
-                  The expected date is what gets this chased. Without it the job
-                  looks the same on day one and day thirty.
+                <p className="mt-2.5 text-[12.5px] leading-relaxed text-[#6C7484]">
+                  The expected date is what gets a part chased. Without it the
+                  job looks the same on day one and day thirty.
                 </p>
 
                 {problem && (
@@ -569,17 +718,17 @@ export default function HtmJobs({
 
                 <div className="mt-3.5 flex flex-wrap gap-2.5">
                   <Btn
-                    disabled={busy === j.id || !part.name.trim()}
-                    onClick={() => setStatus(j.id, "waiting_parts", part)}
+                    disabled={busy === j.id || named.length === 0}
+                    onClick={() => setStatus(j.id, "waiting_parts", named)}
                     variant="primary"
                   >
                     {busy === j.id ? "Saving…" : "Save — waiting on parts"}
                   </Btn>
                 </div>
 
-                {!part.name.trim() && (
+                {named.length === 0 && (
                   <p className="mt-3 rounded-[9px] border-l-4 border-l-[#B3261E] bg-[#FDF3F2] px-3.5 py-3 text-[13.5px] leading-relaxed text-[#B3261E]">
-                    Name the part first — then the Save button turns on.
+                    Name at least one part — then the Save button turns on.
                   </p>
                 )}
               </>
@@ -587,132 +736,136 @@ export default function HtmJobs({
 
             {!waiting && (
               <>
-            <Label>What did you fix?</Label>
-            <textarea
-              className={`${inputClass} leading-relaxed`}
-              onChange={(e) => setD(j.id, { fix: e.target.value })}
-              placeholder="A sentence is enough"
-              rows={3}
-              value={c.fix ?? ""}
-            />
+                <Label>What did you fix?</Label>
+                <textarea
+                  className={`${inputClass} leading-relaxed`}
+                  onChange={(e) => setD(j.id, { fix: e.target.value })}
+                  placeholder="A sentence is enough"
+                  rows={3}
+                  value={c.fix ?? ""}
+                />
 
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="min-w-0">
-                <Label>What did parts cost?</Label>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="min-w-0">
+                    <Label>What did parts cost?</Label>
+                    <input
+                      className={inputClass}
+                      inputMode="decimal"
+                      min={0}
+                      onChange={(e) =>
+                        setD(j.id, {
+                          partsCost:
+                            e.target.value === ""
+                              ? undefined
+                              : Number(e.target.value),
+                        })
+                      }
+                      placeholder="0.00"
+                      step="0.01"
+                      type="number"
+                      value={c.partsCost ?? ""}
+                    />
+                  </div>
+                  <div className="min-w-0">
+                    <Label>How many hours?</Label>
+                    <input
+                      className={inputClass}
+                      inputMode="decimal"
+                      min={0}
+                      onChange={(e) =>
+                        setD(j.id, {
+                          hours:
+                            e.target.value === ""
+                              ? undefined
+                              : Number(e.target.value),
+                        })
+                      }
+                      placeholder="0.0"
+                      step="0.25"
+                      type="number"
+                      value={c.hours ?? ""}
+                    />
+                  </div>
+                </div>
+
+                <Label>Receipt or invoice # (optional)</Label>
                 <input
                   className={inputClass}
-                  inputMode="decimal"
-                  min={0}
                   onChange={(e) =>
-                    setD(j.id, {
-                      partsCost:
-                        e.target.value === ""
-                          ? undefined
-                          : Number(e.target.value),
-                    })
+                    setD(j.id, { receiptNumber: e.target.value })
                   }
-                  placeholder="0.00"
-                  step="0.01"
-                  type="number"
-                  value={c.partsCost ?? ""}
+                  placeholder="Optional"
+                  type="text"
+                  value={c.receiptNumber ?? ""}
                 />
-              </div>
-              <div className="min-w-0">
-                <Label>How many hours?</Label>
-                <input
-                  className={inputClass}
-                  inputMode="decimal"
-                  min={0}
-                  onChange={(e) =>
-                    setD(j.id, {
-                      hours:
-                        e.target.value === ""
-                          ? undefined
-                          : Number(e.target.value),
-                    })
-                  }
-                  placeholder="0.0"
-                  step="0.25"
-                  type="number"
-                  value={c.hours ?? ""}
-                />
-              </div>
-            </div>
 
-            <Label>Receipt or invoice # (optional)</Label>
-            <input
-              className={inputClass}
-              onChange={(e) => setD(j.id, { receiptNumber: e.target.value })}
-              placeholder="Optional"
-              type="text"
-              value={c.receiptNumber ?? ""}
-            />
+                <Label>Photo of the finished work — required</Label>
+                <label
+                  className={`${inputClass} flex cursor-pointer items-center gap-3`}
+                >
+                  <input
+                    accept="image/*"
+                    capture="environment"
+                    className="hidden"
+                    onChange={(e) => photo(j.id, e.target.files?.[0])}
+                    type="file"
+                  />
+                  {c.photoUrl ? (
+                    <img
+                      alt=""
+                      className="h-14 w-14 shrink-0 rounded-lg object-cover"
+                      src={c.photoUrl}
+                    />
+                  ) : (
+                    <span className="grid h-14 w-14 shrink-0 place-items-center rounded-lg bg-[#EEF0F3] text-[12px] font-bold text-[#6C7484]">
+                      NONE
+                    </span>
+                  )}
+                  <span
+                    className={
+                      c.photoUrl
+                        ? "text-[#1B2231]"
+                        : "text-[15px] text-[#6C7484]"
+                    }
+                  >
+                    {c.photoUrl
+                      ? "Photo attached — tap to replace"
+                      : "Take a photo"}
+                  </span>
+                </label>
 
-            <Label>Photo of the finished work — required</Label>
-            <label
-              className={`${inputClass} flex cursor-pointer items-center gap-3`}
-            >
-              <input
-                accept="image/*"
-                capture="environment"
-                className="hidden"
-                onChange={(e) => photo(j.id, e.target.files?.[0])}
-                type="file"
-              />
-              {c.photoUrl ? (
-                <img
-                  alt=""
-                  className="h-14 w-14 shrink-0 rounded-lg object-cover"
-                  src={c.photoUrl}
-                />
-              ) : (
-                <span className="grid h-14 w-14 shrink-0 place-items-center rounded-lg bg-[#EEF0F3] text-[12px] font-bold text-[#6C7484]">
-                  NONE
-                </span>
-              )}
-              <span
-                className={
-                  c.photoUrl ? "text-[#1B2231]" : "text-[15px] text-[#6C7484]"
-                }
-              >
-                {c.photoUrl
-                  ? "Photo attached — tap to replace"
-                  : "Take a photo"}
-              </span>
-            </label>
-
-            {/* Why the photo is not optional. Raj wrote this rule, not the
+                {/* Why the photo is not optional. Raj wrote this rule, not the
                 screen: a job marked done with no proof is one nobody can
                 check, including Zo when someone says it was never fixed. */}
-            <p className="mt-2 text-[12.5px] leading-relaxed text-[#6C7484]">
-              The photo is what proves the work happened. Nothing can be marked
-              done without one.
-            </p>
+                <p className="mt-2 text-[12.5px] leading-relaxed text-[#6C7484]">
+                  The photo is what proves the work happened. Nothing can be
+                  marked done without one.
+                </p>
 
-            {problem && (
-              <p className="mt-3 text-[15px] text-[#B91C1C]">{problem}</p>
-            )}
+                {problem && (
+                  <p className="mt-3 text-[15px] text-[#B91C1C]">{problem}</p>
+                )}
 
-            {/* Says why the button is off. A disabled button with no
+                {/* Says why the button is off. A disabled button with no
                 explanation reads as broken, and Zo taps it three times. */}
-            {!c.photoUrl && (
-              <p className="mt-3 rounded-[9px] border-l-4 border-l-[#B3261E] bg-[#FDF3F2] px-3.5 py-3 text-[13.5px] leading-relaxed text-[#B3261E]">
-                Add the photo first — then the Done button turns on.
-              </p>
-            )}
+                {!c.photoUrl && (
+                  <p className="mt-3 rounded-[9px] border-l-4 border-l-[#B3261E] bg-[#FDF3F2] px-3.5 py-3 text-[13.5px] leading-relaxed text-[#B3261E]">
+                    Add the photo first — then the Done button turns on.
+                  </p>
+                )}
 
-            <div className="mt-3.5 flex flex-wrap gap-2.5">
-              <Btn disabled={busy === j.id} onClick={() => save(j.id)}>
-                {busy === j.id ? "Saving…" : "Save for later"}
-              </Btn>
-              <Btn
-                disabled={busy === j.id || !c.photoUrl}
-                onClick={() => complete(j.id)}
-                variant="primary"
-              >
-                Done — job finished
-              </Btn>
-            </div>
+                <div className="mt-3.5 flex flex-wrap gap-2.5">
+                  <Btn disabled={busy === j.id} onClick={() => save(j.id)}>
+                    {busy === j.id ? "Saving…" : "Save for later"}
+                  </Btn>
+                  <Btn
+                    disabled={busy === j.id || !c.photoUrl}
+                    onClick={() => complete(j.id)}
+                    variant="primary"
+                  >
+                    Done — job finished
+                  </Btn>
+                </div>
               </>
             )}
           </div>
@@ -950,13 +1103,13 @@ function NewJobSheet({
             }
             value={j.priority}
           >
-            {(
-              ["emergency", "urgent", "routine", "cosmetic"] as Priority[]
-            ).map((p) => (
-              <option key={p} value={p}>
-                {PRIO[p].label}
-              </option>
-            ))}
+            {(["emergency", "urgent", "routine", "cosmetic"] as Priority[]).map(
+              (p) => (
+                <option key={p} value={p}>
+                  {PRIO[p].label}
+                </option>
+              ),
+            )}
           </select>
 
           <Label>Photo of the problem</Label>

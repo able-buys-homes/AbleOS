@@ -56,6 +56,13 @@ function parkTodayISO(now = new Date()) {
     }).format(now);
 }
 
+function cleanDate(value) {
+    // A date input sends YYYY-MM-DD. Anything else is stored as nothing rather
+    // than handing Postgres something to guess at.
+    const raw = value ? String(value).slice(0, 10) : "";
+    return /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : null;
+}
+
 export default async function handler(req, res) {
     let caller;
     try {
@@ -104,7 +111,7 @@ export default async function handler(req, res) {
 
         /* ---- the board ---- */
         if (req.method === "GET") {
-            const [jobsRes, lotsRes] = await Promise.all([
+            const [jobsRes, lotsRes, partsRes] = await Promise.all([
                 supabase
                     .from("work_orders")
                     .select("*")
@@ -113,10 +120,24 @@ export default async function handler(req, res) {
                     .from("lots")
                     .select("id, lot_number, tenant_name, home_status")
                     .eq("property", PROPERTY),
+                supabase
+                    .from("work_order_parts")
+                    .select("*")
+                    .order("created_at", { ascending: true }),
             ]);
 
             if (jobsRes.error) throw jobsRes.error;
             if (lotsRes.error) throw lotsRes.error;
+            if (partsRes.error) throw partsRes.error;
+
+            // Grouped once rather than filtered per job. Ordered by when they
+            // were added, so the list reads back in the order Zo typed it.
+            const partsByJob = new Map();
+            for (const p of partsRes.data ?? []) {
+                const list = partsByJob.get(p.work_order_id) ?? [];
+                list.push(p);
+                partsByJob.set(p.work_order_id, list);
+            }
 
             const lots = lotsRes.data ?? [];
             const byId = new Map(lots.map((l) => [l.id, l]));
@@ -133,13 +154,19 @@ export default async function handler(req, res) {
                         lot?.home_status === "occupied"
                             ? (lot?.tenant_name ?? null)
                             : null,
+                    parts: partsByJob.get(job.id) ?? [],
                     // A job waiting three weeks must not look like one ordered
-                    // yesterday. Only ever true while it is actually waiting -
-                    // a finished job cannot be overdue for anything.
+                    // yesterday. Counts only parts that have not turned up,
+                    // and only while the job is actually waiting - a finished
+                    // job cannot be overdue for anything.
                     part_overdue:
                         job.status === "waiting_parts" &&
-                        !!job.part_expected_on &&
-                        job.part_expected_on < today,
+                        (partsByJob.get(job.id) ?? []).some(
+                            (p) =>
+                                !p.arrived_on &&
+                                !!p.expected_on &&
+                                p.expected_on < today,
+                        ),
                 };
             });
 
@@ -296,14 +323,19 @@ export default async function handler(req, res) {
 
         const { data: job, error: jobError } = await supabase
             .from("work_orders")
-            .select(
-                "id, lot_id, status, fix, photo_path, part_name, part_expected_on",
-            )
+            .select("id, lot_id, status, fix, photo_path")
             .eq("id", jobId)
             .maybeSingle();
 
         if (jobError) throw jobError;
         if (!job) return res.status(404).json({ error: "No such job" });
+
+        const { data: existingParts, error: partsError } = await supabase
+            .from("work_order_parts")
+            .select("id")
+            .eq("work_order_id", jobId);
+
+        if (partsError) throw partsError;
 
         if (job.status === "completed") {
             return res.status(409).json({
@@ -339,32 +371,6 @@ export default async function handler(req, res) {
                 : null;
         }
 
-        /* ---- what the job is waiting on ---- */
-        if (req.body?.part_name !== undefined) {
-            patch.part_name = req.body.part_name
-                ? String(req.body.part_name).trim().slice(0, 160)
-                : null;
-        }
-        if (req.body?.part_qty !== undefined) {
-            const n = Math.trunc(Number(req.body.part_qty));
-            // The database refuses zero and below. A blank or a typo is stored
-            // as "not recorded" rather than failing the whole save and losing
-            // everything else Zo just typed.
-            patch.part_qty = Number.isFinite(n) && n > 0 ? n : null;
-        }
-        if (req.body?.part_source !== undefined) {
-            patch.part_source = req.body.part_source
-                ? String(req.body.part_source).trim().slice(0, 160)
-                : null;
-        }
-        for (const key of ["part_ordered_on", "part_expected_on"]) {
-            if (req.body?.[key] === undefined) continue;
-            const raw = req.body[key] ? String(req.body[key]).slice(0, 10) : "";
-            // A date input sends YYYY-MM-DD. Anything else is stored as
-            // nothing rather than handing Postgres something to guess at.
-            patch[key] = /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : null;
-        }
-
         // Moving a job between states. "completed" is deliberately not in this
         // list - it goes through the branch below, which insists on the proof.
         if (req.body?.status !== undefined) {
@@ -386,14 +392,87 @@ export default async function handler(req, res) {
             patch.status = next;
         }
 
-        // A job cannot be waiting on a part nobody has named. Without this the
-        // status means "stalled", which is what the board already showed.
+        /* ---- what the job is waiting on ---- */
+        // The whole list is sent each time and replaces what is stored. Rows
+        // carry their id when they already exist, so editing a part keeps its
+        // arrival date instead of quietly becoming a different part.
+        let desired = null;
+
+        if (Array.isArray(req.body?.parts)) {
+            desired = req.body.parts
+                .map((p) => {
+                    const n = Math.trunc(Number(p?.qty));
+                    return {
+                        id: p?.id ? String(p.id) : null,
+                        name: String(p?.name ?? "")
+                            .trim()
+                            .slice(0, 160),
+                        qty: Number.isFinite(n) && n > 0 ? n : null,
+                        source: p?.source
+                            ? String(p.source).trim().slice(0, 160)
+                            : null,
+                        ordered_on: cleanDate(p?.ordered_on),
+                        expected_on: cleanDate(p?.expected_on),
+                        arrived_on: cleanDate(p?.arrived_on),
+                    };
+                })
+                // A blank line is somebody who tapped Add and changed their
+                // mind. Dropping it is kinder than refusing the whole save.
+                .filter((p) => p.name.length > 0);
+        }
+
+        // A job cannot be waiting on nothing. Checked before anything is
+        // written, so a refused save leaves the parts exactly as they were.
         if (patch.status === "waiting_parts") {
-            const waiting = patch.part_name ?? job.part_name;
-            if (!waiting) {
-                return res
-                    .status(400)
-                    .json({ error: "Name the part you are waiting on." });
+            const willHave =
+                desired !== null ? desired.length : (existingParts?.length ?? 0);
+
+            if (willHave === 0) {
+                return res.status(400).json({
+                    error: "Name at least one part you are waiting on.",
+                });
+            }
+        }
+
+        if (desired !== null) {
+            const keep = new Set(desired.filter((p) => p.id).map((p) => p.id));
+            const gone = (existingParts ?? [])
+                .map((p) => p.id)
+                .filter((id) => !keep.has(id));
+
+            if (gone.length > 0) {
+                const { error } = await supabase
+                    .from("work_order_parts")
+                    .delete()
+                    .in("id", gone);
+                if (error) throw error;
+            }
+
+            for (const p of desired) {
+                const row = {
+                    name: p.name,
+                    qty: p.qty,
+                    source: p.source,
+                    ordered_on: p.ordered_on,
+                    expected_on: p.expected_on,
+                    arrived_on: p.arrived_on,
+                };
+
+                if (p.id) {
+                    // Pinned to this job as well as the row id, so a stray id
+                    // cannot reach a part belonging to somebody else's job.
+                    const { error } = await supabase
+                        .from("work_order_parts")
+                        .update(row)
+                        .eq("id", p.id)
+                        .eq("work_order_id", jobId);
+                    if (error) throw error;
+                } else {
+                    const { error } = await supabase
+                        .from("work_order_parts")
+                        .insert({ ...row, work_order_id: jobId });
+                    if (error) throw error;
+                }
             }
         }
 
@@ -441,8 +520,28 @@ export default async function handler(req, res) {
                 .maybeSingle();
 
             const lotLabel = patchedLot?.lot_number ?? "?";
-            const waitingOn = patch.part_name ?? job.part_name ?? "parts";
-            const dueOn = patch.part_expected_on ?? job.part_expected_on ?? null;
+
+            // Read back rather than guessed at, so the sentence Raj gets
+            // matches what is actually on the job.
+            const { data: waitingParts } = await supabase
+                .from("work_order_parts")
+                .select("name, expected_on")
+                .eq("work_order_id", jobId)
+                .is("arrived_on", null)
+                .order("created_at", { ascending: true });
+
+            const outstanding = waitingParts ?? [];
+            const waitingOn =
+                outstanding.length === 0
+                    ? "parts"
+                    : outstanding.length === 1
+                      ? outstanding[0].name
+                      : `${outstanding[0].name} and ${outstanding.length - 1} more`;
+            const dueOn =
+                outstanding
+                    .map((p) => p.expected_on)
+                    .filter(Boolean)
+                    .sort()[0] ?? null;
 
             await supabase.from("notifications").insert({
                 recipient: "raj",
