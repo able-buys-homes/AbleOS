@@ -41,6 +41,19 @@ export interface Job {
   openedAt: string;
   note?: string;
   assignedTo?: string;
+  /**
+   * What the job is waiting on. Only meaningful while the status is
+   * waiting_parts — a job nobody is waiting on has nothing to record here.
+   */
+  parts?: {
+    name: string;
+    qty?: number;
+    source?: string;
+    orderedOn?: string;
+    expectedOn?: string;
+  };
+  /** From the server: the expected date has passed and it is still waiting. */
+  partOverdue?: boolean;
   closeout?: {
     fix: string;
     partsCost: number;
@@ -70,7 +83,16 @@ interface Props {
   onSaveCloseout: (id: string, c: Job["closeout"]) => Promise<void> | void;
   onComplete: (id: string) => Promise<void> | void;
   onUploadPhoto: (id: string, file: File) => Promise<string>;
-  onSetStatus: (id: string, status: JobStatus) => Promise<void> | void;
+  /**
+   * Parts travel with the status change, not after it. The server refuses
+   * waiting_parts with no part named, so sending them separately would be
+   * rejected before the part could ever be recorded.
+   */
+  onSetStatus: (
+    id: string,
+    status: JobStatus,
+    parts?: Job["parts"],
+  ) => Promise<void> | void;
   /** The photo of the problem, uploaded before the job exists. */
   onUploadOpenPhoto: (file: File) => Promise<{ path: string; url: string }>;
   /** A job a notification asked for. It gets opened and shown. */
@@ -228,6 +250,22 @@ export default function HtmJobs({
   const d = (id: string) =>
     draft[id] ?? jobs.find((j) => j.id === id)?.closeout ?? {};
 
+  /**
+   * The status Zo has picked but not yet saved. Needed only for waiting on
+   * parts: the fields have to appear before the save, or there is nowhere to
+   * type the part name the server insists on.
+   */
+  const [picked, setPicked] = React.useState<Record<string, JobStatus>>({});
+  const [parts, setParts] = React.useState<
+    Record<string, NonNullable<Job["parts"]>>
+  >({});
+
+  const setPart = (j: Job, patch: Partial<NonNullable<Job["parts"]>>) =>
+    setParts((s) => ({
+      ...s,
+      [j.id]: { ...(s[j.id] ?? j.parts ?? { name: "" }), ...patch },
+    }));
+
   // Reads the latest draft inside the updater rather than one captured when
   // the handler was created. Reading a stale copy here can quietly drop the
   // last few keystrokes of what somebody wrote about a repair.
@@ -295,11 +333,22 @@ export default function HtmJobs({
     }
   }
 
-  async function setStatus(id: string, status: JobStatus) {
+  async function setStatus(
+    id: string,
+    status: JobStatus,
+    withParts?: Job["parts"],
+  ) {
     setBusy(id);
     setProblem("");
     try {
-      await onSetStatus(id, status);
+      await onSetStatus(id, status, withParts);
+      // Dropped only once the server has taken it. Clearing on the way in
+      // would snap the card back to its old status mid-save.
+      setPicked((s) => {
+        const rest = { ...s };
+        delete rest[id];
+        return rest;
+      });
     } catch (err) {
       setProblem(err instanceof Error ? err.message : "Could not change it.");
     } finally {
@@ -327,6 +376,9 @@ export default function HtmJobs({
     const isOpen = open === j.id;
     const c = d(j.id);
     const finished = j.status === "completed";
+    const selected = picked[j.id] ?? j.status;
+    const waiting = selected === "waiting_parts";
+    const part = parts[j.id] ?? j.parts ?? { name: "" };
 
     return (
       <div
@@ -359,6 +411,21 @@ export default function HtmJobs({
               Opened {ago(j.openedAt)}
               {j.assignedTo ? ` · ${j.assignedTo} assigned` : ""}
             </div>
+            {/* Named on the closed card. "Waiting on parts" by itself tells
+                nobody what to chase or who to ring about it. */}
+            {j.status === "waiting_parts" && j.parts?.name && (
+              <div className="mt-1 flex flex-wrap items-center gap-2">
+                <span className="text-[12.5px] text-[#6C7484]">
+                  Waiting on {j.parts.name}
+                  {j.parts.expectedOn ? ` · due ${j.parts.expectedOn}` : ""}
+                </span>
+                {j.partOverdue && (
+                  <span className="rounded-full border border-[#E9B8B2] bg-[#FDE7E5] px-2 py-0.5 text-[11px] font-bold uppercase tracking-[0.04em] text-[#B3261E]">
+                    Part overdue
+                  </span>
+                )}
+              </div>
+            )}
           </div>
           {finished ? (
             <span className="shrink-0 rounded-full border border-[#B7E2CC] bg-[#E6F5EC] px-2.5 py-1 text-[11.5px] font-bold uppercase tracking-[0.04em] text-[#1B7A4B]">
@@ -381,15 +448,34 @@ export default function HtmJobs({
             <select
               className={inputClass}
               disabled={busy === j.id}
-              onChange={(e) => setStatus(j.id, e.target.value as JobStatus)}
-              value={j.status}
+              onChange={(e) => {
+                const next = e.target.value as JobStatus;
+                // Held locally until the part is named. The server refuses it
+                // otherwise, and Zo would be told off for leaving blank a
+                // field he has not been shown yet.
+                if (next === "waiting_parts") {
+                  setPicked((s) => ({ ...s, [j.id]: next }));
+                  setProblem("");
+                  return;
+                }
+                setPicked((s) => {
+                  const rest = { ...s };
+                  delete rest[j.id];
+                  return rest;
+                });
+                setStatus(j.id, next);
+              }}
+              value={selected}
             >
+              {/* Waiting on parts sits right under New: it is the other thing
+                  that can be true the moment a job is opened, before anyone
+                  has been assigned or started. */}
               {(
                 [
                   "new",
+                  "waiting_parts",
                   "assigned",
                   "in_progress",
-                  "waiting_parts",
                 ] as JobStatus[]
               ).map((s) => (
                 <option key={s} value={s}>
@@ -401,6 +487,106 @@ export default function HtmJobs({
                 finished by writing what was fixed and attaching the photo,
                 never by picking it out of a menu. */}
 
+            {/* Waiting on parts replaces the close-out rather than sitting
+                beside it. A job that cannot be worked has nothing to put in
+                "what did you fix", and an empty box invites an invented
+                answer. */}
+            {waiting && (
+              <>
+                <Label>What part are you waiting on?</Label>
+                <input
+                  className={inputClass}
+                  onChange={(e) => setPart(j, { name: e.target.value })}
+                  placeholder="Water heater element, 4500W"
+                  type="text"
+                  value={part.name}
+                />
+
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="min-w-0">
+                    <Label>How many</Label>
+                    <input
+                      className={inputClass}
+                      inputMode="numeric"
+                      min={1}
+                      onChange={(e) =>
+                        setPart(j, {
+                          qty:
+                            e.target.value === ""
+                              ? undefined
+                              : Number(e.target.value),
+                        })
+                      }
+                      placeholder="1"
+                      step="1"
+                      type="number"
+                      value={part.qty ?? ""}
+                    />
+                  </div>
+                  <div className="min-w-0">
+                    <Label>Where from</Label>
+                    <input
+                      className={inputClass}
+                      onChange={(e) => setPart(j, { source: e.target.value })}
+                      placeholder="Lowe's, Ferguson, ordered online"
+                      type="text"
+                      value={part.source ?? ""}
+                    />
+                  </div>
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="min-w-0">
+                    <Label>Ordered on</Label>
+                    <input
+                      className={inputClass}
+                      onChange={(e) => setPart(j, { orderedOn: e.target.value })}
+                      type="date"
+                      value={part.orderedOn ?? ""}
+                    />
+                  </div>
+                  <div className="min-w-0">
+                    <Label>Expected in</Label>
+                    <input
+                      className={inputClass}
+                      onChange={(e) =>
+                        setPart(j, { expectedOn: e.target.value })
+                      }
+                      type="date"
+                      value={part.expectedOn ?? ""}
+                    />
+                  </div>
+                </div>
+
+                <p className="mt-2 text-[12.5px] leading-relaxed text-[#6C7484]">
+                  The expected date is what gets this chased. Without it the job
+                  looks the same on day one and day thirty.
+                </p>
+
+                {problem && (
+                  <p className="mt-3 text-[15px] text-[#B91C1C]">{problem}</p>
+                )}
+
+                <div className="mt-3.5 flex flex-wrap gap-2.5">
+                  <Btn
+                    disabled={busy === j.id || !part.name.trim()}
+                    onClick={() => setStatus(j.id, "waiting_parts", part)}
+                    variant="primary"
+                  >
+                    {busy === j.id ? "Saving…" : "Save — waiting on parts"}
+                  </Btn>
+                </div>
+
+                {!part.name.trim() && (
+                  <p className="mt-3 rounded-[9px] border-l-4 border-l-[#B3261E] bg-[#FDF3F2] px-3.5 py-3 text-[13.5px] leading-relaxed text-[#B3261E]">
+                    Name the part first — then the Save button turns on.
+                  </p>
+                )}
+              </>
+            )}
+
+            {!waiting && (
+              <>
             <Label>What did you fix?</Label>
             <textarea
               className={`${inputClass} leading-relaxed`}
@@ -527,6 +713,8 @@ export default function HtmJobs({
                 Done — job finished
               </Btn>
             </div>
+              </>
+            )}
           </div>
         )}
 

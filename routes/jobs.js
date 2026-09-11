@@ -38,6 +38,24 @@ function money(value) {
     return Math.round(Number(value ?? 0) * 100) / 100;
 }
 
+// "Overdue" has to mean overdue at the park. Raj may well be reading this
+// from another timezone, and a part is not late because of where he is
+// standing. Kept local rather than imported so this route cannot be broken by
+// a change to the rent rules, which is the only other thing that needs a park
+// calendar.
+const ZONE = "America/Chicago";
+
+function parkTodayISO(now = new Date()) {
+    // en-CA gives YYYY-MM-DD, which compares correctly as a plain string
+    // against a Postgres date column.
+    return new Intl.DateTimeFormat("en-CA", {
+        timeZone: ZONE,
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+    }).format(now);
+}
+
 export default async function handler(req, res) {
     let caller;
     try {
@@ -102,6 +120,7 @@ export default async function handler(req, res) {
 
             const lots = lotsRes.data ?? [];
             const byId = new Map(lots.map((l) => [l.id, l]));
+            const today = parkTodayISO();
 
             const jobs = (jobsRes.data ?? []).map((job) => {
                 const lot = byId.get(job.lot_id) ?? null;
@@ -114,6 +133,13 @@ export default async function handler(req, res) {
                         lot?.home_status === "occupied"
                             ? (lot?.tenant_name ?? null)
                             : null,
+                    // A job waiting three weeks must not look like one ordered
+                    // yesterday. Only ever true while it is actually waiting -
+                    // a finished job cannot be overdue for anything.
+                    part_overdue:
+                        job.status === "waiting_parts" &&
+                        !!job.part_expected_on &&
+                        job.part_expected_on < today,
                 };
             });
 
@@ -270,7 +296,9 @@ export default async function handler(req, res) {
 
         const { data: job, error: jobError } = await supabase
             .from("work_orders")
-            .select("id, lot_id, status, fix, photo_path")
+            .select(
+                "id, lot_id, status, fix, photo_path, part_name, part_expected_on",
+            )
             .eq("id", jobId)
             .maybeSingle();
 
@@ -311,6 +339,32 @@ export default async function handler(req, res) {
                 : null;
         }
 
+        /* ---- what the job is waiting on ---- */
+        if (req.body?.part_name !== undefined) {
+            patch.part_name = req.body.part_name
+                ? String(req.body.part_name).trim().slice(0, 160)
+                : null;
+        }
+        if (req.body?.part_qty !== undefined) {
+            const n = Math.trunc(Number(req.body.part_qty));
+            // The database refuses zero and below. A blank or a typo is stored
+            // as "not recorded" rather than failing the whole save and losing
+            // everything else Zo just typed.
+            patch.part_qty = Number.isFinite(n) && n > 0 ? n : null;
+        }
+        if (req.body?.part_source !== undefined) {
+            patch.part_source = req.body.part_source
+                ? String(req.body.part_source).trim().slice(0, 160)
+                : null;
+        }
+        for (const key of ["part_ordered_on", "part_expected_on"]) {
+            if (req.body?.[key] === undefined) continue;
+            const raw = req.body[key] ? String(req.body[key]).slice(0, 10) : "";
+            // A date input sends YYYY-MM-DD. Anything else is stored as
+            // nothing rather than handing Postgres something to guess at.
+            patch[key] = /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : null;
+        }
+
         // Moving a job between states. "completed" is deliberately not in this
         // list - it goes through the branch below, which insists on the proof.
         if (req.body?.status !== undefined) {
@@ -330,6 +384,17 @@ export default async function handler(req, res) {
             }
 
             patch.status = next;
+        }
+
+        // A job cannot be waiting on a part nobody has named. Without this the
+        // status means "stalled", which is what the board already showed.
+        if (patch.status === "waiting_parts") {
+            const waiting = patch.part_name ?? job.part_name;
+            if (!waiting) {
+                return res
+                    .status(400)
+                    .json({ error: "Name the part you are waiting on." });
+            }
         }
 
         if (req.body?.complete) {
@@ -376,6 +441,8 @@ export default async function handler(req, res) {
                 .maybeSingle();
 
             const lotLabel = patchedLot?.lot_number ?? "?";
+            const waitingOn = patch.part_name ?? job.part_name ?? "parts";
+            const dueOn = patch.part_expected_on ?? job.part_expected_on ?? null;
 
             await supabase.from("notifications").insert({
                 recipient: "raj",
@@ -392,7 +459,9 @@ export default async function handler(req, res) {
                         ? `${profile.cockpit} closed it out with a photo${
                               patch.parts_cost ? ` · parts $${patch.parts_cost}` : ""
                           }.`
-                        : `${profile.cockpit} is waiting on parts. The resident is still waiting too.`,
+                        : `${profile.cockpit} is waiting on ${waitingOn}${
+                              dueOn ? `, expected ${dueOn}` : ""
+                          }. The resident is still waiting too.`,
                 link: `/raj?job=${jobId}`,
             });
         }

@@ -42,6 +42,13 @@ type Row = {
   photo_url?: string | null;
   receipt_number: string | null;
   completed_at: string | null;
+  part_name: string | null;
+  part_qty: number | null;
+  part_source: string | null;
+  part_ordered_on: string | null;
+  part_expected_on: string | null;
+  /** Worked out by the server against the park's calendar, not the browser's. */
+  part_overdue?: boolean;
 };
 
 type LotRow = { id: string; lot_number: string; tenant_name: string | null };
@@ -89,6 +96,18 @@ export function ZoJobs() {
           openedAt: r.opened_at,
           note: r.note ?? undefined,
           assignedTo: r.assigned_to ?? undefined,
+          // Only built when a part is actually named. An empty parts object
+          // would make every job look like it were waiting on something.
+          parts: r.part_name
+            ? {
+                name: r.part_name,
+                qty: r.part_qty ?? undefined,
+                source: r.part_source ?? undefined,
+                orderedOn: r.part_ordered_on ?? undefined,
+                expectedOn: r.part_expected_on ?? undefined,
+              }
+            : undefined,
+          partOverdue: r.part_overdue ?? false, 
           closeout:
             r.fix || r.photo_path || r.parts_cost != null || r.hours != null
               ? {
@@ -170,10 +189,25 @@ export function ZoJobs() {
     await load();
   }
 
-  async function setStatus(id: string, status: JobStatus) {
+  async function setStatus(
+    id: string,
+    status: JobStatus,
+    parts?: Job["parts"],
+  ) {
     await send(`/api/jobs?id=${encodeURIComponent(id)}`, {
       method: "PATCH",
-      body: JSON.stringify({ status }),
+      body: JSON.stringify({
+        status,
+        // Sent with the status, because the server will not accept
+        // waiting_parts without the part named. Leaving these undefined drops
+        // them from the JSON entirely, so moving a job to any other status
+        // never wipes what was recorded about a part that did turn up.
+        part_name: parts ? parts.name || null : undefined,
+        part_qty: parts ? (parts.qty ?? null) : undefined,
+        part_source: parts ? parts.source || null : undefined,
+        part_ordered_on: parts ? parts.orderedOn || null : undefined,
+        part_expected_on: parts ? parts.expectedOn || null : undefined,
+      }),
     });
     await load();
   }
