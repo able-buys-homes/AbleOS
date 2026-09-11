@@ -24,13 +24,6 @@ function sideKey(side: string) {
   return (side || "").trim().slice(-1).toUpperCase();
 }
 
-const phaseDots = [
-  { color: "#16A34A" },
-  { color: "#F59E0B" },
-  { color: "#CBD5E1" },
-  { color: "#CBD5E1" },
-];
-
 const reveal = {
   hidden: { opacity: 0, y: 12 },
   visible: { opacity: 1, y: 0 },
@@ -404,56 +397,6 @@ export function ZoCockpit() {
                 ))}
               </div>
             )}
-          </div>
-        </motion.section>
-
-        <motion.section
-          animate="visible"
-          aria-labelledby="phase-heading"
-          className="pt-8 text-center"
-          initial="hidden"
-          transition={{ delay: 0.08, duration: 0.35, ease: "easeOut" }}
-          variants={reveal}
-        >
-          <span className="text-[68px] font-semibold leading-[0.8] tracking-[-0.075em] text-[#FF7832] sm:text-[80px] lg:text-[92px]">
-            {(() => {
-              const phases = ["Phase 1", "Phase 2", "Phase 3", "Phase 4"];
-              const currentIdx = phases.findIndex((p) =>
-                shown.some((s) => s.phase === p && !s.photoUploaded),
-              );
-              return `${currentIdx === -1 ? 4 : currentIdx + 1}/4`;
-            })()}
-          </span>
-          <h2
-            className="mt-2 text-[16px] font-semibold tracking-[-0.02em] text-[#1A1A2E]"
-            id="phase-heading"
-          >
-            {
-              [
-                "Drywall Ready",
-                "Ready to Lay Flooring",
-                "Inside Done",
-                "Exterior / Curb Appeal",
-              ][
-                (() => {
-                  const phases = ["Phase 1", "Phase 2", "Phase 3", "Phase 4"];
-                  const idx = phases.findIndex((p) =>
-                    shown.some((s) => s.phase === p && !s.photoUploaded),
-                  );
-                  return idx === -1 ? 3 : idx;
-                })()
-              ]
-            }
-          </h2>
-
-          <div className="mt-4 flex items-center justify-center gap-2">
-            {phaseDots.map((dot, index) => (
-              <span
-                className="h-2.5 w-2.5 rounded-full"
-                key={index}
-                style={{ backgroundColor: dot.color }}
-              />
-            ))}
           </div>
         </motion.section>
 
