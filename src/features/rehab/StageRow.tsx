@@ -15,6 +15,11 @@ export type Stage = {
   workDone: boolean;
   photoUploaded: boolean;
   drivePhotoLink: string | null;
+  /**
+   * Ticked automatically when Zo uploads. Kept because Notion's own gate
+   * still reads them, but never shown - naming two people who no longer work
+   * here, on a tick nobody made, tells Zo nothing.
+   */
   jeremiahApproved: boolean;
   karenApproved: boolean;
   rajApproved: boolean;
@@ -30,18 +35,18 @@ export type UploadState = {
   progress: string;
 };
 
-/** Where this stage sits in the Jeremiah -> Karen -> Raj chain. */
+/**
+ * There is no chain any more. Zo's photos go straight to Raj, so a stage is
+ * either waiting on him or approved by him.
+ *
+ * This only renders once photoUploaded is true, so "With Raj" can never claim
+ * a stage was sent when nothing was.
+ */
 function approvalState(stage: Stage) {
   if (stage.rajApproved) {
-    return { text: "Fully approved", className: "bg-[#EAF8EF] text-[#16A34A]" };
+    return { text: "Approved", className: "bg-[#EAF8EF] text-[#16A34A]" };
   }
-  if (stage.karenApproved) {
-    return { text: "With Raj", className: "bg-[#EEF5FF] text-[#418BFF]" };
-  }
-  if (stage.jeremiahApproved) {
-    return { text: "With Karen", className: "bg-[#EEF5FF] text-[#418BFF]" };
-  }
-  return { text: "With Jeremiah", className: "bg-[#FEF3C7] text-[#B45309]" };
+  return { text: "With Raj", className: "bg-[#EEF5FF] text-[#418BFF]" };
 }
 
 type StageRowProps = {
@@ -115,11 +120,6 @@ export function StageRow({
             className={`rounded-full px-2 py-0.5 text-[14px] font-semibold tracking-wide ${state.className}`}
           >
             {state.text}
-          </span>
-          <span className="text-[16px] font-medium tracking-wide text-[#A3B0C0]">
-            {stage.jeremiahApproved && "Jeremiah ok"}
-            {stage.karenApproved && " · Karen ok"}
-            {stage.rajApproved && " · Raj ok"}
           </span>
         </div>
 

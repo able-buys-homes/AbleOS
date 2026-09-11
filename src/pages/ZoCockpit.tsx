@@ -14,7 +14,15 @@ import {
   type UploadState,
 } from "../features/rehab/StageRow";
 
-const SIDE = "B" as const;
+const DEFAULT_SIDE = "B";
+
+/**
+ * Notion writes the side as "A"/"B" on some rows and "Side A"/"Side B" on
+ * others. Read the trailing letter so one stray label can't hide a stage.
+ */
+function sideKey(side: string) {
+  return (side || "").trim().slice(-1).toUpperCase();
+}
 
 const phaseDots = [
   { color: "#16A34A" },
@@ -67,6 +75,7 @@ function orderIndex(phase: string, stageName: string) {
 
 export function ZoCockpit() {
   const [stages, setStages] = React.useState<Stage[]>([]);
+  const [side, setSide] = React.useState(DEFAULT_SIDE);
 
   /* Notifications deep-link into here, e.g. ?stage=<notion page id> */
   const { clear, target } = useNotificationTarget();
@@ -139,6 +148,30 @@ export function ZoCockpit() {
     };
   }, [loadStages]);
 
+  /* Both sides arrive in one fetch, so switching costs nothing. */
+  const sidesPresent = React.useMemo(
+    () =>
+      Array.from(new Set(stages.map((s) => sideKey(s.side))))
+        .filter(Boolean)
+        .sort(),
+    [stages],
+  );
+
+  const shown = React.useMemo(
+    () => stages.filter((s) => sideKey(s.side) === side),
+    [side, stages],
+  );
+
+  /**
+   * Never sit on a side with no stages. An empty checklist reads as "nothing
+   * to do" when the truth is "you're looking at the wrong side".
+   */
+  React.useEffect(() => {
+    if (sidesPresent.length > 0 && !sidesPresent.includes(side)) {
+      setSide(sidesPresent[0]);
+    }
+  }, [side, sidesPresent]);
+
   function updateOne(pageId: string, patch: Partial<UploadState>) {
     setUploadStates((prev) => ({
       ...prev,
@@ -184,7 +217,7 @@ export function ZoCockpit() {
         const sessionRes = await apiFetch("/api/drive-upload-url", {
           method: "POST",
           body: JSON.stringify({
-            side: SIDE,
+            side,
             stageName,
             mimeType: file.type,
             ext,
@@ -343,9 +376,34 @@ export function ZoCockpit() {
                 Zo (Alonzo)
               </h2>
               <p className="mt-1 text-[16px] font-medium leading-relaxed text-[#64748B]">
-                HTM Duplex — Side B
+                HTM Duplex — Side {side}
               </p>
             </div>
+
+            {/* Only offered when both sides actually have stages. */}
+            {sidesPresent.length > 1 && (
+              <div
+                aria-label="Which side of the duplex"
+                className="flex shrink-0 rounded-full bg-[#F1F5F9] p-1"
+                role="group"
+              >
+                {sidesPresent.map((key) => (
+                  <button
+                    aria-pressed={side === key}
+                    className={`rounded-full px-3.5 py-1.5 text-[16px] font-semibold transition-colors ${
+                      side === key
+                        ? "bg-white text-[#418BFF] shadow-[0_1px_3px_rgba(30,58,138,0.12)]"
+                        : "text-[#5B6B82]"
+                    }`}
+                    key={key}
+                    onClick={() => setSide(key)}
+                    type="button"
+                  >
+                    Side {key}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </motion.section>
 
@@ -361,7 +419,7 @@ export function ZoCockpit() {
             {(() => {
               const phases = ["Phase 1", "Phase 2", "Phase 3", "Phase 4"];
               const currentIdx = phases.findIndex((p) =>
-                stages.some((s) => s.phase === p && !s.photoUploaded),
+                shown.some((s) => s.phase === p && !s.photoUploaded),
               );
               return `${currentIdx === -1 ? 4 : currentIdx + 1}/4`;
             })()}
@@ -380,7 +438,7 @@ export function ZoCockpit() {
                 (() => {
                   const phases = ["Phase 1", "Phase 2", "Phase 3", "Phase 4"];
                   const idx = phases.findIndex((p) =>
-                    stages.some((s) => s.phase === p && !s.photoUploaded),
+                    shown.some((s) => s.phase === p && !s.photoUploaded),
                   );
                   return idx === -1 ? 3 : idx;
                 })()
@@ -439,7 +497,7 @@ export function ZoCockpit() {
                   { key: "Phase 3", label: "Phase 3 — Inside Done" },
                   { key: "Phase 4", label: "Phase 4 — Exterior / Curb Appeal" },
                 ].map((phase) => {
-                  const phaseStages = stages
+                  const phaseStages = shown
                     .filter((s) => s.phase === phase.key)
                     .sort(
                       (a, b) =>
