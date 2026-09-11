@@ -92,4 +92,4 @@ create policy "remove work order parts"
   );
 
 comment on column public.work_order_parts.arrived_on is
-  'The day the part turned up. Null means still outstanding, which is what the overdue flag counts.';
+    'The day the part turned up. Null means still outstanding, which is what the overdue flag counts.';
