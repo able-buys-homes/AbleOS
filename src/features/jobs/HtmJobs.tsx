@@ -1005,9 +1005,9 @@ function NewJobSheet({
 
   const ok = j.title.trim().length > 2 && j.lot > 0;
 
-  // Changing the lot brings that home's recorded resident with it, so Zo is
-  // correcting a name rather than typing one from nothing - and if the name
-  // he is told at the door differs from the record, that difference is kept.
+  // Changing the lot brings that home's recorded resident with it. The field
+  // is read-only, so this is the only thing that sets it - the job cannot
+  // claim somebody lives there when the roll says nobody does.
   function pickLot(n: number) {
     const match = lots?.find((l) => l.number === n);
     setJ((s) => ({ ...s, lot: n, occupantName: match?.tenant ?? "" }));
@@ -1075,13 +1075,16 @@ function NewJobSheet({
             />
           )}
 
+          {/* Read-only. Who lives on a lot is the roll's fact, not something
+              retyped here - a name spelled differently on a job is a name the
+              two screens disagree about later. It changes on the Map, where
+              moving somebody in and out actually happens. */}
           <Label>Who lives there</Label>
           <input
-            className={inputClass}
-            onChange={(e) => setJ({ ...j, occupantName: e.target.value })}
-            placeholder="Name"
+            className={`${inputClass} bg-[#F1F3F6] text-[#6C7484]`}
+            readOnly
             type="text"
-            value={j.occupantName ?? ""}
+            value={j.occupantName?.trim() || "Nobody lives here"}
           />
 
           <Label>What kind of problem</Label>

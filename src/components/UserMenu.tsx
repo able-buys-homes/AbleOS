@@ -35,7 +35,7 @@ const COCKPITS = [
     path: "/colton",
     initial: "C",
   },
-  {
+  { 
     key: "zo",
     name: "Zo",
     // Covers both sides since 3 Sep 2026, so no side is named here.

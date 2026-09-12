@@ -57,7 +57,12 @@ type PartRow = {
   arrived_on: string | null;
 };
 
-type LotRow = { id: string; lot_number: string; tenant_name: string | null };
+type LotRow = {
+  id: string;
+  lot_number: string;
+  tenant_name: string | null;
+  home_status: string | null;
+};
 
 export function ZoJobs() {
   const [jobs, setJobs] = React.useState<Job[] | null>(null);
@@ -328,9 +333,16 @@ export function ZoJobs() {
           <HtmJobs
             jobs={jobs}
             lots={lots.map((l) => ({
-            number: Number(l.lot_number),
-            tenant: l.tenant_name ?? undefined,
-          }))}
+              number: Number(l.lot_number),
+              // Only when somebody actually lives there. A tenant name is
+              // never cleared on move-out, so an empty home still carries the
+              // last resident - and a job opened against it would read as
+              // though they had never left.
+              tenant:
+                l.home_status === "occupied"
+                  ? (l.tenant_name ?? undefined)
+                  : undefined,
+            }))}
             onComplete={complete}
             onCreate={create}
             onSaveCloseout={saveCloseout}
