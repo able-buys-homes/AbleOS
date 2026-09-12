@@ -17,6 +17,11 @@ import { TaskChatModal } from "../features/tasks/TaskChatModal";
 import { GateQueueModal } from "../features/approvals/GateQueueModal";
 import { TaskRow } from "../features/tasks/TaskRow";
 import { FilterMenu } from "../components/FilterMenu";
+import {
+  ANY_DATE,
+  DateFilter,
+  matchesDate,
+} from "../features/dailytasks/DateFilter";
 import { OrderRow } from "../features/orders/OrderRow";
 import { OrderDetailModal } from "../features/orders/OrderDetailModal";
 import { TaskDetailModal } from "../features/tasks/TaskDetailModal";
@@ -122,6 +127,30 @@ export function DaneCockpit() {
   const [createOpen, setCreateOpen] = React.useState(false);
   const [dailyDetailId, setDailyDetailId] = React.useState<string | null>(null);
   const [dailyFilter, setDailyFilter] = React.useState("All");
+  const [dailyDate, setDailyDate] = React.useState(ANY_DATE);
+
+  // Pulled out of the JSX so the empty state can tell the difference between
+  // "no tasks" and "none in that date range" - two very different things to
+  // read when you are looking for something you know you finished.
+  const dailyByState =
+    dailyFilter === "All"
+      ? [
+          ...daily.backlog,
+          ...daily.todo,
+          ...daily.inProgress,
+          ...daily.completed,
+        ]
+      : dailyFilter === "backlog"
+        ? daily.backlog
+        : dailyFilter === "todo"
+          ? daily.todo
+          : dailyFilter === "in_progress"
+            ? daily.inProgress
+            : daily.completed;
+
+  const shownDaily = dailyByState.filter((task) =>
+    matchesDate(task, dailyDate),
+  );
   const [subsOpen, setSubsOpen] = React.useState(false);
   // The subscriptions card owns the data, so it hands its count up here.
   const [subsCount, setSubsCount] = React.useState<number | null>(null);
@@ -536,6 +565,7 @@ export function DaneCockpit() {
               count={daily.loading ? null : daily.inProgress.length}
               eyebrow="Daily work"
               toolbar={
+                <div className="flex flex-wrap items-center gap-2">
                 <FilterMenu
                   onChange={setDailyFilter}
                   options={[
@@ -563,6 +593,8 @@ export function DaneCockpit() {
                   ]}
                   value={dailyFilter}
                 />
+                <DateFilter onChange={setDailyDate} value={dailyDate} />
+                </div>
               }
               onClose={() => setDailyOpen(false)}
               open={dailyOpen}
@@ -583,21 +615,17 @@ export function DaneCockpit() {
                   </div>
                 )}
 
-                {(dailyFilter === "All"
-                  ? [
-                      ...daily.backlog,
-                      ...daily.todo,
-                      ...daily.inProgress,
-                      ...daily.completed,
-                    ]
-                  : dailyFilter === "backlog"
-                    ? daily.backlog
-                    : dailyFilter === "todo"
-                      ? daily.todo
-                      : dailyFilter === "in_progress"
-                        ? daily.inProgress
-                        : daily.completed
-                ).map((task) => (
+                {!daily.loading &&
+                  daily.tasks.length > 0 &&
+                  shownDaily.length === 0 && (
+                    <div className="rounded-2xl border border-dashed border-[#DCE4EE] bg-white px-5 py-8 text-center">
+                      <p className="text-[16px] font-medium leading-snug text-[#8A99AC]">
+                        Nothing in that date range.
+                      </p>
+                    </div>
+                  )}
+
+                {shownDaily.map((task) => (
                   <DailyTaskRow
                     key={task.id}
                     onOpen={() => setDailyDetailId(task.id)}
