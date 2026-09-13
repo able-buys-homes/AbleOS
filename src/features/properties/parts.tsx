@@ -71,24 +71,24 @@ export function money(value: number | string | null | undefined) {
 const STATUS: Record<Property["status"], { label: string; className: string }> =
   {
     missing_lease: {
-      label: "Missing lease",
+      label: "No lease signed",
       className: "bg-[#FBEDEA] text-[#A83A2A]",
     },
     lease_pending: {
-      label: "Lease pending",
+      label: "Waiting on signing",
       className: "bg-[#FDF4E0] text-[#92600A]",
     },
-    for_sale: { label: "For sale", className: "bg-[#EAF1F8] text-[#2A5B8C]" },
+    for_sale: { label: "Being sold", className: "bg-[#EAF1F8] text-[#2A5B8C]" },
     sold: { label: "Sold", className: "bg-[#EEF0F3] text-[#6C7484]" },
-    occupied: { label: "Occupied", className: "bg-[#EAF6EE] text-[#166534]" },
-    vacant: { label: "Vacant", className: "bg-[#EEF0F3] text-[#6C7484]" },
+    occupied: { label: "Lived in", className: "bg-[#EAF6EE] text-[#166534]" },
+    vacant: { label: "Empty", className: "bg-[#EEF0F3] text-[#6C7484]" },
   };
 
 export const LEASE_WORD: Record<Unit["lease_state"], string> = {
-  none: "No signed lease on file",
-  draft: "Draft",
-  out_for_signature: "Awaiting signatures",
-  signed: "Signed",
+  none: "No lease signed yet",
+  draft: "Lease is being written",
+  out_for_signature: "Waiting for signatures",
+  signed: "Lease signed and on file",
 };
 
 function Row({
@@ -102,9 +102,9 @@ function Row({
 }) {
   return (
     <div className="flex items-start justify-between gap-4 border-b border-[#E3E5E9] py-2 last:border-b-0">
-      <span className="shrink-0 text-[13.5px] text-[#6C7484]">{label}</span>
+      <span className="shrink-0 text-[15px] text-[#6C7484]">{label}</span>
       <span
-        className={`min-w-0 text-right text-[13.5px] font-semibold ${
+        className={`min-w-0 text-right text-[15px] font-semibold ${
           tone === "alarm" ? "text-[#A83A2A]" : "text-[#0F1E33]"
         }`}
       >
@@ -116,16 +116,16 @@ function Row({
 
 /** "2 units, both occupied". Counted, never typed - a typed count drifts. */
 function doorLine(units: Unit[]) {
-  if (units.length === 0) return "No doors recorded";
+  if (units.length === 0) return "No homes added yet";
 
   const lived = units.filter((u) => u.occupied).length;
-  const word = units.length === 1 ? "1 unit" : `${units.length} units`;
+  const word = units.length === 1 ? "1 home" : `${units.length} homes`;
 
-  if (lived === 0) return `${word}, empty`;
+  if (lived === 0) return `${word}, all empty`;
   if (lived === units.length) {
-    return units.length === 1 ? `${word}, occupied` : `${word}, all occupied`;
+    return units.length === 1 ? `${word}, lived in` : `${word}, all lived in`;
   }
-  return `${word}, ${lived} occupied`;
+  return `${word}, ${lived} lived in`;
 }
 
 export function PropertyCard({
@@ -184,7 +184,7 @@ export function PropertyCard({
                 : LEASE_WORD[single.lease_state]}
             </Row>
             {single.move_in_on && (
-              <Row label="Move-in">{when(single.move_in_on)}</Row>
+              <Row label="Moved in">{when(single.move_in_on)}</Row>
             )}
             {(single.rent_note || single.rent_amount != null) && (
               <Row label="Rent">
@@ -212,10 +212,10 @@ export function PropertyCard({
         )}
 
         {property.sale_status !== "hold" && (
-          <Row label="Status">
+          <Row label="Are we keeping it?">
             {property.sale_status === "for_sale"
-              ? "To be sold, not refinanced"
-              : "Sold"}
+              ? "No — being sold"
+              : "No — already sold"}
           </Row>
         )}
 
@@ -230,11 +230,11 @@ export function PropertyCard({
         )}
 
         {property.payoff_note && (
-          <Row label="Note payoff">{property.payoff_note}</Row>
+          <Row label="Still owed on it">{property.payoff_note}</Row>
         )}
 
         {property.owner_name && (
-          <Row label="Owner of this item">{property.owner_name}</Row>
+          <Row label="Looking after it">{property.owner_name}</Row>
         )}
       </div>
 
@@ -242,8 +242,8 @@ export function PropertyCard({
           across from the Fuller portfolio and nobody has checked them against
           the Shared Drive yet. */}
       {!property.details_confirmed && (
-        <p className="mt-3 rounded-[9px] border-l-4 border-l-[#D97706] bg-[#FFFCF5] px-3.5 py-2.5 text-[13px] leading-relaxed text-[#92600A]">
-          Details not confirmed against the Shared Drive yet.
+        <p className="mt-3 rounded-[9px] border-l-4 border-l-[#D97706] bg-[#FFFCF5] px-3.5 py-2.5 text-[14px] leading-relaxed text-[#92600A]">
+          Nobody has checked these details against the Drive yet.
         </p>
       )}
 
@@ -255,20 +255,27 @@ export function PropertyCard({
             rel="noopener noreferrer"
             target="_blank"
           >
-            Open file
+            Open its folder
           </a>
         ) : (
-          <span className="min-h-[40px] rounded-[9px] border border-dashed border-[#D5D8DE] px-3.5 py-2 text-[14px] font-semibold text-[#A3B0C0]">
-            No folder linked
-          </span>
+          // A real button rather than a greyed-out label. "No folder linked"
+          // read as broken, and the thing to do about it was two taps away
+          // behind a different button.
+          <button
+            className="min-h-[44px] rounded-[9px] border border-dashed border-[#D5D8DE] bg-white px-3.5 py-2.5 text-[15px] font-semibold text-[#6C7484]"
+            onClick={onEdit}
+            type="button"
+          >
+            Add the folder link
+          </button>
         )}
 
         <button
-          className="min-h-[40px] rounded-[9px] border border-[#1E3A8A] bg-[#1E3A8A] px-3.5 py-2 text-[14px] font-semibold text-white"
+          className="min-h-[44px] rounded-[9px] border border-[#1E3A8A] bg-[#1E3A8A] px-3.5 py-2.5 text-[15px] font-semibold text-white"
           onClick={onEdit}
           type="button"
         >
-          Open
+          Change details
         </button>
       </div>
     </article>

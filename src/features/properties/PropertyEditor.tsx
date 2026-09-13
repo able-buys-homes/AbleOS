@@ -126,7 +126,7 @@ export function PropertyEditor({
           {/* ---- the property ---- */}
           <section className="rounded-2xl border border-[#DCE4EE] bg-white p-4">
             <div className="grid gap-3 sm:grid-cols-2">
-              <Field label="Name">
+              <Field label="What is it called">
                 <input
                   className={input}
                   onChange={(e) => setP({ ...p, name: e.target.value })}
@@ -134,7 +134,7 @@ export function PropertyEditor({
                   value={p.name}
                 />
               </Field>
-              <Field label="Address">
+              <Field label="Street address">
                 <input
                   className={input}
                   onChange={(e) => setP({ ...p, address: e.target.value })}
@@ -158,7 +158,7 @@ export function PropertyEditor({
                   value={p.state ?? ""}
                 />
               </Field>
-              <Field label="Context line">
+              <Field label="Short note under the name">
                 <input
                   className={input}
                   onChange={(e) => setP({ ...p, market_note: e.target.value })}
@@ -167,7 +167,7 @@ export function PropertyEditor({
                   value={p.market_note ?? ""}
                 />
               </Field>
-              <Field label="Owner of this item">
+              <Field label="Who is looking after it">
                 <input
                   className={input}
                   onChange={(e) => setP({ ...p, owner_name: e.target.value })}
@@ -175,7 +175,7 @@ export function PropertyEditor({
                   value={p.owner_name ?? ""}
                 />
               </Field>
-              <Field label="Drive folder link">
+              <Field label="Link to its folder in Drive">
                 <input
                   className={input}
                   onChange={(e) => setP({ ...p, drive_url: e.target.value })}
@@ -184,7 +184,7 @@ export function PropertyEditor({
                   value={p.drive_url ?? ""}
                 />
               </Field>
-              <Field label="Kept or sold">
+              <Field label="Are we keeping it?">
                 <select
                   className={input}
                   onChange={(e) =>
@@ -195,12 +195,12 @@ export function PropertyEditor({
                   }
                   value={p.sale_status}
                 >
-                  <option value="hold">Keeping it</option>
-                  <option value="for_sale">To be sold</option>
-                  <option value="sold">Sold</option>
+                  <option value="hold">Yes, keeping it</option>
+                  <option value="for_sale">No, selling it</option>
+                  <option value="sold">No, already sold</option>
                 </select>
               </Field>
-              <Field label="Appraisal note">
+              <Field label="Who did the appraisal">
                 <input
                   className={input}
                   onChange={(e) =>
@@ -211,7 +211,7 @@ export function PropertyEditor({
                   value={p.appraisal_note ?? ""}
                 />
               </Field>
-              <Field label="Note payoff">
+              <Field label="What is still owed on it">
                 <input
                   className={input}
                   onChange={(e) => setP({ ...p, payoff_note: e.target.value })}
@@ -230,7 +230,7 @@ export function PropertyEditor({
                   }
                   type="checkbox"
                 />
-                Appraisal is on file
+                	We have the appraisal
               </label>
               <label className="flex items-center gap-2.5 text-[15px] text-[#1B2231]">
                 <input
@@ -240,7 +240,7 @@ export function PropertyEditor({
                   }
                   type="checkbox"
                 />
-                Details confirmed against the Shared Drive
+                I have checked these against the Drive
               </label>
             </div>
 
@@ -250,7 +250,7 @@ export function PropertyEditor({
               onClick={saveProperty}
               type="button"
             >
-              {busy ? "Saving…" : "Save the property"}
+              {busy ? "Saving…" : "Save"}
             </button>
           </section>
 
@@ -258,7 +258,7 @@ export function PropertyEditor({
           <section className="space-y-2.5">
             <div className="flex items-center justify-between gap-3 px-1">
               <p className="text-[12.5px] font-bold uppercase tracking-[0.09em] text-[#6C7484]">
-                Doors — {property.units.length}
+                Homes — {property.units.length}
               </p>
               <button
                 className="rounded-[9px] border border-[#D5D8DE] bg-white px-3 py-1.5 text-[14px] font-semibold text-[#1B2231]"
@@ -266,13 +266,13 @@ export function PropertyEditor({
                 onClick={addDoor}
                 type="button"
               >
-                Add a door
+                Add a home
               </button>
             </div>
 
             {property.units.length === 0 && (
               <div className="rounded-2xl border border-dashed border-[#DCE4EE] bg-white px-5 py-6 text-center text-[15px] text-[#8291A5]">
-                No doors recorded yet.
+                No homes added yet.
               </div>
             )}
 
@@ -348,7 +348,7 @@ function UnitRow({
       {open && (
         <div className="border-t border-[#E3E5E9] p-4">
           <div className="grid gap-3 sm:grid-cols-2">
-            <Field label="Door">
+            <Field label="What to call it">
               <input
                 className={input}
                 onChange={(e) => setU({ ...u, label: e.target.value })}
@@ -365,7 +365,7 @@ function UnitRow({
                 value={u.tenant_name ?? ""}
               />
             </Field>
-            <Field label="Lease">
+            <Field label="Where the lease is up to">
               <select
                 className={input}
                 onChange={(e) =>
@@ -376,13 +376,13 @@ function UnitRow({
                 }
                 value={u.lease_state}
               >
-                <option value="none">Nothing on file</option>
-                <option value="draft">Draft</option>
-                <option value="out_for_signature">Awaiting signatures</option>
-                <option value="signed">Signed</option>
+                <option value="none">No lease signed yet</option>
+                <option value="draft">Being written</option>
+                <option value="out_for_signature">Waiting for signatures</option>
+                <option value="signed">Signed and on file</option>
               </select>
             </Field>
-            <Field label="Lease version">
+            <Field label="Which version">
               <input
                 className={input}
                 onChange={(e) => setU({ ...u, lease_version: e.target.value })}
@@ -391,7 +391,7 @@ function UnitRow({
                 value={u.lease_version ?? ""}
               />
             </Field>
-            <Field label="Lease link">
+            <Field label="Link to the lease">
               <input
                 className={input}
                 onChange={(e) => setU({ ...u, lease_url: e.target.value })}
@@ -399,7 +399,7 @@ function UnitRow({
                 value={u.lease_url ?? ""}
               />
             </Field>
-            <Field label="Move-in">
+            	<Field label="When they moved in">
               <input
                 className={input}
                 onChange={(e) => setU({ ...u, move_in_on: e.target.value })}
@@ -407,7 +407,7 @@ function UnitRow({
                 value={u.move_in_on ?? ""}
               />
             </Field>
-            <Field label="Rent">
+            	<Field label="Rent each month">
               <input
                 className={input}
                 inputMode="decimal"
@@ -415,10 +415,10 @@ function UnitRow({
                 placeholder="3000"
                 step="0.01"
                 type="number"
-                value={u.rent_amount ?? ""}
+                value={u.rent_amount ?? ""} 
               />
             </Field>
-            <Field label="Rent in words">
+            <Field label="If the rent needs explaining">
               <input
                 className={input}
                 onChange={(e) => setU({ ...u, rent_note: e.target.value })}
@@ -427,7 +427,7 @@ function UnitRow({
                 value={u.rent_note ?? ""}
               />
             </Field>
-            <Field label="Rent starts">
+            <Field label="When rent starts">
               <input
                 className={input}
                 onChange={(e) => setU({ ...u, rent_starts_on: e.target.value })}
@@ -466,7 +466,7 @@ function UnitRow({
               }
               type="button"
             >
-              {busy ? "Saving…" : "Save this door"}
+              {busy ? "Saving…" : "Save this home"}
             </button>
             <button
               className="min-h-[44px] rounded-[9px] border border-[#D5D8DE] bg-white px-4 text-[15px] font-semibold text-[#B4462B] disabled:opacity-45"
@@ -474,7 +474,7 @@ function UnitRow({
               onClick={onRemove}
               type="button"
             >
-              Remove
+              Delete this home
             </button>
           </div>
         </div>

@@ -107,7 +107,7 @@ export function ElleryProperties() {
             Properties
           </h1>
           <p className="mt-2 max-w-md text-[16px] font-medium text-white/85">
-            Every door, and what is missing from its file.
+            Every home we own, and what its file is still missing.
           </p>
         </>
       }
@@ -116,19 +116,19 @@ export function ElleryProperties() {
         aria-label="Portfolio"
         className="grid grid-cols-2 gap-3 pt-2 lg:grid-cols-4"
       >
-        <Tile label="Doors" value={counts ? String(counts.doors) : "..."} />
+        <Tile label="Homes" value={counts ? String(counts.doors) : "..."} />
         <Tile
-          label="Occupied"
+          label="Lived in"
           tone="good"
           value={counts ? String(counts.occupied) : "..."}
         />
         <Tile
-          label="Lease pending"
+          label="Waiting on signing"
           tone="warn"
           value={counts ? String(counts.lease_pending) : "..."}
         />
         <Tile
-          label="Missing lease"
+          label="No lease signed"
           tone={counts && counts.missing_lease > 0 ? "alarm" : "neutral"}
           value={counts ? String(counts.missing_lease) : "..."}
         />
@@ -159,7 +159,7 @@ export function ElleryProperties() {
 
       {properties && properties.length === 0 && (
         <div className="mt-4 rounded-2xl border border-dashed border-[#DCE4EE] bg-white px-5 py-10 text-center">
-          <p className="text-[15px] text-[#8291A5]">Nothing recorded yet.</p>
+          <p className="text-[15px] text-[#8291A5]">No homes added yet.</p>
         </div>
       )}
 
