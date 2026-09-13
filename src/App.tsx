@@ -18,6 +18,7 @@ import { HtmApplication } from "./pages/HtmApplication";
 import { ZoJobs } from "./pages/ZoJobs";
 import { ZoMap } from "./pages/ZoMap";
 import { RajApprovals } from "./pages/RajApprovals";
+import { ElleryApplicants } from "./pages/ElleryApplicants";
 
 export function App() {
   const isMarketingDomain =
@@ -61,6 +62,16 @@ export function App() {
             }
           />
           <Route path="/jeremiah" element={<Navigate replace to="/" />} />
+          {/* Ellery's pipeline. /ellery itself stays Documents & Dates, so
+              nothing already linking there moves. */}
+          <Route
+            path="/ellery/applicants"
+            element={
+              <ProtectedRoute cockpit="ellery">
+                <ElleryApplicants />
+              </ProtectedRoute>
+            }
+          />
           <Route path="/colton" element={<Navigate replace to="/" />} />
           <Route
             path="/zo"

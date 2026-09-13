@@ -6,6 +6,7 @@
 // deployment at 12. Keeping the handlers outside /api means they no longer
 // count, so endpoints can be added freely from here on.
 
+import applicants from "../routes/applicants.js";
 import applications from "../routes/applications.js";
 import approveStage from "../routes/approve-stage.js";
 import collections from "../routes/collections.js";
@@ -49,6 +50,7 @@ import unitInspections from "../routes/unit-inspections.js";
 export const config = { maxDuration: 60 };
 
 const ROUTES = {
+    applicants,
     applications,
     "approve-stage": approveStage,
     collections,

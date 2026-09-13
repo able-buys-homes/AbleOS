@@ -5,6 +5,7 @@
 import { useMemo } from "react";
 import { Link } from "react-router-dom";
 import { MobileScreenShell } from "../components/MobileScreenShell";
+import { ElleryTabBar } from "../components/ElleryTabBar";
 import { UserMenu } from "../components/UserMenu";
 import { DocumentsCard } from "../features/documents/DocumentsCard";
 import { MyDealsCard } from "../features/pipeline/MyDealsCard";
@@ -166,6 +167,8 @@ export function ElleryCockpit() {
       <footer className="pt-10 text-center text-[16px] font-medium tracking-[0.12em] text-[#8291A5]">
         Able OS
       </footer>
+
+      <ElleryTabBar />
     </MobileScreenShell>
   );
 }
