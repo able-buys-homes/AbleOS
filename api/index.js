@@ -33,6 +33,7 @@ import opsAlert from "../routes/ops-alert.js";
 import orders from "../routes/orders.js";
 import pipelineDeals from "../routes/pipeline-deals.js";
 import pof from "../routes/pof.js";
+import properties from "../routes/properties.js";
 import pushSubscribe from "../routes/push-subscribe.js";
 import rehabStages from "../routes/rehab-stages.js";
 import rentCharges from "../routes/rent-charges.js";
@@ -70,6 +71,7 @@ const ROUTES = {
     documents,
     "drive-upload-url": driveUploadUrl, 
     "late-fees": lateFees,
+    properties,
     "rent-charges": rentCharges,
     leads,
     lots,

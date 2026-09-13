@@ -19,6 +19,7 @@ import { ZoJobs } from "./pages/ZoJobs";
 import { ZoMap } from "./pages/ZoMap";
 import { RajApprovals } from "./pages/RajApprovals";
 import { ElleryApplicants } from "./pages/ElleryApplicants";
+import { ElleryProperties } from "./pages/ElleryProperties";  
 
 export function App() {
   const isMarketingDomain =
@@ -69,6 +70,14 @@ export function App() {
             element={
               <ProtectedRoute cockpit="ellery">
                 <ElleryApplicants />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/ellery/properties"
+            element={
+              <ProtectedRoute cockpit="ellery">
+                <ElleryProperties />
               </ProtectedRoute>
             }
           />

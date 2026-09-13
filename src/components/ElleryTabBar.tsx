@@ -4,15 +4,13 @@
 // Same shape as Zo's bar on purpose - one row, thumb-sized targets, active by
 // colour alone. Two cockpits that navigate differently are two cockpits to
 // learn.
-//
-// AHTX Properties is deliberately absent until that screen exists. A tab that
-// leads nowhere is how somebody stops trusting the bar.
 
 import { NavLink } from "react-router-dom";
-import { FolderIcon, UsersIcon } from "lucide-react";
+import { Building2Icon, FolderIcon, UsersIcon } from "lucide-react";
 
 const TABS = [
   { to: "/ellery/applicants", label: "Applicants", Icon: UsersIcon },
+  { to: "/ellery/properties", label: "Properties", Icon: Building2Icon },
   { to: "/ellery", label: "Documents", Icon: FolderIcon },
 ] as const;
 
