@@ -5,6 +5,10 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../lib/AuthProvider";
 import { PushToggle } from "./PushToggle";
 
+// Karen, Jeremiah and Colton were removed on 14 Sep 2026. Their routes already
+// redirected to "/" and lib/apiAuth.js already refused them, so listing them
+// here could only ever produce a menu item that fails. The routes and the
+// screens are kept, not deleted, so a role can be handed to somebody else.
 const COCKPITS = [
   { key: "raj", name: "Raj", role: "CEO", path: "/raj", initial: "R" },
   {
@@ -15,27 +19,6 @@ const COCKPITS = [
     initial: "D",
   },
   {
-    key: "karen",
-    name: "Karen",
-    role: "Operations",
-    path: "/karen",
-    initial: "K",
-  },
-  {
-    key: "jeremiah",
-    name: "Jeremiah",
-    role: "Field ops",
-    path: "/jeremiah",
-    initial: "J",
-  },
-  {
-    key: "colton",
-    name: "Colton",
-    role: "Crew lead, Side A",
-    path: "/colton",
-    initial: "C",
-  },
-  { 
     key: "zo",
     name: "Zo",
     // Covers both sides since 3 Sep 2026, so no side is named here.
