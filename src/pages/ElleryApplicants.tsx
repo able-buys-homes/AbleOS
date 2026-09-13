@@ -193,8 +193,12 @@ export function ElleryApplicants() {
         {/* On a phone the open applicant sits above the list rather than
             beside it, and is not rendered at all when nothing is open. */}
         <div
-          className={`order-first min-w-0 lg:order-none lg:sticky lg:top-4 lg:self-start ${
-            selected ? "" : "hidden lg:block"
+          className={`order-first min-w-0 lg:sticky lg:top-4 lg:order-2 lg:self-start ${
+            selected
+              ? ""
+              : (applicants?.length ?? 0) > 0
+                ? "hidden lg:block"
+                : "hidden"
           }`}
         >
           {selected ? (
@@ -213,7 +217,7 @@ export function ElleryApplicants() {
           )}
         </div>
 
-        <div className="min-w-0 space-y-5">
+        <div className="min-w-0 space-y-5 lg:order-1">
           {applicants && applicants.length === 0 && (
             <div className="rounded-2xl border border-dashed border-[#DCE4EE] bg-white px-5 py-10 text-center">
               <p className="text-[15px] text-[#8291A5]">

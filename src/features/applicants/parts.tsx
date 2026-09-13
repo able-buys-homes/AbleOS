@@ -174,6 +174,10 @@ export function ApplicantCard({
         selected
           ? "border-[#1E3A8A] ring-1 ring-[#1E3A8A]"
           : "border-[#DCE4EE] hover:border-[#B7C7DC]"
+      } ${
+        // The one pile that is hers. Everything else is waiting on somebody
+        // else, and the header says so in words - this says it at a glance.
+        applicant.bucket === "turn" ? "border-l-4 border-l-[#D97706]" : ""
       }`}
       onClick={onOpen}
       type="button"
