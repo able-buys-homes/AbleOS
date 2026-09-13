@@ -120,7 +120,7 @@ export function StageStrip({ stage }: { stage: Stage }) {
   const at = STEPS.findIndex((s) => s.key === stage);
 
   return (
-    <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1">
+    <div className="flex flex-wrap gap-1.5">
       {STEPS.map((step, i) => {
         const done = i < at;
         const here = i === at;
