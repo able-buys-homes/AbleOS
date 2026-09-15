@@ -101,6 +101,9 @@ export default async function handler(req, res) {
                     label,
                     due_on: dueOn,
                     kind: clean(req.body?.kind, 60),
+                    // Which book it belongs to. Defaults to Hometown Meadows,
+                    // because that is where everything recorded so far lives.
+                    portfolio: req.body?.portfolio === "ahtx" ? "ahtx" : "htm",
                     created_by: profile.cockpit,
                 })
                 .select()
@@ -131,6 +134,14 @@ export default async function handler(req, res) {
 
             if (req.body?.label !== undefined) {
                 patch.label = clean(req.body.label, 200);
+            }
+
+            if (req.body?.portfolio !== undefined) {
+                const portfolio = String(req.body.portfolio);
+                if (portfolio !== "ahtx" && portfolio !== "htm") {
+                    return res.status(400).json({ error: "That is not a book" });
+                }
+                patch.portfolio = portfolio;
             }
 
             if (req.body?.dueOn !== undefined) {

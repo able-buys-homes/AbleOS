@@ -48,6 +48,7 @@ export type CriticalDate = {
   deal_name: string;
   label: string;
   due_on: string;
+  portfolio: "ahtx" | "htm";
   kind: string | null;
   completed_at: string | null;
   completed_by: string | null;
