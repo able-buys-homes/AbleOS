@@ -3,7 +3,10 @@
 //
 // GET   /api/applications          the list, without the identifying details
 // GET   /api/applications?id=<id>  one application, in full
-// POST  /api/applications          submit one, then hand a copy to n8n
+// POST  /api/applications          submit one, then hand a copy to n8n.
+//                                  Either a signed-in person taking it at the
+//                                  door, or n8n forwarding the public website
+//                                  form with the shared secret.
 // PATCH /api/applications?drive=1  n8n reporting back where it filed the PDF
 //
 // The submit used to go straight from the browser to the database. It moved
@@ -184,20 +187,33 @@ export default async function handler(req, res) {
         }
     }
 
-    let caller;
-    try {
-        caller = await requireUser(req);
-    } catch (err) {
-        return res
-            .status(err?.status || 401)
-            .json({ error: err?.message || "Not authorised" });
+    // The website form arrives through n8n, which holds the shared secret. It
+    // is a submit and nothing else - no session means no list, and no reading
+    // anybody's application back out.
+    const postSecret = process.env.N8N_SHARED_SECRET;
+    const fromWebsite =
+        req.method === "POST" &&
+        Boolean(postSecret) &&
+        req.headers.authorization === `Bearer ${postSecret}`;
+
+    let caller = null;
+
+    if (!fromWebsite) {
+        try {
+            caller = await requireUser(req);
+        } catch (err) {
+            return res
+                .status(err?.status || 401)
+                .json({ error: err?.message || "Not authorised" });
+        }
+
+        if (!CAN_TAKE.includes(caller.profile.cockpit)) {
+            return res.status(403).json({ error: "Not your screen" });
+        }
     }
 
-    const { profile, user } = caller;
-
-    if (!CAN_TAKE.includes(profile.cockpit)) {
-        return res.status(403).json({ error: "Not your screen" });
-    }
+    const profile = caller?.profile ?? { cockpit: "website" };
+    const user = caller?.user ?? null;
 
     if (!["GET", "POST"].includes(req.method)) {
         res.setHeader("Allow", "GET, POST, PATCH");
@@ -269,21 +285,68 @@ export default async function handler(req, res) {
                 lot_number: app?.lot ? String(app.lot).slice(0, 40) : null,
                 applying_for: app?.applyingFor || null,
                 data: app,
-                taken_by: user.id,
+                // Null when it came off the public form. Nobody took it, and
+                // putting a name there would be a claim about a person who
+                // never saw it.
+                taken_by: user?.id ?? null,
+                source: fromWebsite ? "website" : "cockpit",
             })
             .select("id, created_at")
             .single();
 
         if (insertError) throw insertError;
 
-        await supabase.from("notifications").insert({
-            recipient: "raj",
-            type: "application_received",
-            title: `Application from ${name}`,
-            body: `${profile.cockpit} took it${app?.lot ? ` for Lot ${app.lot}` : ""
-                }. It is in the cockpit and a PDF is being filed to the Shared Drive.`,
-            link: "/raj",
-        });
+        // Into Ellery's pipeline whichever door it came in by. One list, or she
+        // checks two places and eventually misses one.
+        const cameInBy = fromWebsite
+            ? "Website form"
+            : `${profile.cockpit === "zo" ? "Zo" : profile.cockpit}, in person`;
+
+        let lotId = null;
+
+        if (app?.lot) {
+            const { data: lot } = await supabase
+                .from("lots")
+                .select("id")
+                .eq("property", "Hometown Meadows MHP")
+                .eq("lot_number", String(app.lot))
+                .maybeSingle();
+
+            lotId = lot?.id ?? null;
+        }
+
+        const { error: pipelineError } = await supabase
+            .from("applicants")
+            .insert({
+                portfolio: "htm",
+                name: name.slice(0, 160),
+                property_label: app?.lot ? `Lot ${app.lot}` : null,
+                lot_id: lotId,
+                application_id: created.id,
+                came_in_by: cameInBy,
+                arrived_at: created.created_at,
+            });
+
+        if (pipelineError) {
+            console.error("applicant pipeline insert failed:", pipelineError);
+        }
+
+        // Ellery because the fee clock starts now, Raj because a home may be
+        // about to fill. If the pipeline row failed, the notification says so -
+        // an applicant nobody can see is an applicant nobody chases.
+        await supabase.from("notifications").insert(
+            ["ellery", "raj"].map((recipient) => ({
+                recipient,
+                type: "application_received",
+                title: `Application from ${name}`,
+                body: `${cameInBy}${app?.lot ? ` · Lot ${app.lot}` : ""}. ${
+                    pipelineError
+                        ? "It did NOT reach Applicants — open it from the applications list."
+                        : "It is in Applicants, waiting on the fee."
+                }`,
+                link: recipient === "ellery" ? "/ellery/applicants" : "/raj",
+            })),
+        );
 
         // The copy. Everything below this point can fail without the
         // application being lost - which is the whole reason it is below.
