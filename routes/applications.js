@@ -19,6 +19,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { applicationPdf } from "../lib/applicationPdf.js";
 import { requireUser } from "../lib/apiAuth.js";
+import { websiteApplication } from "../lib/websiteApplication.js";
 
 const CAN_TAKE = ["zo", "raj", "dane"];
 const CAN_SEE_ALL = ["raj", "dane"];
@@ -262,7 +263,10 @@ export default async function handler(req, res) {
         }
 
         /* ---- submit ---- */
-        const app = req.body?.data;
+        // Two shapes arrive here. The cockpit form posts ours as-is; the
+        // website posts its own, which gets translated first. One store, one
+        // PDF, one pipeline, whichever door it came in by.
+        const app = fromWebsite ? websiteApplication(req.body) : req.body?.data;
 
         if (!app || typeof app !== "object") {
             return res.status(400).json({ error: "No application was sent" });
