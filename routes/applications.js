@@ -21,8 +21,11 @@ import { applicationPdf } from "../lib/applicationPdf.js";
 import { requireUser } from "../lib/apiAuth.js";
 import { websiteApplication } from "../lib/websiteApplication.js";
 
-const CAN_TAKE = ["zo", "raj", "dane"];
-const CAN_SEE_ALL = ["raj", "dane"];
+// Ellery reads every application. The pipeline is hers, and a website
+// submission has no taker to scope her to - restricting her to her own would
+// show her nothing at all.
+const CAN_TAKE = ["zo", "raj", "dane", "ellery"];
+const CAN_SEE_ALL = ["raj", "dane", "ellery"];
 
 let cachedClient = null;
 

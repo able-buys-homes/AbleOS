@@ -7,6 +7,7 @@
 // disabled, it says what is being waited on instead.
 
 import React from "react";
+import { apiFetch } from "../../lib/apiFetch";
 import {
   type Applicant,
   PortfolioTag,
@@ -95,6 +96,33 @@ export function ApplicantDetail({
     setNote("");
   }, [applicant.id, applicant.fee_amount]);
 
+  const [pdfBusy, setPdfBusy] = React.useState(false);
+  const [pdfProblem, setPdfProblem] = React.useState("");
+
+  /**
+   * The PDF route needs an Authorization header, so it cannot be a plain link.
+   * Fetch it, then hand the browser a blob.
+   */
+  async function openPdf(id: string) {
+    setPdfBusy(true);
+    setPdfProblem("");
+    try {
+      const res = await apiFetch(
+        `/api/applications?pdf=${encodeURIComponent(id)}`,
+      );
+      if (!res.ok) throw new Error("Could not build the PDF");
+
+      const blob = await res.blob();
+      window.open(URL.createObjectURL(blob), "_blank");
+    } catch (err) {
+      setPdfProblem(
+        err instanceof Error ? err.message : "Could not open the PDF",
+      );
+    } finally {
+      setPdfBusy(false);
+    }
+  }
+
   const decided = Boolean(applicant.decision);
   const reportBack = Boolean(applicant.screening_result);
 
@@ -131,20 +159,26 @@ export function ApplicantDetail({
         <Row label="Who else knows">
           {applicant.who_else_knows || "Nobody copied"}
         </Row>
-        <Row label="Attached">
+                <Row label="Attached">
           {applicant.application_id ? (
-            <a
-              className="font-semibold text-[#418BFF] hover:underline"
-              href={`/api/applications?pdf=${applicant.application_id}`}
-              rel="noopener noreferrer"
-              target="_blank"
+            <button
+              className="font-semibold text-[#418BFF] hover:underline disabled:opacity-50"
+              disabled={pdfBusy}
+              onClick={() => openPdf(applicant.application_id as string)}
+              type="button"
             >
-              Application.pdf
-            </a>
+              {pdfBusy ? "Building…" : "Application.pdf"}
+            </button>
           ) : (
             "Nothing attached yet"
           )}
         </Row>
+
+        {pdfProblem && (
+          <p className="pt-2 text-[14px] font-medium text-[#B91C1C]">
+            {pdfProblem}
+          </p>
+        )}
       </div>
 
       {applicant.screening_result && (
