@@ -59,9 +59,9 @@ export function BuyBoxBadge({
       </ul>
 
       <p className="mt-3 border-t border-[#EEF2F7] pt-3 text-[14px] text-[#7A8AA3]">
-        The box is DSCR {BUY_BOX.minDscr} or better, $
-        {BUY_BOX.minMonthlyCashFlow.toLocaleString()} a month net, in the West
-        Texas markets.
+        The box is DSCR {BUY_BOX.minDscr} or better and $
+        {BUY_BOX.minMonthlyCashFlow.toLocaleString()} a month net, in Florida,
+        Arkansas and Texas.
       </p>
     </div>
   );

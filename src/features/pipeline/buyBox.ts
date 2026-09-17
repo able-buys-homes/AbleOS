@@ -16,9 +16,13 @@ export const BUY_BOX = {
   minMonthlyCashFlow: 2500,
 
   /**
-   * Rex's lane: roughly a 300-mile radius of Lubbock. The wider company
-   * box includes Florida and Arkansas, but that isn't sourced in the field.
+   * The company box is Florida, Arkansas and Texas. State is the rule; the
+   * city list below is a fallback for addresses that arrive without a state
+   * on them, which is common from bird dogs.
    */
+  states: ["fl", "florida", "ar", "arkansas", "tx", "texas"],
+
+  /** Rex's own lane, roughly 300 miles around Lubbock. */
   markets: [
     "lubbock",
     "plainview",
@@ -60,9 +64,22 @@ function toNumber(value: string | number | null | undefined) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+/**
+ * In the box if the address names Florida, Arkansas or Texas, or one of the
+ * cities Rex works. States are matched as whole words - the "ar" inside
+ * "Arlington" is not Arkansas.
+ */
 function inMarket(address: string | null | undefined) {
   if (!address) return null;
+
   const haystack = address.toLowerCase();
+
+  const stateHit = BUY_BOX.states.some((state) =>
+    new RegExp(`\\b${state}\\b`).test(haystack),
+  );
+
+  if (stateHit) return true;
+
   return BUY_BOX.markets.some((city) => haystack.includes(city));
 }
 
@@ -101,7 +118,7 @@ export function evaluateBuyBox(deal: DealLike): BuyBoxResult {
   if (market === null) {
     missing.push("No address yet");
   } else if (!market) {
-    fails.push("Outside the West Texas markets");
+    fails.push("Outside Florida, Arkansas and Texas");
   } else {
     passes.push("In market");
   }

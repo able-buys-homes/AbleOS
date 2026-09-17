@@ -173,7 +173,7 @@ export function ApplicantDetail({
             "Nothing attached yet"
           )}
         </Row>
-
+          
         {pdfProblem && (
           <p className="pt-2 text-[14px] font-medium text-[#B91C1C]">
             {pdfProblem}
