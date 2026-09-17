@@ -4,9 +4,11 @@ import { CheckCircle2Icon } from "lucide-react";
 import { ArrowButton } from "./ArrowButton";
 
 const inputClass =
-  "w-full rounded-xl border border-brand-ink/10 bg-brand-cream px-4 py-3 text-brand-ink placeholder:text-brand-ink/35 focus:outline-none focus:border-brand-azure focus:ring-[3px] focus:ring-brand-azure/25 transition-[border-color,box-shadow,background-color] duration-200 ease-out";
+  "w-full rounded-xl border border-brand-ink/10 bg-brand-cream px-4 py-3 text-brand-ink placeholder:text-brand-ink/35 focus:outline-none focus:border-brand-azure focus:ring-[3px] focus:ring-brand-azure/25 transition-[border-color,box-shadow,background-color] duration-200 ease-out disabled:opacity-50";
 
 const labelClass = "font-semibold text-[0.85rem] text-brand-ink/80";
+
+const helpClass = "text-[0.8rem] text-brand-ink/55";
 
 const ease = [0.23, 1, 0.32, 1] as const;
 
@@ -33,6 +35,21 @@ export function LeadForm({
   );
   const [error, setError] = useState("");
   const [files, setFiles] = useState<File[]>([]);
+
+  // The state decides whether this deal can be submitted at all. Anything
+  // outside Florida, Arkansas and Texas is out of the box unless it is the one
+  // exception Raj named.
+  const [state, setState] = useState("");
+  const [nnnLease, setNnnLease] = useState(false);
+
+  // Rent is required unless the property is empty. Ticking vacant clears the
+  // figure rather than leaving a stale number behind it.
+  const [vacant, setVacant] = useState(false);
+  const [rent, setRent] = useState("");
+
+  const outOfBox = state === "Other";
+  const blocked = outOfBox && !nnnLease;
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (files.length === 0) {
@@ -70,6 +87,10 @@ export function LeadForm({
         });
         if (!put.ok) throw new Error(`Could not upload ${file.name}.`);
       }
+
+      const street = value("street_address");
+      const city = value("city");
+
       const res = await fetch("/api/deal-submission", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -77,7 +98,16 @@ export function LeadForm({
           name: value("name"),
           email: value("email"),
           phone: value("phone"),
-          address: value("property_address"),
+          // Sent apart so the cockpit can read them, and joined as well so
+          // nothing that already reads `address` breaks.
+          street,
+          city,
+          state: value("state"),
+          address: [street, city, value("state")].filter(Boolean).join(", "),
+          units: value("units"),
+          grossMonthlyRent: vacant ? "" : value("gross_monthly_rent"),
+          vacant,
+          nnnLease,
           askingPrice: value("asking_price"),
           notes: value("notes"),
           role: value("role"),
@@ -304,26 +334,145 @@ export function LeadForm({
                   <input
                     id="f-price"
                     name="asking_price"
-                    type="text"
-                    inputMode="numeric"
-                    placeholder="$"
+                    type="number"
+                    min={1000}
+                    required
+                    placeholder="185000"
                     className={inputClass}
                   />
+                  <p className={helpClass}>
+                    A number, not a range. &quot;North of 100K&quot; cannot be
+                    underwritten.
+                  </p>
                 </div>
               </div>
 
-              <div className="flex flex-col gap-2">
-                <label htmlFor="f-address" className={labelClass}>
-                  Property Address
-                </label>
-                <input
-                  id="f-address"
-                  name="property_address"
-                  type="text"
-                  required
-                  placeholder="Street, City, State"
-                  className={inputClass}
-                />
+              {/* One address field became three. A city and a state that live
+                  in their own boxes can be read by the cockpit; a single line
+                  of free text cannot. */}
+              <div className="grid gap-5 sm:grid-cols-3">
+                <div className="flex flex-col gap-2">
+                  <label htmlFor="f-street" className={labelClass}>
+                    Street Address
+                  </label>
+                  <input
+                    id="f-street"
+                    name="street_address"
+                    type="text"
+                    required
+                    placeholder="123 Main St"
+                    className={inputClass}
+                  />
+                </div>
+                <div className="flex flex-col gap-2">
+                  <label htmlFor="f-city" className={labelClass}>
+                    City
+                  </label>
+                  <input
+                    id="f-city"
+                    name="city"
+                    type="text"
+                    required
+                    placeholder="Lubbock"
+                    className={inputClass}
+                  />
+                </div>
+                <div className="flex flex-col gap-2">
+                  <label htmlFor="f-state" className={labelClass}>
+                    State
+                  </label>
+                  <select
+                    id="f-state"
+                    name="state"
+                    required
+                    value={state}
+                    onChange={(e) => {
+                      setState(e.target.value);
+                      // Leaving Other clears the exception, so it can never
+                      // stay ticked against a state it does not apply to.
+                      if (e.target.value !== "Other") setNnnLease(false);
+                    }}
+                    className={inputClass}
+                  >
+                    <option value="" disabled>
+                      Select state...
+                    </option>
+                    <option>Florida</option>
+                    <option>Arkansas</option>
+                    <option>Texas</option>
+                    <option>Other</option>
+                  </select>
+                </div>
+              </div>
+
+              {outOfBox && (
+                <div className="rounded-xl border border-brand-ink/10 bg-brand-cream px-4 py-3">
+                  <p className="text-[0.88rem] leading-relaxed text-brand-ink/75">
+                    We buy in Florida, Arkansas and Texas. California is
+                    considered only for NNN leases to a nonprofit or a long-term
+                    credit tenant.
+                  </p>
+                  <label className="mt-3 flex items-start gap-2.5 text-[0.88rem] text-brand-ink/80">
+                    <input
+                      checked={nnnLease}
+                      className="mt-0.5"
+                      onChange={(e) => setNnnLease(e.target.checked)}
+                      type="checkbox"
+                    />
+                    This is a NNN lease to a nonprofit or credit tenant
+                  </label>
+                </div>
+              )}
+
+              <div className="grid gap-5 sm:grid-cols-2">
+                <div className="flex flex-col gap-2">
+                  <label htmlFor="f-units" className={labelClass}>
+                    Number of Units
+                  </label>
+                  <input
+                    id="f-units"
+                    name="units"
+                    type="number"
+                    min={1}
+                    required
+                    placeholder="4"
+                    className={inputClass}
+                  />
+                  <p className={helpClass}>Enter 1 for a single-family home.</p>
+                </div>
+                <div className="flex flex-col gap-2">
+                  <label htmlFor="f-rent" className={labelClass}>
+                    Current Gross Monthly Rent
+                  </label>
+                  <input
+                    className={inputClass}
+                    disabled={vacant}
+                    id="f-rent"
+                    min={0}
+                    name="gross_monthly_rent"
+                    onChange={(e) => setRent(e.target.value)}
+                    placeholder="3200"
+                    required={!vacant}
+                    type="number"
+                    value={rent}
+                  />
+                  <p className={helpClass}>
+                    Total rent collected across all units.
+                  </p>
+                  <label className="flex items-center gap-2.5 text-[0.88rem] text-brand-ink/80">
+                    <input
+                      checked={vacant}
+                      onChange={(e) => {
+                        setVacant(e.target.checked);
+                        // Clear it rather than leave a figure behind a
+                        // disabled box - a stale number is worse than none.
+                        if (e.target.checked) setRent("");
+                      }}
+                      type="checkbox"
+                    />
+                    Property is vacant
+                  </label>
+                </div>
               </div>
 
               <div className="grid gap-5 sm:grid-cols-2">
@@ -378,7 +527,7 @@ export function LeadForm({
                   id="f-notes"
                   name="notes"
                   rows={4}
-                  placeholder="Units/sites, occupancy, income, why they're selling, any specific terms you're looking for..."
+                  placeholder="Why they're selling, condition of the property, and any specific terms you're looking for..."
                   className={`${inputClass} min-h-[120px] resize-y`}
                 />
               </div>
@@ -441,7 +590,7 @@ export function LeadForm({
                 type="submit"
                 variant="dark"
                 fullWidth
-                disabled={status === "submitting"}
+                disabled={status === "submitting" || blocked}
               >
                 {status === "submitting" ? "Submitting..." : "Submit Your Deal"}
               </ArrowButton>

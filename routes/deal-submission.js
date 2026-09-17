@@ -74,9 +74,24 @@ export default async function handler(req, res) {
     }
 
     const contactName = clean(req.body?.name, 120);
-    const address = clean(req.body?.address, 300);
     const email = clean(req.body?.email, 200);
     const phone = clean(req.body?.phone, 40);
+
+    // The form sends the address in three parts now. A cached page may still
+    // send one line, so fall back to it rather than reject the lead.
+    const street = clean(req.body?.street, 200);
+    const city = clean(req.body?.city, 120);
+    const state = clean(req.body?.state, 60);
+
+    const address =
+        clean(req.body?.address, 300) ||
+        [street, city, state].filter(Boolean).join(", ") ||
+        null;
+
+    const vacant = req.body?.vacant === true;
+    const nnnLease = req.body?.nnnLease === true;
+    const units = num(req.body?.units);
+    const grossMonthlyRent = vacant ? 0 : num(req.body?.grossMonthlyRent);
 
     if (!contactName) {
         return res.status(400).json({ error: "Please tell us your name" });
@@ -119,6 +134,16 @@ export default async function handler(req, res) {
             asset_type: clean(req.body?.assetType, 80),
             current_financing: clean(req.body?.currentFinancing, 60),
             seller_open_to: clean(req.body?.sellerOpenTo, 60),
+            // Apart, so underwriting reads a city and a state rather than
+            // picking them out of a sentence.
+            street,
+            city,
+            state,
+            units,
+            gross_monthly_rent: grossMonthlyRent,
+            vacant,
+            // Only meaningful outside the three states we buy in.
+            nnn_lease: nnnLease,
         };
 
         const hasAnswers = Object.values(submission).some(Boolean);
@@ -199,6 +224,10 @@ export default async function handler(req, res) {
                         phone,
                         address,
                         askingPrice,
+                        units,
+                        grossMonthlyRent,
+                        vacant,
+                        state,
                         notes,
                     }),
                     signal: AbortSignal.timeout(8000),
