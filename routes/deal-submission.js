@@ -161,7 +161,7 @@ export default async function handler(req, res) {
         }
         const { data: pendingFiles, error: filesError } = await supabase
             .from("deal_submission_files")
-            .select("id, file_name")
+            .select("id, file_name, storage_path")
             .eq("submission_token", uploadToken)
             .is("deal_id", null);
         if (filesError) throw new Error(filesError.message);
@@ -210,6 +210,26 @@ export default async function handler(req, res) {
         // Fired through n8n so the mailbox credentials stay in one place.
         // A missing URL is not an error: the deal is already saved, and an
         // email failing should never lose it.
+        // Signed links, so underwriting can open an attachment straight from
+        // the email. Seven days is long enough to act on and short enough
+        // that a forwarded copy stops working.
+        const documents = [];
+
+        for (const file of pendingFiles) {
+            const { data: link, error: linkError } = await supabase.storage
+                .from("deal-submissions")
+                .createSignedUrl(file.storage_path, 604800);
+
+            if (linkError) {
+                console.error("Could not sign a document link:", linkError);
+            }
+
+            documents.push({
+                name: file.file_name,
+                url: link?.signedUrl ?? null,
+            });
+        }
+
         const hook = process.env.N8N_DEAL_WEBHOOK_URL;
 
         if (hook) {
@@ -229,7 +249,7 @@ export default async function handler(req, res) {
                         vacant,
                         state,
                         notes,
-                        documents: pendingFiles.map((f) => f.file_name),
+                        documents,
                     }),
                     signal: AbortSignal.timeout(8000),
                 });
