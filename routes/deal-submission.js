@@ -161,7 +161,7 @@ export default async function handler(req, res) {
         }
         const { data: pendingFiles, error: filesError } = await supabase
             .from("deal_submission_files")
-            .select("id")
+            .select("id, file_name")
             .eq("submission_token", uploadToken)
             .is("deal_id", null);
         if (filesError) throw new Error(filesError.message);
@@ -229,6 +229,7 @@ export default async function handler(req, res) {
                         vacant,
                         state,
                         notes,
+                        documents: pendingFiles.map((f) => f.file_name),
                     }),
                     signal: AbortSignal.timeout(8000),
                 });
