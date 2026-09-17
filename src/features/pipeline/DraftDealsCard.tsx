@@ -454,27 +454,53 @@ export function DraftDealsCard({
                         </div>
 
                         <dl className="mt-2 space-y-2 text-[16px]">
-                          {(
-                            [
-                              ["Name", active.contact_name],
-                              ["I am the", active.submission?.role],
-                              ["Email", active.contact_email],
-                              ["Phone", active.contact_phone],
-                              ["Property type", active.submission?.asset_type],
+                          {(() => {
+                            // Stored as loose JSON, so read it through a cast
+                            // rather than widening the shared type.
+                            const sub = (active.submission ?? {}) as Record <
+                              string,
+                              string | number | boolean | null | undefined
+                            >;
+
+                            const rent = sub.vacant
+                              ? "Vacant"
+                              : sub.gross_monthly_rent != null
+                                ? `$${Number(sub.gross_monthly_rent).toLocaleString()}`
+                                : null;
+
+                            const rows: [string, string | null][] = [
+                              ["Name", active.contact_name ?? null],
+                              ["I am the", (sub.role as string) ?? null],
+                              ["Email", active.contact_email ?? null],
+                              ["Phone", active.contact_phone ?? null],
+                              ["Property type", (sub.asset_type as string) ?? null],
                               [
                                 "Asking price",
                                 active.purchase_price
                                   ? `$${Number(active.purchase_price).toLocaleString()}`
                                   : null,
                               ],
-                              ["Property address", active.address],
+                              ["Street", (sub.street as string) ?? null],
+                              ["City", (sub.city as string) ?? null],
+                              ["State", (sub.state as string) ?? null],
+                              // Deals submitted before the split have only the
+                              // one line, so fall back to it.
+                              [
+                                "Property address",
+                                sub.street ? null : (active.address ?? null),
+                              ],
+                              ["Units", sub.units != null ? String(sub.units) : null],
+                              ["Gross monthly rent", rent],
+                              ["NNN lease exception", sub.nnn_lease ? "Yes" : null],
                               [
                                 "Current financing",
-                                active.submission?.current_financing,
+                                (sub.current_financing as string) ?? null,
                               ],
-                              ["Seller open to", active.submission?.seller_open_to],
-                            ] as const
-                          )
+                              ["Seller open to", (sub.seller_open_to as string) ?? null],
+                            ];
+
+                            return rows;
+                          })()
                             .filter(([, value]) => Boolean(value))
                             .map(([label, value]) => (
                               <div className="flex justify-between gap-4" key={label}>
