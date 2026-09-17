@@ -27,7 +27,7 @@ function fileIcon(mime: string) {
 }
 import { NavCard } from "../../components/NavCard";
 import { BuyBoxBadge } from "./BuyBoxBadge";
-import { DEAL_STAGES, STAGE_LABELS, type DealStage } from "./types";
+import { INTAKE_STAGES, STAGE_LABELS, type DealStage } from "./types";
 import { useDraftDeals, type DraftDeal } from "./useDraftDeals";
 
 type DealFile = {
@@ -678,7 +678,7 @@ export function DraftDealsCard({
                           }
                           className="mt-1 w-full rounded-xl border border-[#DCE4EE] bg-white px-3 py-2.5 text-[18px] text-[#0F1E33] focus:border-[#418BFF] focus:outline-none"
                         >
-                          {DEAL_STAGES.map((stage) => (
+                          {INTAKE_STAGES.map((stage) => (
                             <option key={stage} value={stage}>
                               {STAGE_LABELS[stage]}
                             </option>

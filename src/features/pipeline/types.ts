@@ -40,6 +40,14 @@ export const STAGE_LABELS: Record<DealStage, string> = {
 export const TERMINAL_STAGES: DealStage[] = ["coe", "dead"];
 
 /**
+ * The only stages a deal may be created at. Underwriting and Final Review are
+ * the two gates that check the buy box - starting a deal past them means
+ * nothing ever checked it. Later stages are still reachable by moving a deal,
+ * just not by creating one there.
+ */
+export const INTAKE_STAGES: DealStage[] = ["docs_submitted", "underwriting"];
+
+/**
  * Who sourced the deal. Comes from the Notion "Deal Source" select, so it is
  * a plain string rather than a fixed union. Adding a source in Notion should
  * not require a code change.
