@@ -334,19 +334,27 @@ async function rentStatus(supabase, args) {
     const period = typeof args?.period === "string" ? args.period : currentPeriod();
     const today = todayISO();
 
+    // period is a date column, so match a range rather than the YYYY-MM
+    // string. Works whichever day of the month the charge is stamped with.
+    const monthStart = `${period}-01`;
+    const nextMonth = new Date(`${monthStart}T00:00:00Z`);
+    nextMonth.setUTCMonth(nextMonth.getUTCMonth() + 1);
+    const monthEnd = nextMonth.toISOString().slice(0, 10);
+
     const charges = await all(
         supabase,
         "rent_ledger",
         "lot_id, period, charge_type, amount, due_date, verified_at",
-        (q) => q.eq("period", period),
+        (q) => q.gte("period", monthStart).lt("period", monthEnd),
     );
 
-    // Payments are stamped with a moment, not a period, so bound them by month.
+    // Payments are stamped with a moment, not a period, so bound them by month
+    // at both ends - otherwise next month's payments count towards this one.
     const payments = await all(
         supabase,
         "payments",
         "lot_id, amount, received_at, reverses_id",
-        (q) => q.gte("received_at", `${period}-01`),
+        (q) => q.gte("received_at", monthStart).lt("received_at", monthEnd),
     );
 
     const live = payments.filter((p) => !p.reverses_id);
