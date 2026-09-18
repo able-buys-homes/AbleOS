@@ -28,6 +28,7 @@ import driveUploadUrl from "../routes/drive-upload-url.js";
 import lateFees from "../routes/late-fees.js";
 import leads from "../routes/leads.js";
 import lots from "../routes/lots.js";
+import mcp from "../routes/mcp.js";
 import notifications from "../routes/notifications.js";
 import opsAlert from "../routes/ops-alert.js";
 import orders from "../routes/orders.js";
@@ -75,6 +76,7 @@ const ROUTES = {
     "rent-charges": rentCharges,
     leads,
     lots,
+    mcp,
     notifications,
     "ops-alert": opsAlert,
     orders,
