@@ -39,17 +39,28 @@ function getClient() {
     return cachedClient;
 }
 
-/** Constant-time, so the token can't be guessed a character at a time. */
+/**
+ * Constant-time, so a token can't be guessed a character at a time.
+ *
+ * MCP_TOKEN holds a comma-separated list, one per person, so a link can be
+ * withdrawn from one holder without breaking it for everyone else.
+ */
 function tokenMatches(supplied) {
-    const expected = process.env.MCP_TOKEN;
-    if (!expected) return true;
+    const raw = process.env.MCP_TOKEN;
+    if (!raw) return true;
     if (typeof supplied !== "string" || !supplied) return false;
 
     const a = Buffer.from(supplied);
-    const b = Buffer.from(expected);
-    if (a.length !== b.length) return false;
 
-    return timingSafeEqual(a, b);
+    return raw
+        .split(",")
+        .map((t) => t.trim())
+        .filter(Boolean)
+        .some((expected) => {
+            const b = Buffer.from(expected);
+            if (a.length !== b.length) return false;
+            return timingSafeEqual(a, b);
+        });
 }
 
 function suppliedToken(req) {
