@@ -727,6 +727,15 @@ async function dealStatus(supabase) {
         by_bird_dog: countBy(live, "bird_dog"),
         can_be_measured_against_the_buy_box: measurable.length,
         not_measurable: live.length - measurable.length,
+        // Without this, a duplicate row reads as a broken filter rather than
+        // a filter that has deliberately not been switched on yet.
+        intake_gate: {
+            mode: "shadow",
+            what_that_means:
+                "The gate reads every inbound email and files a reason for the ones it would reject, but nothing is cut. Both branches still create a deal. A website submission therefore produces two rows - one from the form and one from its own notification email - and that is expected, not a fault.",
+            when_it_changes:
+                "The false branch is cut once three days of real shadow traffic have been read and there is written sign-off. Until then duplicates will keep appearing.",
+        },
         as_of: new Date().toISOString(),
     };
 }
@@ -933,6 +942,10 @@ async function recentDeals(supabase, args) {
             arrived_at: d.created_at,
         })),
         note: "Seller contact details are not available here. Open the deal in Raj's cockpit for those.",
+        // Two rows for one property is the normal state of things right now.
+        // Say so here, or it gets read as a bug every time.
+        duplicates_expected:
+            "A website submission creates one row from the form and a second from its own notification email. The intake gate identifies the second correctly but runs in shadow mode, so nothing is removed. Two rows for one address is expected until the gate is switched from shadow to live.",
     };
 }
 
