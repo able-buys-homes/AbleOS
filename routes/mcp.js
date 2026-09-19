@@ -282,6 +282,40 @@ const TOOLS = [
         inputSchema: { type: "object", properties: {} },
     },
     {
+        name: "recent_deals",
+        description:
+            "The most recent deals with their name, address, stage, asking price and where they came from. Property level only - the seller's name, phone and email are never returned. Use when asked which deals just arrived, or to find a deal by address.",
+        inputSchema: {
+            type: "object",
+            properties: {
+                limit: { type: "number", description: "How many. Defaults to 10, maximum 50." },
+                search: { type: "string", description: "Match part of an address or deal name." },
+                since: { type: "string", description: "Only deals created on or after YYYY-MM-DD." },
+            },
+        },
+    },
+    {
+        name: "list_notes",
+        description:
+            "The documents kept in the project notes folder - plans, progress records, specifications and write-ups that Dane has uploaded. Use this to find out what written material exists before reading any of it.",
+        inputSchema: { type: "object", properties: {} },
+    },
+    {
+        name: "read_note",
+        description:
+            "Read one of the documents from the project notes folder, by its file name. Use after list_notes when a question needs the detail that only the written record holds - history before the log was kept, plans, or decisions and their reasoning.",
+        inputSchema: {
+            type: "object",
+            properties: {
+                name: {
+                    type: "string",
+                    description: "The file name exactly as list_notes returned it.",
+                },
+            },
+            required: ["name"],
+        },
+    },
+    {
         name: "system_snapshot",
         description:
             "Headline live figures across the whole cockpit in one call - deals, lots, applicants, open jobs, and when a deal last arrived.",
@@ -852,6 +886,92 @@ async function projectLog(supabase, args) {
     return { count: data.length, entries: data };
 }
 
+async function recentDeals(supabase, args) {
+    const limit = Number.isFinite(args?.limit) ? Math.min(args.limit, 50) : 10;
+
+    // Property level only. contact_name, contact_phone and contact_email are
+    // deliberately absent - a deal's address is business data, the seller's
+    // details are not.
+    const deals = await all(
+        supabase,
+        "pipeline_deals",
+        "name, address, stage, origin, bird_dog, purchase_price, monthly_cash_flow, dscr, confirmed, dismissed_at, created_at",
+        (q) => {
+            let query = q.order("created_at", { ascending: false });
+            if (typeof args?.since === "string") query = query.gte("created_at", args.since);
+            if (typeof args?.search === "string" && args.search.trim()) {
+                const term = args.search.trim().replace(/[%,]/g, "");
+                query = query.or(`address.ilike.%${term}%,name.ilike.%${term}%`);
+            }
+            return query.limit(limit);
+        },
+    );
+
+    return {
+        count: deals.length,
+        deals: deals.map((d) => ({
+            name: d.name,
+            address: d.address ?? "No address given",
+            stage: d.stage,
+            came_from: d.origin,
+            bird_dog: d.bird_dog,
+            asking_price: d.purchase_price,
+            monthly_cash_flow: d.monthly_cash_flow,
+            dscr: d.dscr,
+            state: d.dismissed_at ? "filed" : d.confirmed ? "in the pipeline" : "awaiting review",
+            arrived_at: d.created_at,
+        })),
+        note: "Seller contact details are not available here. Open the deal in Raj's cockpit for those.",
+    };
+}
+
+const NOTES_BUCKET = "project-notes";
+
+async function listNotes(supabase) {
+    const { data, error } = await supabase.storage
+        .from(NOTES_BUCKET)
+        .list("", { limit: 200, sortBy: { column: "updated_at", order: "desc" } });
+
+    if (error) throw new Error(error.message);
+
+    // Supabase returns a placeholder row for an empty folder. Drop anything
+    // without metadata rather than reporting a file that isn't there.
+    const files = (data ?? []).filter((f) => f.metadata);
+
+    return {
+        count: files.length,
+        notes: files.map((f) => ({
+            name: f.name,
+            size_kb: Math.round((f.metadata?.size ?? 0) / 102.4) / 10,
+            updated_at: f.updated_at ?? f.created_at ?? null,
+        })),
+        how_to_read: "Call read_note with the name exactly as it appears here.",
+    };
+}
+
+async function readNote(supabase, args) {
+    const name = typeof args?.name === "string" ? args.name.trim() : "";
+    if (!name) throw new Error("A file name is required");
+
+    // No slashes, no traversal. The bucket is flat by design.
+    if (name.includes("/") || name.includes("..")) {
+        throw new Error("Give the file name on its own, with no path");
+    }
+
+    const { data, error } = await supabase.storage.from(NOTES_BUCKET).download(name);
+    if (error) throw new Error(error.message);
+
+    const text = await data.text();
+    const LIMIT = 120000;
+
+    return {
+        name,
+        characters: text.length,
+        truncated: text.length > LIMIT,
+        content: text.slice(0, LIMIT),
+    };
+}
+
 async function systemSnapshot(supabase) {
     const counted = async (table, build) => {
         let q = supabase.from(table).select("id", { count: "exact", head: true });
@@ -907,6 +1027,9 @@ async function runTool(name, args) {
     if (name === "applicant_status") return applicantStatus(supabase);
     if (name === "documents_and_dates") return documentsAndDates(supabase);
     if (name === "deal_status") return dealStatus(supabase);
+    if (name === "recent_deals") return recentDeals(supabase, args);
+    if (name === "list_notes") return listNotes(supabase);
+    if (name === "read_note") return readNote(supabase, args);
     if (name === "system_snapshot") return systemSnapshot(supabase);
     if (name === "verification_status") return verificationStatus(supabase);
     if (name === "open_work") return openWork(supabase);
