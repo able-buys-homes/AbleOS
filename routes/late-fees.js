@@ -84,7 +84,23 @@ export default async function handler(req, res) {
                     .eq("property", PROPERTY)
                     .not("contract_rent", "is", null),
                 supabase.from("rent_ledger").select("*").eq("period", period),
-                supabase.from("payments").select("*").gte("received_at", period),
+                // Payments carry a moment, not a period. A resident who pays
+                // on the 29th for a month starting on the 1st is paying early,
+                // not failing to pay - counting only from the 1st made them
+                // look unpaid and earned them a $75 fee for being punctual.
+                // The window opens a week before the period so an early
+                // payment still counts. The cost is that a payment made late
+                // last month can suppress this month's fee, which is the safer
+                // way to be wrong.
+                supabase
+                    .from("payments")
+                    .select("*")
+                    .gte("received_at", (() => {
+                        const [y, m] = period.split("-").map(Number);
+                        return new Date(Date.UTC(y, m - 1, 1 - 7))
+                            .toISOString()
+                            .slice(0, 10);
+                    })()),
                 supabase.from("payment_plans").select("lot_id, status"),
                 supabase.from("eviction_cases").select("lot_id, possession_at"),
             ]);
