@@ -1,387 +1,1581 @@
+// src/features/applications/HtmRentalApplication.tsx
+// Application for Residency, taken in person by Zo on a phone.
+//
+// Six steps rather than one long scroll. A thirteen-section form on a phone
+// is where people give up, and an application abandoned halfway is a resident
+// lost - so each step asks for one kind of thing and will not let you past it
+// until that part is answered.
+//
+// Styling follows the rest of the cockpit: the same tokens as
+// /zo/collections and /zo/inspect, so Zo is not switching visual languages
+// between screens on the same phone.
+
 import { useState } from "react";
-
-/**
- * HtmRentalApplication — Application for Residency form for the Able OS cockpit.
- *
- * Drop-in for /zo (and public intake if Dane exposes it). No deps beyond React.
- * All fields live in one `app` object; `onSubmit(app)` hands it to Supabase
- * (suggested table: htm_applications, jsonb column `data` + status/lot/created_at).
- *
- * Business rules baked in: $25 fee per adult, $50 pet deposit + $25/mo pet rent
- * per pet, 3x income guideline, Section 8 accepted.
- */
-
-const NAVY = "#2A3648", CORAL = "#F0704A", GRAY = "#5F6B78", LINE = "#C9D0D8", BG = "#F3F5F8";
 
 export type ApplyingFor = "community_home" | "lot_only" | "rent_to_own";
 
-export interface Person { name: string; dob: string; ssnLast4: string; phone: string; email: string; idNumber: string; }
-export interface Occupant { name: string; relationship: string; age: string; adultApplied: boolean; }
+export interface Person {
+  name: string;
+  dob: string;
+  ssnLast4: string;
+  phone: string;
+  email: string;
+  idNumber: string;
+}
+export interface Occupant {
+  name: string;
+  relationship: string;
+  age: string;
+  adultApplied: boolean;
+}
 /** moveOut is optional: applications filed before Sept 2026 never had it. */
-export interface Residence { address: string; moveIn: string; moveOut?: string; payment: string; rentOrOwn: "rent" | "own" | ""; reason: string; landlord: string; landlordPhone: string; landlordEmail: string; }
-export interface Job { employer: string; position: string; start: string; supervisor: string; income: string; type: "full" | "part" | "self" | ""; }
-export interface Income { source: string; amount: string; recipient: string; }
-export interface Vehicle { ymm: string; color: string; plate: string; owner: string; }
-export interface Pet { type: string; name: string; weight: string; age: string; fixed: boolean; }
-export interface OwnHome { ymm: string; size: string; serial: string; lienholder: string; titled: boolean | null; transport: string; insurance: string; }
-export interface Reference { name: string; relationship: string; phone: string; }
-
-export interface Application {
-  date: string; lot: string; moveIn: string; applyingFor: ApplyingFor | "";
-  applicant: Person; coApplicant: Person; coRelationship: string;
-  occupants: Occupant[]; current: Residence; previous: Residence;
-  job: Job; coJob: Job; otherIncome: Income[];
-  vehicles: Vehicle[]; pets: Pet[]; ownHome: OwnHome;
-  background: Record<string, boolean | null>; backgroundNote: string;
-  references: Reference[]; emergency: Reference;
-  source: string; sourceOther: string;
-  certify: boolean; signature: string; coSignature: string; signDate: string;
+export interface Residence {
+  address: string;
+  moveIn: string;
+  moveOut?: string;
+  payment: string;
+  rentOrOwn: "rent" | "own" | "";
+  reason: string;
+  landlord: string;
+  landlordPhone: string;
+  landlordEmail: string;
+}
+export interface Job {
+  employer: string;
+  position: string;
+  start: string;
+  supervisor: string;
+  income: string;
+  type: "full" | "part" | "self" | "";
+}
+export interface Income {
+  source: string;
+  amount: string;
+  recipient: string;
+}
+export interface Vehicle {
+  ymm: string;
+  color: string;
+  plate: string;
+  owner: string;
+}
+export interface Pet {
+  type: string;
+  name: string;
+  weight: string;
+  age: string;
+  fixed: boolean;
+}
+export interface OwnHome {
+  ymm: string;
+  size: string;
+  serial: string;
+  lienholder: string;
+  titled: boolean | null;
+  transport: string;
+  insurance: string;
+}
+export interface Reference {
+  name: string;
+  relationship: string;
+  phone: string;
 }
 
-const emptyPerson = (): Person => ({ name: "", dob: "", ssnLast4: "", phone: "", email: "", idNumber: "" });
-const emptyRes = (): Residence => ({ address: "", moveIn: "", moveOut: "", payment: "", rentOrOwn: "", reason: "", landlord: "", landlordPhone: "", landlordEmail: "" });
-const emptyJob = (): Job => ({ employer: "", position: "", start: "", supervisor: "", income: "", type: "" });
+export interface Application {
+  date: string;
+  lot: string;
+  moveIn: string;
+  applyingFor: ApplyingFor | "";
+  applicant: Person;
+  coApplicant: Person;
+  coRelationship: string;
+  occupants: Occupant[];
+  current: Residence;
+  previous: Residence;
+  job: Job;
+  coJob: Job;
+  otherIncome: Income[];
+  vehicles: Vehicle[];
+  pets: Pet[];
+  ownHome: OwnHome;
+  background: Record<string, boolean | null>;
+  backgroundNote: string;
+  references: Reference[];
+  emergency: Reference;
+  source: string;
+  sourceOther: string;
+  certify: boolean;
+  signature: string;
+  coSignature: string;
+  signDate: string;
+}
+
+const emptyPerson = (): Person => ({
+  name: "",
+  dob: "",
+  ssnLast4: "",
+  phone: "",
+  email: "",
+  idNumber: "",
+});
+const emptyRes = (): Residence => ({
+  address: "",
+  moveIn: "",
+  moveOut: "",
+  payment: "",
+  rentOrOwn: "",
+  reason: "",
+  landlord: "",
+  landlordPhone: "",
+  landlordEmail: "",
+});
+const emptyJob = (): Job => ({
+  employer: "",
+  position: "",
+  start: "",
+  supervisor: "",
+  income: "",
+  type: "",
+});
 
 const BACKGROUND_QS: Array<[string, string]> = [
-  ["evicted", "Have you ever been evicted or asked to leave a residence?"],
-  ["brokeLease", "Have you ever broken a lease or been sued for unpaid rent?"],
-  ["bankruptcy", "Have you ever filed for bankruptcy?"],
-  ["felony", "Have you ever been convicted of a felony?"],
-  ["courtOrder", "Are you currently subject to a court order or registration requirement that would affect where you may live?"],
-  ["smoke", "Do you smoke or vape? (Not permitted inside community-owned homes.)"],
+  ["evicted", "Ever evicted or asked to leave a residence?"],
+  ["brokeLease", "Ever broken a lease or been sued for unpaid rent?"],
+  ["bankruptcy", "Ever filed for bankruptcy?"],
+  ["felony", "Ever been convicted of a felony?"],
+  [
+    "courtOrder",
+    "Currently subject to a court order or registration requirement that affects where you may live?",
+  ],
+  ["smoke", "Do you smoke or vape?"],
 ];
 
 export const emptyApplication = (): Application => ({
-  date: new Date().toISOString().slice(0, 10), lot: "", moveIn: "", applyingFor: "",
-  applicant: emptyPerson(), coApplicant: emptyPerson(), coRelationship: "",
-  occupants: [], current: emptyRes(), previous: emptyRes(),
-  job: emptyJob(), coJob: emptyJob(), otherIncome: [],
-  vehicles: [], pets: [], ownHome: { ymm: "", size: "", serial: "", lienholder: "", titled: null, transport: "", insurance: "" },
-  background: Object.fromEntries(BACKGROUND_QS.map(([k]) => [k, null])), backgroundNote: "",
-  references: [{ name: "", relationship: "", phone: "" }], emergency: { name: "", relationship: "", phone: "" },
-  source: "", sourceOther: "", certify: false, signature: "", coSignature: "", signDate: "",
+  date: new Date().toISOString().slice(0, 10),
+  lot: "",
+  moveIn: "",
+  applyingFor: "",
+  applicant: emptyPerson(),
+  coApplicant: emptyPerson(),
+  coRelationship: "",
+  occupants: [],
+  current: emptyRes(),
+  previous: emptyRes(),
+  job: emptyJob(),
+  coJob: emptyJob(),
+  otherIncome: [],
+  vehicles: [],
+  pets: [],
+  ownHome: {
+    ymm: "",
+    size: "",
+    serial: "",
+    lienholder: "",
+    titled: null,
+    transport: "",
+    insurance: "",
+  },
+  background: Object.fromEntries(BACKGROUND_QS.map(([k]) => [k, null])),
+  backgroundNote: "",
+  references: [{ name: "", relationship: "", phone: "" }],
+  emergency: { name: "", relationship: "", phone: "" },
+  source: "",
+  sourceOther: "",
+  certify: false,
+  signature: "",
+  coSignature: "",
+  signDate: "",
 });
 
-/* ---------- tiny UI primitives ---------- */
-const inputStyle: React.CSSProperties = { width: "100%", boxSizing: "border-box", padding: "9px 10px", fontSize: 15, border: `1px solid ${LINE}`, borderRadius: 8, background: "#fff", color: NAVY, fontFamily: "inherit" };
-const Field = ({ label, value, onChange, type = "text", placeholder }: { label: string; value: string; onChange: (v: string) => void; type?: string; placeholder?: string }) => (
-  <label style={{ display: "block", flex: 1, minWidth: 140 }}>
-    <span style={{ display: "block", fontSize: 12, color: GRAY, marginBottom: 4 }}>{label}</span>
-    <input style={inputStyle} type={type} value={value} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} />
-  </label>
-);
-const Row = ({ children }: { children: React.ReactNode }) => <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginBottom: 10 }}>{children}</div>;
-const Section = ({ n, title, hint, children }: { n: number; title: string; hint?: string; children: React.ReactNode }) => (
-  <section style={{ marginBottom: 22 }}>
-    <h3 style={{ background: NAVY, color: "#fff", fontSize: 13, fontWeight: 600, letterSpacing: 0.5, textTransform: "uppercase", padding: "7px 12px", borderRadius: 6, margin: "0 0 10px" }}>{n}. {title}</h3>
-    {hint && <p style={{ fontSize: 13, color: GRAY, margin: "0 0 10px" }}>{hint}</p>}
-    {children}
-  </section>
-);
-const AddBtn = ({ onClick, label }: { onClick: () => void; label: string }) => (
-  <button type="button" onClick={onClick} style={{ fontSize: 13, padding: "6px 12px", border: `1px dashed ${LINE}`, borderRadius: 8, background: "transparent", color: NAVY, cursor: "pointer" }}>+ {label}</button>
-);
-const RemoveBtn = ({ onClick }: { onClick: () => void }) => (
-  <button type="button" onClick={onClick} aria-label="Remove" style={{ alignSelf: "flex-end", fontSize: 13, padding: "9px 10px", border: `1px solid ${LINE}`, borderRadius: 8, background: "#fff", color: GRAY, cursor: "pointer" }}>✕</button>
-);
-const Radio = ({ name, value, current, onChange, label }: { name: string; value: string; current: string; onChange: (v: string) => void; label: string }) => (
-  <label style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 14, marginRight: 14, marginBottom: 6 }}>
-    <input type="radio" name={name} checked={current === value} onChange={() => onChange(value)} /> {label}
-  </label>
-);
-const YesNo = ({ value, onChange }: { value: boolean | null; onChange: (v: boolean) => void }) => (
-  <span style={{ display: "inline-flex", gap: 10, whiteSpace: "nowrap" }}>
-    <label style={{ fontSize: 14 }}><input type="radio" checked={value === true} onChange={() => onChange(true)} /> Yes</label>
-    <label style={{ fontSize: 14 }}><input type="radio" checked={value === false} onChange={() => onChange(false)} /> No</label>
-  </span>
-);
+/* ---------------- cockpit-styled controls ---------------- */
 
-const PersonFields = ({ p, set }: { p: Person; set: (p: Person) => void }) => (
-  <>
-    <Row>
-      <Field label="Full legal name" value={p.name} onChange={(v) => set({ ...p, name: v })} />
-      <Field label="Date of birth" type="date" value={p.dob} onChange={(v) => set({ ...p, dob: v })} />
-      <Field label="SSN / ITIN (last 4)" value={p.ssnLast4} onChange={(v) => set({ ...p, ssnLast4: v.replace(/\D/g, "").slice(0, 4) })} />
-    </Row>
-    <Row>
-      <Field label="Phone" type="tel" value={p.phone} onChange={(v) => set({ ...p, phone: v })} />
-      <Field label="Email" type="email" value={p.email} onChange={(v) => set({ ...p, email: v })} />
-      <Field label="Driver's license / ID # and state" value={p.idNumber} onChange={(v) => set({ ...p, idNumber: v })} />
-    </Row>
-  </>
-);
-const ResidenceFields = ({ r, set, prev }: { r: Residence; set: (r: Residence) => void; prev?: boolean }) => (
-  <>
-    <Row><Field label={prev ? "Street address, City / State / ZIP" : "Street address, City / State / ZIP"} value={r.address} onChange={(v) => set({ ...r, address: v })} /></Row>
-    <Row>
-      {/* A previous address is a span, not a moment, so it needs two dates. */}
-      {prev ? (
-        <>
-          <Field label="Moved in" type="date" value={r.moveIn} onChange={(v) => set({ ...r, moveIn: v })} />
-          <Field label="Moved out" type="date" value={r.moveOut || ""} onChange={(v) => set({ ...r, moveOut: v })} />
-        </>
-      ) : (
-        <Field label="Move-in date" type="date" value={r.moveIn} onChange={(v) => set({ ...r, moveIn: v })} />
+// 16px on inputs, because anything smaller makes iOS zoom the page on focus
+// and Zo loses his place.
+const INPUT =
+  "w-full min-h-[46px] rounded-xl border border-[#DCE4EE] bg-white px-3.5 py-2.5 text-[16px] text-[#0F1E33] placeholder:text-[#9AA4B4] focus:border-[#1E3A8A] focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/15";
+
+const LABEL =
+  "mb-1.5 block text-[12.5px] font-semibold uppercase tracking-[0.06em] text-[#6C7484]";
+
+function Field({
+  label,
+  value,
+  onChange,
+  type = "text",
+  placeholder,
+  wide = false,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  type?: string;
+  placeholder?: string;
+  wide?: boolean;
+}) {
+  return (
+    <label className={wide ? "block w-full" : "block min-w-[150px] flex-1"}>
+      <span className={LABEL}>{label}</span>
+      <input
+        className={INPUT}
+        inputMode={type === "tel" ? "tel" : undefined}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        type={type}
+        value={value}
+      />
+    </label>
+  );
+}
+
+function Row({ children }: { children: React.ReactNode }) {
+  return <div className="mb-3.5 flex flex-wrap gap-3">{children}</div>;
+}
+
+function Block({
+  title,
+  hint,
+  children,
+}: {
+  title: string;
+  hint?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="mb-4 overflow-hidden rounded-2xl border border-[#DCE4EE] bg-white shadow-[0_1px_2px_rgba(30,58,138,0.04)]">
+      <div className="border-b border-[#EEF0F3] px-4 py-3">
+        <h2 className="text-[15.5px] font-bold tracking-[-0.01em] text-[#0F1E33]">
+          {title}
+        </h2>
+        {hint && <p className="mt-0.5 text-[13px] text-[#6C7484]">{hint}</p>}
+      </div>
+      <div className="p-4">{children}</div>
+    </section>
+  );
+}
+
+/**
+ * Segmented buttons rather than radio dots. A radio dot is a four-millimetre
+ * target on a phone; this is the whole row.
+ */
+function Choice({
+  label,
+  options,
+  value,
+  onChange,
+}: {
+  label?: string;
+  options: Array<{ value: string; label: string }>;
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  return (
+    <div className="w-full">
+      {label && <span className={LABEL}>{label}</span>}
+      <div className="flex flex-wrap gap-2">
+        {options.map((o) => {
+          const on = value === o.value;
+          return (
+            <button
+              className={`min-h-[44px] rounded-xl border px-3.5 py-2 text-[14.5px] font-semibold ${
+                on
+                  ? "border-[#1E3A8A] bg-[#1E3A8A] text-white"
+                  : "border-[#DCE4EE] bg-white text-[#1B2231]"
+              }`}
+              key={o.value}
+              onClick={() => onChange(o.value)}
+              type="button"
+            >
+              {o.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function YesNo({
+  value,
+  onChange,
+}: {
+  value: boolean | null;
+  onChange: (v: boolean) => void;
+}) {
+  return (
+    <div className="flex shrink-0 gap-2">
+      {[
+        { v: true, label: "Yes" },
+        { v: false, label: "No" },
+      ].map((o) => {
+        const on = value === o.v;
+        return (
+          <button
+            className={`min-h-[42px] w-[68px] rounded-xl border text-[14.5px] font-semibold ${
+              on
+                ? "border-[#1E3A8A] bg-[#1E3A8A] text-white"
+                : "border-[#DCE4EE] bg-white text-[#1B2231]"
+            }`}
+            key={o.label}
+            onClick={() => onChange(o.v)}
+            type="button"
+          >
+            {o.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function AddBtn({ onClick, label }: { onClick: () => void; label: string }) {
+  return (
+    <button
+      className="min-h-[44px] w-full rounded-xl border border-dashed border-[#C3CDDC] bg-[#F7F9FC] px-3.5 py-2.5 text-[14.5px] font-semibold text-[#1E3A8A]"
+      onClick={onClick}
+      type="button"
+    >
+      + {label}
+    </button>
+  );
+}
+
+function RepeatCard({
+  title,
+  onRemove,
+  children,
+}: {
+  title: string;
+  onRemove: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="mb-3 rounded-xl border border-[#DCE4EE] bg-[#FBFCFE] p-3.5">
+      <div className="mb-2.5 flex items-center justify-between">
+        <span className="text-[13px] font-bold uppercase tracking-[0.06em] text-[#6C7484]">
+          {title}
+        </span>
+        <button
+          className="min-h-[36px] rounded-lg border border-[#DCE4EE] bg-white px-3 text-[13px] font-semibold text-[#B4462B]"
+          onClick={onRemove}
+          type="button"
+        >
+          Remove
+        </button>
+      </div>
+      {children}
+    </div>
+  );
+}
+
+/* ---------------- shared field groups ---------------- */
+
+function PersonFields({ p, set }: { p: Person; set: (p: Person) => void }) {
+  return (
+    <>
+      <Row>
+        <Field
+          label="Full legal name"
+          onChange={(v) => set({ ...p, name: v })}
+          value={p.name}
+          wide
+        />
+      </Row>
+      <Row>
+        <Field
+          label="Date of birth"
+          onChange={(v) => set({ ...p, dob: v })}
+          type="date"
+          value={p.dob}
+        />
+        <Field
+          label="SSN / ITIN last 4"
+          onChange={(v) =>
+            set({ ...p, ssnLast4: v.replace(/\D/g, "").slice(0, 4) })
+          }
+          value={p.ssnLast4}
+        />
+      </Row>
+      <Row>
+        <Field
+          label="Phone"
+          onChange={(v) => set({ ...p, phone: v })}
+          type="tel"
+          value={p.phone}
+        />
+        <Field
+          label="Email"
+          onChange={(v) => set({ ...p, email: v })}
+          type="email"
+          value={p.email}
+        />
+      </Row>
+      <Row>
+        <Field
+          label="Driver's licence / ID and state"
+          onChange={(v) => set({ ...p, idNumber: v })}
+          value={p.idNumber}
+          wide
+        />
+      </Row>
+    </>
+  );
+}
+
+function ResidenceFields({
+  r,
+  set,
+  prev,
+}: {
+  r: Residence;
+  set: (r: Residence) => void;
+  prev?: boolean;
+}) {
+  return (
+    <>
+      <Row>
+        <Field
+          label="Street, city, state, ZIP"
+          onChange={(v) => set({ ...r, address: v })}
+          value={r.address}
+          wide
+        />
+      </Row>
+      <Row>
+        <Field
+          label="Moved in"
+          onChange={(v) => set({ ...r, moveIn: v })}
+          type="date"
+          value={r.moveIn}
+        />
+        {/* A previous address is a span, not a moment, so it needs two dates. */}
+        {prev ? (
+          <Field
+            label="Moved out"
+            onChange={(v) => set({ ...r, moveOut: v })}
+            type="date"
+            value={r.moveOut || ""}
+          />
+        ) : (
+          <Field
+            label="Monthly payment"
+            onChange={(v) => set({ ...r, payment: v })}
+            value={r.payment}
+          />
+        )}
+      </Row>
+      {prev && (
+        <Row>
+          <Field
+            label="Monthly payment"
+            onChange={(v) => set({ ...r, payment: v })}
+            value={r.payment}
+          />
+        </Row>
       )}
-      <Field label="Monthly payment" value={r.payment} onChange={(v) => set({ ...r, payment: v })} />
-      <div style={{ flex: 1, minWidth: 140 }}>
-        <span style={{ display: "block", fontSize: 12, color: GRAY, marginBottom: 8 }}>Rent or own</span>
-        <Radio name={prev ? "prevRO" : "curRO"} value="rent" current={r.rentOrOwn} onChange={(v) => set({ ...r, rentOrOwn: v as "rent" })} label="Rent" />
-        <Radio name={prev ? "prevRO" : "curRO"} value="own" current={r.rentOrOwn} onChange={(v) => set({ ...r, rentOrOwn: v as "own" })} label="Own" />
+      <div className="mb-3.5">
+        <Choice
+          label="Rent or own"
+          onChange={(v) => set({ ...r, rentOrOwn: v as "rent" | "own" })}
+          options={[
+            { value: "rent", label: "Rent" },
+            { value: "own", label: "Own" },
+          ]}
+          value={r.rentOrOwn}
+        />
       </div>
-    </Row>
-    {!prev && <Row><Field label="Reason for leaving" value={r.reason} onChange={(v) => set({ ...r, reason: v })} /></Row>}
-    <Row>
-      <Field label="Landlord / mortgage company" value={r.landlord} onChange={(v) => set({ ...r, landlord: v })} />
-      <Field label="Landlord phone" type="tel" value={r.landlordPhone} onChange={(v) => set({ ...r, landlordPhone: v })} />
-      <Field label="Landlord email" type="email" value={r.landlordEmail} onChange={(v) => set({ ...r, landlordEmail: v })} />
-    </Row>
-  </>
-);
-const JobFields = ({ j, set, id }: { j: Job; set: (j: Job) => void; id: string }) => (
-  <>
-    <Row>
-      <Field label="Employer" value={j.employer} onChange={(v) => set({ ...j, employer: v })} />
-      <Field label="Position" value={j.position} onChange={(v) => set({ ...j, position: v })} />
-      <Field label="Start date" type="date" value={j.start} onChange={(v) => set({ ...j, start: v })} />
-    </Row>
-    <Row>
-      <Field label="Supervisor name & phone" value={j.supervisor} onChange={(v) => set({ ...j, supervisor: v })} />
-      <Field label="Gross monthly income ($)" value={j.income} onChange={(v) => set({ ...j, income: v })} />
-      <div style={{ flex: 1, minWidth: 200 }}>
-        <span style={{ display: "block", fontSize: 12, color: GRAY, marginBottom: 8 }}>Type</span>
-        <Radio name={id} value="full" current={j.type} onChange={(v) => set({ ...j, type: v as "full" })} label="Full-time" />
-        <Radio name={id} value="part" current={j.type} onChange={(v) => set({ ...j, type: v as "part" })} label="Part-time" />
-        <Radio name={id} value="self" current={j.type} onChange={(v) => set({ ...j, type: v as "self" })} label="Self-employed" />
-      </div>
-    </Row>
-  </>
-);
+      {!prev && (
+        <Row>
+          <Field
+            label="Reason for leaving"
+            onChange={(v) => set({ ...r, reason: v })}
+            value={r.reason}
+            wide
+          />
+        </Row>
+      )}
+      <Row>
+        <Field
+          label="Landlord or mortgage company"
+          onChange={(v) => set({ ...r, landlord: v })}
+          value={r.landlord}
+          wide
+        />
+      </Row>
+      <Row>
+        <Field
+          label="Landlord phone"
+          onChange={(v) => set({ ...r, landlordPhone: v })}
+          type="tel"
+          value={r.landlordPhone}
+        />
+        <Field
+          label="Landlord email"
+          onChange={(v) => set({ ...r, landlordEmail: v })}
+          type="email"
+          value={r.landlordEmail}
+        />
+      </Row>
+    </>
+  );
+}
 
-/* ---------- main component ---------- */
+function JobFields({ j, set }: { j: Job; set: (j: Job) => void }) {
+  return (
+    <>
+      <Row>
+        <Field
+          label="Employer"
+          onChange={(v) => set({ ...j, employer: v })}
+          value={j.employer}
+          wide
+        />
+      </Row>
+      <Row>
+        <Field
+          label="Position"
+          onChange={(v) => set({ ...j, position: v })}
+          value={j.position}
+        />
+        <Field
+          label="Start date"
+          onChange={(v) => set({ ...j, start: v })}
+          type="date"
+          value={j.start}
+        />
+      </Row>
+      <Row>
+        <Field
+          label="Supervisor name and phone"
+          onChange={(v) => set({ ...j, supervisor: v })}
+          value={j.supervisor}
+          wide
+        />
+      </Row>
+      <Row>
+        <Field
+          label="Gross monthly income"
+          onChange={(v) => set({ ...j, income: v })}
+          placeholder="$"
+          value={j.income}
+          wide
+        />
+      </Row>
+      <Choice
+        label="Type"
+        onChange={(v) => set({ ...j, type: v as Job["type"] })}
+        options={[
+          { value: "full", label: "Full-time" },
+          { value: "part", label: "Part-time" },
+          { value: "self", label: "Self-employed" },
+        ]}
+        value={j.type}
+      />
+    </>
+  );
+}
+
+/* ---------------- steps ---------------- */
+
+const STEPS = [
+  "About you",
+  "Address",
+  "Income",
+  "Household",
+  "Background",
+  "Review",
+];
+
+/** What has to be answered before this step can be left. Mirrors validate(). */
+function stepProblem(step: number, app: Application): string | null {
+  if (step === 0) {
+    if (!app.applyingFor) return "Choose what they are applying for.";
+    if (!app.applicant.name.trim()) return "Enter the applicant's full name.";
+    if (!app.applicant.dob) return "Enter the applicant's date of birth.";
+    if (!app.applicant.phone.trim()) return "Enter the applicant's phone.";
+    return null;
+  }
+  if (step === 1) {
+    if (!app.current.address.trim()) return "Enter the current address.";
+    return null;
+  }
+  if (step === 2) {
+    if (!app.job.employer.trim() && app.otherIncome.length === 0) {
+      return "Add an employer, or at least one other income source.";
+    }
+    return null;
+  }
+  if (step === 4) {
+    if (Object.values(app.background).some((v) => v === null)) {
+      return "Answer every background question.";
+    }
+    if (!app.emergency.name.trim() || !app.emergency.phone.trim()) {
+      return "Enter an emergency contact name and phone.";
+    }
+    return null;
+  }
+  return null;
+}
+
+/** A failed submit lands on the step that holds the problem. */
+function stepForError(message: string): number {
+  const m = message.toLowerCase();
+  if (m.includes("current address")) return 1;
+  if (m.includes("employment") || m.includes("income source")) return 2;
+  if (m.includes("emergency") || m.includes("background")) return 4;
+  if (m.includes("certif") || m.includes("sign")) return 5;
+  return 0;
+}
+
+/* ---------------- main component ---------------- */
+
 interface Props {
   initial?: Application;
-  lots?: Array<{ id: number; label?: string }>;   // available lots for the dropdown
+  lots?: Array<{ id: number; label?: string }>;
   onSubmit: (app: Application) => Promise<void> | void;
   onSaveDraft?: (app: Application) => Promise<void> | void;
 }
 
-export default function HtmRentalApplication({ initial, lots, onSubmit, onSaveDraft }: Props) {
+export default function HtmRentalApplication({
+  initial,
+  lots,
+  onSubmit,
+  onSaveDraft,
+}: Props) {
   const [app, setApp] = useState<Application>(initial ?? emptyApplication());
+  const [step, setStep] = useState(0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
-  const up = <K extends keyof Application>(k: K, v: Application[K]) => setApp((a) => ({ ...a, [k]: v }));
 
-  const adults = 1 + (app.coApplicant.name ? 1 : 0) + app.occupants.filter((o) => Number(o.age) >= 18).length;
+  const up = <K extends keyof Application>(k: K, v: Application[K]) =>
+    setApp((a) => ({ ...a, [k]: v }));
+
+  const adults =
+    1 +
+    (app.coApplicant.name ? 1 : 0) +
+    app.occupants.filter((o) => Number(o.age) >= 18).length;
   const fee = adults * 25;
-  const petDeposit = app.pets.length * 50, petRent = app.pets.length * 25;
-  const income = Number(app.job.income || 0) + Number(app.coJob.income || 0) + app.otherIncome.reduce((s, i) => s + Number(i.amount || 0), 0);
+  const petDeposit = app.pets.length * 50;
+  const petRent = app.pets.length * 25;
+  const income =
+    Number(app.job.income || 0) +
+    Number(app.coJob.income || 0) +
+    app.otherIncome.reduce((s, i) => s + Number(i.amount || 0), 0);
+
+  const toTop = () => window.scrollTo({ top: 0, behavior: "smooth" });
+
+  const goNext = () => {
+    const problem = stepProblem(step, app);
+    if (problem) {
+      setError(problem);
+      toTop();
+      return;
+    }
+    setError(null);
+    setStep((s) => Math.min(s + 1, STEPS.length - 1));
+    toTop();
+  };
+
+  const goBack = () => {
+    setError(null);
+    setStep((s) => Math.max(s - 1, 0));
+    toTop();
+  };
 
   const validate = (): string | null => {
-    if (!app.applyingFor) return "Select what you're applying for.";
-    if (!app.applicant.name || !app.applicant.phone) return "Applicant name and phone are required.";
+    if (!app.applyingFor) return "Choose what they are applying for.";
+    if (!app.applicant.name || !app.applicant.phone)
+      return "Applicant name and phone are required.";
     if (!app.applicant.dob) return "Applicant date of birth is required.";
     if (!app.current.address) return "Current address is required.";
-    if (!app.job.employer && app.otherIncome.length === 0) return "Add employment or another income source.";
-    if (!app.emergency.name || !app.emergency.phone) return "Emergency contact is required.";
-    if (Object.values(app.background).some((v) => v === null)) return "Answer every background question.";
-    if (!app.certify || !app.signature) return "Check the certification box and type your name to sign.";
+    if (!app.job.employer && app.otherIncome.length === 0)
+      return "Add employment or another income source.";
+    if (!app.emergency.name || !app.emergency.phone)
+      return "Emergency contact is required.";
+    if (Object.values(app.background).some((v) => v === null))
+      return "Answer every background question.";
+    if (!app.certify || !app.signature)
+      return "Tick the certification and type a name to sign.";
     return null;
   };
 
   const submit = async () => {
     const err = validate();
-    if (err) { setError(err); window.scrollTo({ top: 0, behavior: "smooth" }); return; }
-    setError(null); setBusy(true);
-    try { await onSubmit({ ...app, signDate: new Date().toISOString() }); setDone(true); }
-    catch (e: any) { setError(e?.message || "Could not submit. Try again."); }
-    finally { setBusy(false); }
+    if (err) {
+      setError(err);
+      setStep(stepForError(err));
+      toTop();
+      return;
+    }
+    setError(null);
+    setBusy(true);
+    try {
+      await onSubmit({ ...app, signDate: new Date().toISOString() });
+      setDone(true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not submit. Try again.");
+    } finally {
+      setBusy(false);
+    }
   };
 
-  if (done) return (
-    <div style={{ maxWidth: 720, margin: "0 auto", padding: 24, fontFamily: "inherit", color: NAVY, textAlign: "center" }}>
-      <h2 style={{ fontSize: 22 }}>Thank you, {app.applicant.name.split(" ")[0]}!</h2>
-      <p style={{ color: GRAY }}>Your application for Hometown Meadows has been received. We'll review it within 2–3 business days and call you at {app.applicant.phone}. Your ${fee} application fee is due at the community office.</p>
-    </div>
-  );
+  if (done) {
+    return (
+      <div className="px-4 py-10 text-center">
+        <div className="mx-auto max-w-[420px] rounded-2xl border border-[#DCE4EE] bg-white p-6 shadow-[0_1px_2px_rgba(30,58,138,0.04)]">
+          <h2 className="text-[20px] font-bold tracking-[-0.01em] text-[#0F1E33]">
+            Application taken
+          </h2>
+          <p className="mt-2 text-[15px] leading-relaxed text-[#6C7484]">
+            {app.applicant.name.split(" ")[0] || "The applicant"} is in the
+            system. The office will review within two to three business days and
+            call {app.applicant.phone}.
+          </p>
+          <p className="mt-3 text-[15px] font-semibold text-[#0F1E33]">
+            ${fee} fee due at the office
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div style={{ maxWidth: 720, margin: "0 auto", padding: "16px 14px 40px", fontFamily: "inherit", color: NAVY }}>
-      <header style={{ borderBottom: `3px solid ${CORAL}`, paddingBottom: 8, marginBottom: 14 }}>
-        <div style={{ fontSize: 24, fontWeight: 700 }}>HOMETOWN MEADOWS</div>
-        <div style={{ fontSize: 14, color: CORAL }}>A Family Community · Nashville, Arkansas</div>
-        <h2 style={{ fontSize: 18, fontWeight: 600, margin: "12px 0 4px" }}>Application for Residency</h2>
-        <p style={{ fontSize: 13, color: GRAY, margin: 0 }}>Each adult 18+ who will live in the home must submit their own application. $25 non-refundable fee per adult.</p>
-      </header>
-
-      {error && <div role="alert" style={{ background: "#FBDDD3", border: `1px solid ${CORAL}`, color: "#8A2E14", padding: "10px 12px", borderRadius: 8, marginBottom: 14, fontSize: 14 }}>{error}</div>}
-
-      <Row>
-        <Field label="Date" type="date" value={app.date} onChange={(v) => up("date", v)} />
-        <label style={{ display: "block", flex: 1, minWidth: 140 }}>
-          <span style={{ display: "block", fontSize: 12, color: GRAY, marginBottom: 4 }}>Home / Lot #</span>
-          {lots ? (
-            <select style={inputStyle} value={app.lot} onChange={(e) => up("lot", e.target.value)}>
-              <option value="">Any available</option>
-              {lots.map((l) => <option key={l.id} value={String(l.id)}>Lot {l.id}{l.label ? ` — ${l.label}` : ""}</option>)}
-            </select>
-          ) : <input style={inputStyle} value={app.lot} onChange={(e) => up("lot", e.target.value)} />}
-        </label>
-        <Field label="Requested move-in date" type="date" value={app.moveIn} onChange={(v) => up("moveIn", v)} />
-      </Row>
-      <div style={{ marginBottom: 18 }}>
-        <span style={{ fontSize: 14, fontWeight: 600, marginRight: 10 }}>I am applying to:</span>
-        <Radio name="af" value="community_home" current={app.applyingFor} onChange={(v) => up("applyingFor", v as ApplyingFor)} label="Rent a community-owned home" />
-        <Radio name="af" value="lot_only" current={app.applyingFor} onChange={(v) => up("applyingFor", v as ApplyingFor)} label="Rent a lot for my own home" />
-        <Radio name="af" value="rent_to_own" current={app.applyingFor} onChange={(v) => up("applyingFor", v as ApplyingFor)} label="Rent-to-own" />
+    <div className="pb-28">
+      {/* Where they are, and how much is left. */}
+      <div className="sticky top-0 z-30 -mx-4 mb-4 border-b border-[#DCE4EE] bg-[#F7F9FC]/95 px-4 pb-3 pt-3 backdrop-blur">
+        <div className="flex items-baseline justify-between">
+          <span className="text-[15px] font-bold tracking-[-0.01em] text-[#0F1E33]">
+            {STEPS[step]}
+          </span>
+          <span className="text-[12.5px] font-semibold uppercase tracking-[0.06em] text-[#6C7484]">
+            Step {step + 1} of {STEPS.length}
+          </span>
+        </div>
+        <div className="mt-2 flex gap-1.5">
+          {STEPS.map((s, i) => (
+            <span
+              className={`h-1.5 flex-1 rounded-full ${
+                i <= step ? "bg-[#1E3A8A]" : "bg-[#DCE4EE]"
+              }`}
+              key={s}
+            />
+          ))}
+        </div>
       </div>
 
-      <Section n={1} title="Applicant"><PersonFields p={app.applicant} set={(p) => up("applicant", p)} /></Section>
-
-      <Section n={2} title="Co-Applicant">
-        <PersonFields p={app.coApplicant} set={(p) => up("coApplicant", p)} />
-        <Row><Field label="Relationship to applicant" value={app.coRelationship} onChange={(v) => up("coRelationship", v)} /></Row>
-      </Section>
-
-      <Section n={3} title="Everyone who will live in the home" hint="List all other occupants, including children.">
-        {app.occupants.map((o, i) => (
-          <Row key={i}>
-            <Field label="Full name" value={o.name} onChange={(v) => up("occupants", app.occupants.map((x, j) => j === i ? { ...x, name: v } : x))} />
-            <Field label="Relationship" value={o.relationship} onChange={(v) => up("occupants", app.occupants.map((x, j) => j === i ? { ...x, relationship: v } : x))} />
-            <Field label="Age" value={o.age} onChange={(v) => up("occupants", app.occupants.map((x, j) => j === i ? { ...x, age: v } : x))} />
-            <RemoveBtn onClick={() => up("occupants", app.occupants.filter((_, j) => j !== i))} />
-          </Row>
-        ))}
-        <AddBtn label="Add occupant" onClick={() => up("occupants", [...app.occupants, { name: "", relationship: "", age: "", adultApplied: false }])} />
-      </Section>
-
-      <Section n={4} title="Current address"><ResidenceFields r={app.current} set={(r) => up("current", r)} /></Section>
-      <Section n={5} title="Previous address" hint="If less than 3 years at your current address."><ResidenceFields prev r={app.previous} set={(r) => up("previous", r)} /></Section>
-
-      <Section n={6} title="Employment & income" hint="Proof required: two recent pay stubs, a benefit award letter, or three months of bank statements.">
-        <p style={{ fontSize: 14, fontWeight: 600, margin: "0 0 8px" }}>Applicant</p>
-        <JobFields id="j1" j={app.job} set={(j) => up("job", j)} />
-        <p style={{ fontSize: 14, fontWeight: 600, margin: "8px 0" }}>Co-applicant</p>
-        <JobFields id="j2" j={app.coJob} set={(j) => up("coJob", j)} />
-        <p style={{ fontSize: 14, fontWeight: 600, margin: "8px 0" }}>Other income (SSI, SSDI, child support, retirement, VA, housing assistance)</p>
-        {app.otherIncome.map((o, i) => (
-          <Row key={i}>
-            <Field label="Source" value={o.source} onChange={(v) => up("otherIncome", app.otherIncome.map((x, j) => j === i ? { ...x, source: v } : x))} />
-            <Field label="Monthly amount ($)" value={o.amount} onChange={(v) => up("otherIncome", app.otherIncome.map((x, j) => j === i ? { ...x, amount: v } : x))} />
-            <Field label="Recipient" value={o.recipient} onChange={(v) => up("otherIncome", app.otherIncome.map((x, j) => j === i ? { ...x, recipient: v } : x))} />
-            <RemoveBtn onClick={() => up("otherIncome", app.otherIncome.filter((_, j) => j !== i))} />
-          </Row>
-        ))}
-        <AddBtn label="Add income source" onClick={() => up("otherIncome", [...app.otherIncome, { source: "", amount: "", recipient: "" }])} />
-        {income > 0 && <p style={{ fontSize: 13, color: GRAY, marginTop: 10 }}>Total monthly household income: <b style={{ color: NAVY }}>${income.toLocaleString()}</b> · supports rent up to about ${Math.floor(income / 3).toLocaleString()}/mo</p>}
-      </Section>
-
-      <Section n={7} title="Vehicles" hint="All vehicles kept in the community must be registered, insured, and operable.">
-        {app.vehicles.map((v, i) => (
-          <Row key={i}>
-            <Field label="Year / Make / Model" value={v.ymm} onChange={(x) => up("vehicles", app.vehicles.map((y, j) => j === i ? { ...y, ymm: x } : y))} />
-            <Field label="Color" value={v.color} onChange={(x) => up("vehicles", app.vehicles.map((y, j) => j === i ? { ...y, color: x } : y))} />
-            <Field label="Plate # / State" value={v.plate} onChange={(x) => up("vehicles", app.vehicles.map((y, j) => j === i ? { ...y, plate: x } : y))} />
-            <RemoveBtn onClick={() => up("vehicles", app.vehicles.filter((_, j) => j !== i))} />
-          </Row>
-        ))}
-        <AddBtn label="Add vehicle" onClick={() => up("vehicles", [...app.vehicles, { ymm: "", color: "", plate: "", owner: "" }])} />
-      </Section>
-
-      <Section n={8} title="Pets" hint="Pets require written approval before move-in. $50 deposit and $25/month pet rent per pet.">
-        {app.pets.map((p, i) => (
-          <Row key={i}>
-            <Field label="Type / Breed" value={p.type} onChange={(x) => up("pets", app.pets.map((y, j) => j === i ? { ...y, type: x } : y))} />
-            <Field label="Name" value={p.name} onChange={(x) => up("pets", app.pets.map((y, j) => j === i ? { ...y, name: x } : y))} />
-            <Field label="Weight (lb)" value={p.weight} onChange={(x) => up("pets", app.pets.map((y, j) => j === i ? { ...y, weight: x } : y))} />
-            <label style={{ alignSelf: "flex-end", fontSize: 13, whiteSpace: "nowrap", paddingBottom: 10 }}><input type="checkbox" checked={p.fixed} onChange={(e) => up("pets", app.pets.map((y, j) => j === i ? { ...y, fixed: e.target.checked } : y))} /> Spayed/neutered</label>
-            <RemoveBtn onClick={() => up("pets", app.pets.filter((_, j) => j !== i))} />
-          </Row>
-        ))}
-        <AddBtn label="Add pet" onClick={() => up("pets", [...app.pets, { type: "", name: "", weight: "", age: "", fixed: false }])} />
-        {app.pets.length > 0 && <p style={{ fontSize: 13, color: GRAY, marginTop: 10 }}>{app.pets.length} pet{app.pets.length > 1 ? "s" : ""}: <b style={{ color: NAVY }}>${petDeposit}</b> deposit + <b style={{ color: NAVY }}>${petRent}/mo</b> pet rent</p>}
-      </Section>
-
-      {app.applyingFor !== "community_home" && (
-        <Section n={9} title="Your home" hint="If bringing or buying your own manufactured home.">
-          <Row>
-            <Field label="Year / Make / Model" value={app.ownHome.ymm} onChange={(v) => up("ownHome", { ...app.ownHome, ymm: v })} />
-            <Field label="Size (e.g., 14×70)" value={app.ownHome.size} onChange={(v) => up("ownHome", { ...app.ownHome, size: v })} />
-            <Field label="Serial / VIN #" value={app.ownHome.serial} onChange={(v) => up("ownHome", { ...app.ownHome, serial: v })} />
-          </Row>
-          <Row>
-            <Field label="Lienholder (if financed)" value={app.ownHome.lienholder} onChange={(v) => up("ownHome", { ...app.ownHome, lienholder: v })} />
-            <div style={{ flex: 1, minWidth: 180 }}><span style={{ display: "block", fontSize: 12, color: GRAY, marginBottom: 8 }}>Titled in your name?</span><YesNo value={app.ownHome.titled} onChange={(v) => up("ownHome", { ...app.ownHome, titled: v })} /></div>
-          </Row>
-          <Row>
-            <Field label="Transport / set-up company" value={app.ownHome.transport} onChange={(v) => up("ownHome", { ...app.ownHome, transport: v })} />
-            <Field label="Insurance carrier" value={app.ownHome.insurance} onChange={(v) => up("ownHome", { ...app.ownHome, insurance: v })} />
-          </Row>
-        </Section>
+      {error && (
+        <div
+          className="mb-4 rounded-2xl border border-[#B4462B] border-l-4 bg-[#FBEDEA] px-4 py-3 text-[14.5px] text-[#8A2E14]"
+          role="alert"
+        >
+          {error}
+        </div>
       )}
 
-      <Section n={10} title="Background" hint="A “yes” does not automatically disqualify you. Please explain so we can review fairly.">
-        {BACKGROUND_QS.map(([k, q]) => (
-          <div key={k} style={{ display: "flex", gap: 12, alignItems: "flex-start", marginBottom: 10, fontSize: 14 }}>
-            <YesNo value={app.background[k]} onChange={(v) => up("background", { ...app.background, [k]: v })} />
-            <span>{q}</span>
-          </div>
-        ))}
-        <label style={{ display: "block" }}>
-          <span style={{ display: "block", fontSize: 12, color: GRAY, marginBottom: 4 }}>Explanation (if any)</span>
-          <textarea style={{ ...inputStyle, minHeight: 70 }} value={app.backgroundNote} onChange={(e) => up("backgroundNote", e.target.value)} />
-        </label>
-      </Section>
+      {/* ---- Step 0: about you ---- */}
+      {step === 0 && (
+        <>
+          <Block title="This application">
+            <Row>
+              <Field
+                label="Date"
+                onChange={(v) => up("date", v)}
+                type="date"
+                value={app.date}
+              />
+              <Field
+                label="Requested move-in"
+                onChange={(v) => up("moveIn", v)}
+                type="date"
+                value={app.moveIn}
+              />
+            </Row>
+            <Row>
+              <label className="block w-full">
+                <span className={LABEL}>Home or lot</span>
+                {lots ? (
+                  <select
+                    className={INPUT}
+                    onChange={(e) => up("lot", e.target.value)}
+                    value={app.lot}
+                  >
+                    <option value="">Any available</option>
+                    {lots.map((l) => (
+                      <option key={l.id} value={String(l.id)}>
+                        Lot {l.id}
+                        {l.label ? ` — ${l.label}` : ""}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    className={INPUT}
+                    onChange={(e) => up("lot", e.target.value)}
+                    placeholder="Any available"
+                    value={app.lot}
+                  />
+                )}
+              </label>
+            </Row>
+            <Choice
+              label="Applying for"
+              onChange={(v) => up("applyingFor", v as ApplyingFor)}
+              options={[
+                { value: "community_home", label: "Community home" },
+                { value: "lot_only", label: "Lot only" },
+                { value: "rent_to_own", label: "Rent to own" },
+              ]}
+              value={app.applyingFor}
+            />
+          </Block>
 
-      <Section n={11} title="References & emergency contact">
-        {app.references.map((r, i) => (
-          <Row key={i}>
-            <Field label="Reference name" value={r.name} onChange={(v) => up("references", app.references.map((x, j) => j === i ? { ...x, name: v } : x))} />
-            <Field label="Relationship" value={r.relationship} onChange={(v) => up("references", app.references.map((x, j) => j === i ? { ...x, relationship: v } : x))} />
-            <Field label="Phone" type="tel" value={r.phone} onChange={(v) => up("references", app.references.map((x, j) => j === i ? { ...x, phone: v } : x))} />
-            {app.references.length > 1 && <RemoveBtn onClick={() => up("references", app.references.filter((_, j) => j !== i))} />}
-          </Row>
-        ))}
-        <AddBtn label="Add reference" onClick={() => up("references", [...app.references, { name: "", relationship: "", phone: "" }])} />
-        <p style={{ fontSize: 14, fontWeight: 600, margin: "14px 0 8px" }}>Emergency contact (someone not living with you)</p>
-        <Row>
-          <Field label="Name" value={app.emergency.name} onChange={(v) => up("emergency", { ...app.emergency, name: v })} />
-          <Field label="Relationship" value={app.emergency.relationship} onChange={(v) => up("emergency", { ...app.emergency, relationship: v })} />
-          <Field label="Phone" type="tel" value={app.emergency.phone} onChange={(v) => up("emergency", { ...app.emergency, phone: v })} />
-        </Row>
-      </Section>
+          <Block title="Applicant">
+            <PersonFields p={app.applicant} set={(p) => up("applicant", p)} />
+          </Block>
 
-      <Section n={12} title="How did you hear about us?">
-        {["Facebook", "Drove by", "Current resident", "Zillow / online", "Other"].map((s) => (
-          <Radio key={s} name="src" value={s} current={app.source} onChange={(v) => up("source", v)} label={s} />
-        ))}
-        {(app.source === "Current resident" || app.source === "Other") && <Row><Field label={app.source === "Other" ? "Please specify" : "Resident's name"} value={app.sourceOther} onChange={(v) => up("sourceOther", v)} /></Row>}
-      </Section>
+          <Block title="Co-applicant" hint="Leave blank if applying alone.">
+            <PersonFields
+              p={app.coApplicant}
+              set={(p) => up("coApplicant", p)}
+            />
+            <Row>
+              <Field
+                label="Relationship to applicant"
+                onChange={(v) => up("coRelationship", v)}
+                value={app.coRelationship}
+                wide
+              />
+            </Row>
+          </Block>
+        </>
+      )}
 
-      <Section n={13} title="Authorization & agreement">
-        <ul style={{ fontSize: 13, color: NAVY, paddingLeft: 18, margin: "0 0 12px", lineHeight: 1.5 }}>
-          <li>Everything in this application is true and complete. False or missing information is grounds for denial or termination of residency.</li>
-          <li>I authorize Hometown Meadows and its agents to obtain my consumer credit report, criminal background, eviction history, and to verify my employment, income, and rental history.</li>
-          <li>The non-refundable application fee is $25 per adult applicant (<b>${fee}</b> for this application).</li>
-          <li>Approval is based on income (generally 3× monthly rent), rental history, background, and credit. Hometown Meadows does not discriminate on the basis of race, color, religion, sex, national origin, familial status, disability, or any other protected class.</li>
-          <li>A home is reserved only when a deposit is paid and a residency agreement is signed.</li>
-        </ul>
-        <label style={{ display: "flex", gap: 8, alignItems: "flex-start", fontSize: 14, marginBottom: 12 }}>
-          <input type="checkbox" checked={app.certify} onChange={(e) => up("certify", e.target.checked)} style={{ marginTop: 3 }} />
-          <span>I have read and agree to the above.</span>
-        </label>
-        <Row>
-          <Field label="Applicant — type full name to sign" value={app.signature} onChange={(v) => up("signature", v)} />
-          <Field label="Co-applicant — type full name to sign" value={app.coSignature} onChange={(v) => up("coSignature", v)} />
-        </Row>
-      </Section>
+      {/* ---- Step 1: address history ---- */}
+      {step === 1 && (
+        <>
+          <Block title="Current address">
+            <ResidenceFields r={app.current} set={(r) => up("current", r)} />
+          </Block>
+          <Block
+            hint="Only if less than three years at the current address."
+            title="Previous address"
+          >
+            <ResidenceFields
+              prev
+              r={app.previous}
+              set={(r) => up("previous", r)}
+            />
+          </Block>
+        </>
+      )}
 
-      <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", background: BG, padding: 12, borderRadius: 10 }}>
-        {onSaveDraft && <button type="button" disabled={busy} onClick={() => onSaveDraft(app)} style={{ fontSize: 14, padding: "10px 16px", border: `1px solid ${LINE}`, borderRadius: 8, background: "#fff", color: NAVY, cursor: "pointer" }}>Save draft</button>}
-        <button type="button" disabled={busy} onClick={submit} style={{ fontSize: 14, fontWeight: 600, padding: "10px 18px", border: "none", borderRadius: 8, background: CORAL, color: "#fff", cursor: "pointer", opacity: busy ? 0.6 : 1 }}>{busy ? "Submitting…" : "Submit application"}</button>
+      {/* ---- Step 2: income ---- */}
+      {step === 2 && (
+        <>
+          <Block
+            hint="Two recent pay stubs, a benefit award letter, or three months of bank statements."
+            title="Applicant employment"
+          >
+            <JobFields j={app.job} set={(j) => up("job", j)} />
+          </Block>
+
+          <Block title="Co-applicant employment">
+            <JobFields j={app.coJob} set={(j) => up("coJob", j)} />
+          </Block>
+
+          <Block
+            hint="SSI, SSDI, child support, retirement, VA, housing assistance."
+            title="Other income"
+          >
+            {app.otherIncome.map((o, i) => (
+              <RepeatCard
+                key={i}
+                onRemove={() =>
+                  up(
+                    "otherIncome",
+                    app.otherIncome.filter((_, j) => j !== i),
+                  )
+                }
+                title={`Source ${i + 1}`}
+              >
+                <Row>
+                  <Field
+                    label="Source"
+                    onChange={(v) =>
+                      up(
+                        "otherIncome",
+                        app.otherIncome.map((x, j) =>
+                          j === i ? { ...x, source: v } : x,
+                        ),
+                      )
+                    }
+                    value={o.source}
+                    wide
+                  />
+                </Row>
+                <Row>
+                  <Field
+                    label="Monthly amount"
+                    onChange={(v) =>
+                      up(
+                        "otherIncome",
+                        app.otherIncome.map((x, j) =>
+                          j === i ? { ...x, amount: v } : x,
+                        ),
+                      )
+                    }
+                    placeholder="$"
+                    value={o.amount}
+                  />
+                  <Field
+                    label="Who receives it"
+                    onChange={(v) =>
+                      up(
+                        "otherIncome",
+                        app.otherIncome.map((x, j) =>
+                          j === i ? { ...x, recipient: v } : x,
+                        ),
+                      )
+                    }
+                    value={o.recipient}
+                  />
+                </Row>
+              </RepeatCard>
+            ))}
+            <AddBtn
+              label="Add income source"
+              onClick={() =>
+                up("otherIncome", [
+                  ...app.otherIncome,
+                  { source: "", amount: "", recipient: "" },
+                ])
+              }
+            />
+            {income > 0 && (
+              <p className="mt-3 text-[14px] text-[#6C7484]">
+                Household income{" "}
+                <b className="text-[#0F1E33]">${income.toLocaleString()}</b> a
+                month, which supports rent up to about{" "}
+                <b className="text-[#0F1E33]">
+                  ${Math.floor(income / 3).toLocaleString()}
+                </b>
+                .
+              </p>
+            )}
+          </Block>
+        </>
+      )}
+
+      {/* ---- Step 3: household ---- */}
+      {step === 3 && (
+        <>
+          <Block hint="Everyone else, including children." title="Occupants">
+            {app.occupants.map((o, i) => (
+              <RepeatCard
+                key={i}
+                onRemove={() =>
+                  up(
+                    "occupants",
+                    app.occupants.filter((_, j) => j !== i),
+                  )
+                }
+                title={`Occupant ${i + 1}`}
+              >
+                <Row>
+                  <Field
+                    label="Full name"
+                    onChange={(v) =>
+                      up(
+                        "occupants",
+                        app.occupants.map((x, j) =>
+                          j === i ? { ...x, name: v } : x,
+                        ),
+                      )
+                    }
+                    value={o.name}
+                    wide
+                  />
+                </Row>
+                <Row>
+                  <Field
+                    label="Relationship"
+                    onChange={(v) =>
+                      up(
+                        "occupants",
+                        app.occupants.map((x, j) =>
+                          j === i ? { ...x, relationship: v } : x,
+                        ),
+                      )
+                    }
+                    value={o.relationship}
+                  />
+                  <Field
+                    label="Age"
+                    onChange={(v) =>
+                      up(
+                        "occupants",
+                        app.occupants.map((x, j) =>
+                          j === i ? { ...x, age: v } : x,
+                        ),
+                      )
+                    }
+                    value={o.age}
+                  />
+                </Row>
+              </RepeatCard>
+            ))}
+            <AddBtn
+              label="Add occupant"
+              onClick={() =>
+                up("occupants", [
+                  ...app.occupants,
+                  { name: "", relationship: "", age: "", adultApplied: false },
+                ])
+              }
+            />
+          </Block>
+
+          <Block
+            hint="Anything kept here must be registered, insured and running."
+            title="Vehicles"
+          >
+            {app.vehicles.map((v, i) => (
+              <RepeatCard
+                key={i}
+                onRemove={() =>
+                  up(
+                    "vehicles",
+                    app.vehicles.filter((_, j) => j !== i),
+                  )
+                }
+                title={`Vehicle ${i + 1}`}
+              >
+                <Row>
+                  <Field
+                    label="Year, make, model"
+                    onChange={(x) =>
+                      up(
+                        "vehicles",
+                        app.vehicles.map((y, j) =>
+                          j === i ? { ...y, ymm: x } : y,
+                        ),
+                      )
+                    }
+                    value={v.ymm}
+                    wide
+                  />
+                </Row>
+                <Row>
+                  <Field
+                    label="Colour"
+                    onChange={(x) =>
+                      up(
+                        "vehicles",
+                        app.vehicles.map((y, j) =>
+                          j === i ? { ...y, color: x } : y,
+                        ),
+                      )
+                    }
+                    value={v.color}
+                  />
+                  <Field
+                    label="Plate and state"
+                    onChange={(x) =>
+                      up(
+                        "vehicles",
+                        app.vehicles.map((y, j) =>
+                          j === i ? { ...y, plate: x } : y,
+                        ),
+                      )
+                    }
+                    value={v.plate}
+                  />
+                </Row>
+              </RepeatCard>
+            ))}
+            <AddBtn
+              label="Add vehicle"
+              onClick={() =>
+                up("vehicles", [
+                  ...app.vehicles,
+                  { ymm: "", color: "", plate: "", owner: "" },
+                ])
+              }
+            />
+          </Block>
+
+          <Block
+            hint="Written approval before move-in. $50 deposit and $25 a month each."
+            title="Pets"
+          >
+            {app.pets.map((p, i) => (
+              <RepeatCard
+                key={i}
+                onRemove={() =>
+                  up(
+                    "pets",
+                    app.pets.filter((_, j) => j !== i),
+                  )
+                }
+                title={`Pet ${i + 1}`}
+              >
+                <Row>
+                  <Field
+                    label="Type or breed"
+                    onChange={(x) =>
+                      up(
+                        "pets",
+                        app.pets.map((y, j) =>
+                          j === i ? { ...y, type: x } : y,
+                        ),
+                      )
+                    }
+                    value={p.type}
+                  />
+                  <Field
+                    label="Name"
+                    onChange={(x) =>
+                      up(
+                        "pets",
+                        app.pets.map((y, j) =>
+                          j === i ? { ...y, name: x } : y,
+                        ),
+                      )
+                    }
+                    value={p.name}
+                  />
+                </Row>
+                <Row>
+                  <Field
+                    label="Weight (lb)"
+                    onChange={(x) =>
+                      up(
+                        "pets",
+                        app.pets.map((y, j) =>
+                          j === i ? { ...y, weight: x } : y,
+                        ),
+                      )
+                    }
+                    value={p.weight}
+                  />
+                  <div className="min-w-[150px] flex-1">
+                    <span className={LABEL}>Spayed or neutered</span>
+                    <YesNo
+                      onChange={(v) =>
+                        up(
+                          "pets",
+                          app.pets.map((y, j) =>
+                            j === i ? { ...y, fixed: v } : y,
+                          ),
+                        )
+                      }
+                      value={p.fixed}
+                    />
+                  </div>
+                </Row>
+              </RepeatCard>
+            ))}
+            <AddBtn
+              label="Add pet"
+              onClick={() =>
+                up("pets", [
+                  ...app.pets,
+                  { type: "", name: "", weight: "", age: "", fixed: false },
+                ])
+              }
+            />
+            {app.pets.length > 0 && (
+              <p className="mt-3 text-[14px] text-[#6C7484]">
+                {app.pets.length} pet{app.pets.length > 1 ? "s" : ""}:{" "}
+                <b className="text-[#0F1E33]">${petDeposit}</b> deposit and{" "}
+                <b className="text-[#0F1E33]">${petRent}</b> a month.
+              </p>
+            )}
+          </Block>
+
+          {app.applyingFor !== "community_home" && (
+            <Block
+              hint="If they are bringing or buying their own home."
+              title="Their home"
+            >
+              <Row>
+                <Field
+                  label="Year, make, model"
+                  onChange={(v) => up("ownHome", { ...app.ownHome, ymm: v })}
+                  value={app.ownHome.ymm}
+                  wide
+                />
+              </Row>
+              <Row>
+                <Field
+                  label="Size"
+                  onChange={(v) => up("ownHome", { ...app.ownHome, size: v })}
+                  placeholder="14 x 70"
+                  value={app.ownHome.size}
+                />
+                <Field
+                  label="Serial or VIN"
+                  onChange={(v) => up("ownHome", { ...app.ownHome, serial: v })}
+                  value={app.ownHome.serial}
+                />
+              </Row>
+              <Row>
+                <Field
+                  label="Lienholder, if financed"
+                  onChange={(v) =>
+                    up("ownHome", { ...app.ownHome, lienholder: v })
+                  }
+                  value={app.ownHome.lienholder}
+                  wide
+                />
+              </Row>
+              <div className="mb-3.5">
+                <span className={LABEL}>Titled in their name</span>
+                <YesNo
+                  onChange={(v) => up("ownHome", { ...app.ownHome, titled: v })}
+                  value={app.ownHome.titled}
+                />
+              </div>
+              <Row>
+                <Field
+                  label="Transport or set-up company"
+                  onChange={(v) =>
+                    up("ownHome", { ...app.ownHome, transport: v })
+                  }
+                  value={app.ownHome.transport}
+                />
+                <Field
+                  label="Insurance carrier"
+                  onChange={(v) =>
+                    up("ownHome", { ...app.ownHome, insurance: v })
+                  }
+                  value={app.ownHome.insurance}
+                />
+              </Row>
+            </Block>
+          )}
+        </>
+      )}
+
+      {/* ---- Step 4: background ---- */}
+      {step === 4 && (
+        <>
+          <Block
+            hint="A yes does not disqualify anyone. It is asked so the office can review fairly."
+            title="Background"
+          >
+            {BACKGROUND_QS.map(([k, q]) => (
+              <div
+                className="mb-4 border-b border-[#F1F5F9] pb-4 last:mb-0 last:border-0 last:pb-0"
+                key={k}
+              >
+                <p className="mb-2.5 text-[15px] leading-snug text-[#1B2231]">
+                  {q}
+                </p>
+                <YesNo
+                  onChange={(v) =>
+                    up("background", { ...app.background, [k]: v })
+                  }
+                  value={app.background[k]}
+                />
+              </div>
+            ))}
+          </Block>
+
+          <Block title="Anything to explain">
+            <textarea
+              className={`${INPUT} min-h-[110px] resize-y`}
+              onChange={(e) => up("backgroundNote", e.target.value)}
+              value={app.backgroundNote}
+            />
+          </Block>
+
+          <Block title="References">
+            {app.references.map((r, i) => (
+              <RepeatCard
+                key={i}
+                onRemove={() =>
+                  up(
+                    "references",
+                    app.references.filter((_, j) => j !== i),
+                  )
+                }
+                title={`Reference ${i + 1}`}
+              >
+                <Row>
+                  <Field
+                    label="Name"
+                    onChange={(v) =>
+                      up(
+                        "references",
+                        app.references.map((x, j) =>
+                          j === i ? { ...x, name: v } : x,
+                        ),
+                      )
+                    }
+                    value={r.name}
+                    wide
+                  />
+                </Row>
+                <Row>
+                  <Field
+                    label="Relationship"
+                    onChange={(v) =>
+                      up(
+                        "references",
+                        app.references.map((x, j) =>
+                          j === i ? { ...x, relationship: v } : x,
+                        ),
+                      )
+                    }
+                    value={r.relationship}
+                  />
+                  <Field
+                    label="Phone"
+                    onChange={(v) =>
+                      up(
+                        "references",
+                        app.references.map((x, j) =>
+                          j === i ? { ...x, phone: v } : x,
+                        ),
+                      )
+                    }
+                    type="tel"
+                    value={r.phone}
+                  />
+                </Row>
+              </RepeatCard>
+            ))}
+            <AddBtn
+              label="Add reference"
+              onClick={() =>
+                up("references", [
+                  ...app.references,
+                  { name: "", relationship: "", phone: "" },
+                ])
+              }
+            />
+          </Block>
+
+          <Block
+            hint="Someone who does not live with them."
+            title="Emergency contact"
+          >
+            <Row>
+              <Field
+                label="Name"
+                onChange={(v) => up("emergency", { ...app.emergency, name: v })}
+                value={app.emergency.name}
+                wide
+              />
+            </Row>
+            <Row>
+              <Field
+                label="Relationship"
+                onChange={(v) =>
+                  up("emergency", { ...app.emergency, relationship: v })
+                }
+                value={app.emergency.relationship}
+              />
+              <Field
+                label="Phone"
+                onChange={(v) =>
+                  up("emergency", { ...app.emergency, phone: v })
+                }
+                type="tel"
+                value={app.emergency.phone}
+              />
+            </Row>
+          </Block>
+
+          <Block title="How they heard about us">
+            <Choice
+              onChange={(v) => up("source", v)}
+              options={[
+                "Facebook",
+                "Drove by",
+                "Current resident",
+                "Zillow or online",
+                "Other",
+              ].map((s) => ({ value: s, label: s }))}
+              value={app.source}
+            />
+            {(app.source === "Current resident" || app.source === "Other") && (
+              <div className="mt-3.5">
+                <Field
+                  label={
+                    app.source === "Other" ? "Please say" : "Resident's name"
+                  }
+                  onChange={(v) => up("sourceOther", v)}
+                  value={app.sourceOther}
+                  wide
+                />
+              </div>
+            )}
+          </Block>
+        </>
+      )}
+
+      {/* ---- Step 5: review and sign ---- */}
+      {step === 5 && (
+        <>
+          <Block title="What was entered">
+            <dl className="space-y-2 text-[15px]">
+              {(
+                [
+                  ["Applicant", app.applicant.name || "Not given"],
+                  ["Phone", app.applicant.phone || "Not given"],
+                  [
+                    "Applying for",
+                    {
+                      community_home: "Community home",
+                      lot_only: "Lot only",
+                      rent_to_own: "Rent to own",
+                      "": "Not chosen",
+                    }[app.applyingFor],
+                  ],
+                  ["Lot", app.lot || "Any available"],
+                  ["Move-in", app.moveIn || "Not given"],
+                  ["Current address", app.current.address || "Not given"],
+                  ["Adults", String(adults)],
+                  ["Occupants", String(app.occupants.length)],
+                  ["Pets", String(app.pets.length)],
+                  [
+                    "Monthly income",
+                    income > 0 ? `$${income.toLocaleString()}` : "Not given",
+                  ],
+                ] as Array<[string, string]>
+              ).map(([label, value]) => (
+                <div className="flex justify-between gap-4" key={label}>
+                  <dt className="shrink-0 text-[#6C7484]">{label}</dt>
+                  <dd className="min-w-0 break-words text-right font-semibold text-[#0F1E33]">
+                    {value}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          </Block>
+
+          <Block title="Fees">
+            <div className="flex items-baseline justify-between">
+              <span className="text-[15px] text-[#6C7484]">
+                Application, {adults} adult{adults > 1 ? "s" : ""}
+              </span>
+              <span className="text-[19px] font-bold text-[#0F1E33]">
+                ${fee}
+              </span>
+            </div>
+            {app.pets.length > 0 && (
+              <div className="mt-2 flex items-baseline justify-between">
+                <span className="text-[15px] text-[#6C7484]">Pet deposit</span>
+                <span className="text-[15px] font-semibold text-[#0F1E33]">
+                  ${petDeposit} and ${petRent} a month
+                </span>
+              </div>
+            )}
+          </Block>
+
+          <Block title="Authorisation">
+            <ul className="mb-4 list-disc space-y-2 pl-5 text-[14.5px] leading-relaxed text-[#1B2231]">
+              <li>
+                Everything here is true and complete. False or missing
+                information is grounds for denial or termination of residency.
+              </li>
+              <li>
+                Hometown Meadows and its agents may obtain a consumer credit
+                report, criminal background and eviction history, and verify
+                employment, income and rental history.
+              </li>
+              <li>
+                The application fee is $25 per adult and is not refundable.
+              </li>
+              <li>
+                Approval is based on income, generally three times the monthly
+                rent, along with rental history, background and credit. Hometown
+                Meadows does not discriminate on the basis of race, colour,
+                religion, sex, national origin, familial status, disability, or
+                any other protected class.
+              </li>
+              <li>
+                A home is reserved only when a deposit is paid and a residency
+                agreement is signed.
+              </li>
+            </ul>
+
+            <label className="mb-4 flex items-start gap-3 text-[15px] text-[#1B2231]">
+              <input
+                checked={app.certify}
+                className="mt-1 h-5 w-5 shrink-0"
+                onChange={(e) => up("certify", e.target.checked)}
+                type="checkbox"
+              />
+              <span>They have read and agree to the above.</span>
+            </label>
+
+            <Row>
+              <Field
+                label="Applicant — type full name to sign"
+                onChange={(v) => up("signature", v)}
+                value={app.signature}
+                wide
+              />
+            </Row>
+            <Row>
+              <Field
+                label="Co-applicant — type full name to sign"
+                onChange={(v) => up("coSignature", v)}
+                value={app.coSignature}
+                wide
+              />
+            </Row>
+          </Block>
+        </>
+      )}
+
+      {/* Sticky, because on a phone the buttons are otherwise a scroll away. */}
+      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-[#DCE4EE] bg-white/95 px-4 py-3 backdrop-blur">
+        <div className="mx-auto flex max-w-[640px] items-center gap-2.5">
+          {step > 0 && (
+            <button
+              className="min-h-[48px] rounded-xl border border-[#D5D8DE] bg-white px-4 text-[15px] font-semibold text-[#1B2231]"
+              onClick={goBack}
+              type="button"
+            >
+              Back
+            </button>
+          )}
+
+          {onSaveDraft && (
+            <button
+              className="min-h-[48px] rounded-xl border border-[#EEF0F3] bg-[#EEF0F3] px-4 text-[15px] font-semibold text-[#1E3A8A] disabled:opacity-45"
+              disabled={busy}
+              onClick={() => onSaveDraft(app)}
+              type="button"
+            >
+              Save
+            </button>
+          )}
+
+          {step < STEPS.length - 1 ? (
+            <button
+              className="min-h-[48px] flex-1 rounded-xl border border-[#1E3A8A] bg-[#1E3A8A] text-[15.5px] font-semibold text-white"
+              onClick={goNext}
+              type="button"
+            >
+              Next
+            </button>
+          ) : (
+            <button
+              className="min-h-[48px] flex-1 rounded-xl border border-[#B4462B] bg-[#B4462B] text-[15.5px] font-semibold text-white disabled:opacity-45"
+              disabled={busy}
+              onClick={submit}
+              type="button"
+            >
+              {busy ? "Submitting…" : "Submit application"}
+            </button>
+          )}
+        </div>
       </div>
-      <p style={{ fontSize: 12, color: GRAY, textAlign: "center", marginTop: 14 }}>Questions? Call the community office at (870) 557-5751.</p>
     </div>
   );
 }

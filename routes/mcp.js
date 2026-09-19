@@ -946,7 +946,7 @@ async function recentDeals(supabase, args) {
         // Say so here, or it gets read as a bug every time.
         duplicates_expected:
             "A website submission creates one row from the form and a second from its own notification email. The intake gate identifies the second correctly but runs in shadow mode, so nothing is removed. Two rows for one address is expected until the gate is switched from shadow to live.",
-    };
+    };  
 }
 
 const NOTES_BUCKET = "project-notes";
