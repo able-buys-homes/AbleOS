@@ -27,6 +27,21 @@ import { websiteApplication } from "../lib/websiteApplication.js";
 const CAN_TAKE = ["zo", "raj", "dane", "ellery"];
 const CAN_SEE_ALL = ["raj", "dane", "ellery"];
 
+const FEE_PER_ADULT_CENTS = 2500;
+
+/**
+ * The fee, worked out from the application itself. The applicant is one
+ * adult; a named co-applicant is another; every listed occupant aged 18 or
+ * over is another. Computed here and nowhere else, so the browser can never
+ * set its own price and a webhook can never be trusted for the amount.
+ */
+function feeCentsFor(app) {
+    const co = String(app?.coApplicant?.name ?? "").trim() ? 1 : 0;
+    const adultOccupants = (Array.isArray(app?.occupants) ? app.occupants : [])
+        .filter((o) => Number(o?.age ?? 0) >= 18).length;
+    return (1 + co + adultOccupants) * FEE_PER_ADULT_CENTS;
+}
+
 let cachedClient = null;
 
 function getClient() {
@@ -113,6 +128,101 @@ export default async function handler(req, res) {
         } catch (err) {
             console.error("applications drive callback failed:", err);
             return res.status(500).json({ error: "Could not record the file" });
+        }
+    }
+
+    /* ---- Stripe reporting the fee was paid. Not a signed-in user. ---- */
+    //
+    // Reached from n8n on Stripe's checkout.session.completed event. It is the
+    // ONLY thing that may mark a fee paid. The redirect back to the website
+    // after checkout proves somebody clicked a button; this proves money moved.
+    if (req.method === "PATCH" && req.query?.fee) {
+        const secret = process.env.N8N_SHARED_SECRET;
+
+        if (!secret) {
+            return res.status(500).json({ error: "N8N_SHARED_SECRET is not set" });
+        }
+        if (req.headers.authorization !== `Bearer ${secret}`) {
+            return res.status(401).json({ error: "Not authorised" });
+        }
+
+        const id = String(req.body?.id || "");
+        const paidCents = Number(req.body?.amount_cents);
+        const paymentIntent = String(req.body?.stripe_payment_intent || "");
+
+        if (!id) return res.status(400).json({ error: "Which application?" });
+        if (!paymentIntent) {
+            return res.status(400).json({ error: "No Stripe payment reference" });
+        }
+        if (!Number.isFinite(paidCents) || paidCents <= 0) {
+            return res.status(400).json({ error: "No amount" });
+        }
+
+        try {
+            const supabase = getClient();
+
+            const { data: row, error: readError } = await supabase
+                .from("htm_applications")
+                .select("id, data, applicant_name")
+                .eq("id", id)
+                .maybeSingle();
+
+            if (readError) throw readError;
+            if (!row) return res.status(404).json({ error: "Not found" });
+
+            // Recomputed from the stored application, never taken from the
+            // caller. A webhook carrying the wrong figure is refused, not
+            // recorded - a fee marked paid for the wrong amount is a dispute.
+            const expected = feeCentsFor(row.data);
+
+            if (paidCents !== expected) {
+                console.error(
+                    `fee mismatch on ${id}: paid ${paidCents}, expected ${expected}`,
+                );
+                return res.status(409).json({
+                    error: `Paid ${paidCents} cents but ${expected} was due`,
+                });
+            }
+
+            // Already stamped? Say so and stop. Stripe redelivers events, and
+            // the second delivery must not read as a second payment.
+            const { data: applicant } = await supabase
+                .from("applicants")
+                .select("id, fee_paid_on")
+                .eq("application_id", id)
+                .maybeSingle();
+
+            if (!applicant) {
+                return res.status(404).json({ error: "No applicant row for that application" });
+            }
+            if (applicant.fee_paid_on) {
+                return res.status(200).json({ ok: true, already: true });
+            }
+
+            const { error: stampError } = await supabase
+                .from("applicants")
+                .update({
+                    fee_amount: paidCents / 100,
+                    fee_paid_on: new Date().toISOString().slice(0, 10),
+                    notes: `Fee paid through Stripe · ${paymentIntent}`,
+                    updated_at: new Date().toISOString(),
+                })
+                .eq("id", applicant.id);
+
+            if (stampError) throw stampError;
+
+            await supabase.from("notifications").insert({
+                recipient: "ellery",
+                type: "application_fee_paid",
+                title: `Fee paid — ${row.applicant_name}`,
+                body: `$${(paidCents / 100).toFixed(2)} received through Stripe. Screening can be ordered.`,
+                link: "/ellery/applicants",
+            });
+
+            return res.status(200).json({ ok: true });
+        } catch (err) {
+            console.error("application fee callback failed:", err);
+            return res.status(500).json({ error: "Could not record the fee" });
         }
     }
 
@@ -284,6 +394,12 @@ export default async function handler(req, res) {
                 .json({ error: "Applicant name and phone are required" });
         }
 
+        // Worked out once, here. n8n reads it from the response to build the
+        // Stripe checkout, and the fee callback recomputes it to check the
+        // amount that was paid. The browser is never asked.
+        const feeCents = feeCentsFor(app);
+        const adults = feeCents / FEE_PER_ADULT_CENTS;
+
         const { data: created, error: insertError } = await supabase
             .from("htm_applications")
             .insert({
@@ -332,6 +448,8 @@ export default async function handler(req, res) {
                 application_id: created.id,
                 came_in_by: cameInBy,
                 arrived_at: created.created_at,
+                // What is due, so Ellery sees the figure before it is paid.
+                fee_amount: feeCents / 100,
             });
 
         if (pipelineError) {
@@ -373,6 +491,8 @@ export default async function handler(req, res) {
             return res.status(201).json({
                 ok: true,
                 id: created.id,
+                fee_cents: feeCents,
+                adults,
                 message:
                     "Application saved. No Shared Drive copy was filed — the automation is not configured yet.",
             });
@@ -423,6 +543,8 @@ export default async function handler(req, res) {
             return res.status(201).json({
                 ok: true,
                 id: created.id,
+                fee_cents: feeCents,
+                adults,
                 message:
                     "Application saved. The Shared Drive copy did not go through — it is recorded on the application so nobody goes looking for a file that is not there.",
             });
@@ -431,6 +553,8 @@ export default async function handler(req, res) {
         return res.status(201).json({
             ok: true,
             id: created.id,
+            fee_cents: feeCents,
+            adults,
             message: "Application saved and sent to the Shared Drive.",
         });
     } catch (err) {
