@@ -248,6 +248,18 @@ function Check({
   );
 }
 
+/**
+ * Today at the park, not in UTC. Late evening in Arkansas is already tomorrow
+ * in UTC, which would refuse a date the person can see on their own calendar.
+ */
+const parkToday = () =>
+  new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Chicago",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+
 function Field({
   label,
   value,
@@ -255,6 +267,8 @@ function Field({
   placeholder,
   type = "text",
   mode,
+  max,
+  min,
 }: {
   label: string;
   value: string;
@@ -262,6 +276,8 @@ function Field({
   placeholder?: string;
   type?: string;
   mode?: "numeric" | "decimal";
+  max?: string;
+  min?: string;
 }) {
   return (
     <label className="flex h-full min-w-0 flex-col">
@@ -271,6 +287,8 @@ function Field({
       <input
         className="mt-auto w-full min-w-0 appearance-none rounded-xl border border-[#DCE4EE] bg-white px-3 py-3 text-[17px] text-[#0F1E33] placeholder:text-[#A3B0C0] focus:border-[#418BFF] focus:outline-none [&::-webkit-date-and-time-value]:w-full [&::-webkit-date-and-time-value]:text-left"
         inputMode={mode}
+        max={max}
+        min={min}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         type={type}
@@ -615,6 +633,9 @@ export function ZoInspect() {
             />
             <Field
               label="Date"
+              // An inspection is a record of a walk that happened. It cannot
+              // have happened tomorrow.
+              max={parkToday()}
               onChange={(v) => set("inspected_at", v)}
               type="date"
               value={draft.inspected_at}

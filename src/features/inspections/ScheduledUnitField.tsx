@@ -141,11 +141,25 @@ export function ScheduledUnitField({
         value={value}
       >
         <option value="">Pick a home</option>
-        {rows.map((r) => (
-          <option key={r.lot_number} value={r.lot_number}>
-            Lot {r.lot_number} · due {due(r.next_inspection_at)}
-          </option>
-        ))}
+        {[...rows]
+          .sort((a, b) => {
+            // Same rule as the other lot lists: numbers as numbers, so 2
+            // comes before 10, and anything not a number sorts after.
+            const x = Number(a.lot_number);
+            const y = Number(b.lot_number);
+            const bothNumeric = Number.isFinite(x) && Number.isFinite(y);
+
+            if (bothNumeric) return x - y;
+            if (Number.isFinite(x)) return -1;
+            if (Number.isFinite(y)) return 1;
+
+            return String(a.lot_number).localeCompare(String(b.lot_number));
+          })
+          .map((r) => (
+            <option key={r.lot_number} value={r.lot_number}>
+              Lot {r.lot_number} · due {due(r.next_inspection_at)}
+            </option>
+          ))}
         <option value="__other">Another unit…</option>
       </select>
     </label>

@@ -13,6 +13,18 @@
 import React from "react";
 import { Btn, Stack, money } from "../collections/parts";
 
+/**
+ * Today at the park, not in UTC. Late evening in Arkansas is already tomorrow
+ * in UTC, which would refuse a date the person can see on their own calendar.
+ */
+const parkToday = () =>
+  new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Chicago",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+
 export type Priority = "emergency" | "urgent" | "routine" | "cosmetic";
 export type JobStatus =
   | "new"
@@ -672,6 +684,8 @@ export default function HtmJobs({
                                   // it will not shrink below. Without these it
                                   // runs off the right edge of the card.
                                   className={`${inputClass} block w-full min-w-0 appearance-none`}
+                                  // A part cannot have been ordered tomorrow.
+                                  max={parkToday()}
                                   onChange={(e) =>
                                     editPart(j, i, {
                                       orderedOn: e.target.value,
@@ -685,6 +699,12 @@ export default function HtmJobs({
                                 <Label>When should it arrive?</Label>
                                 <input
                                   className={`${inputClass} block w-full min-w-0 appearance-none`}
+                                  // Bounded by the order date, not by today.
+                                  // A part can be overdue - expected last
+                                  // Tuesday and still not here - and Zo has to
+                                  // be able to say so. What it cannot do is
+                                  // arrive before it was ordered.
+                                  min={p.orderedOn || undefined}
                                   onChange={(e) =>
                                     editPart(j, i, {
                                       expectedOn: e.target.value,

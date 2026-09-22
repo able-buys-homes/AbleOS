@@ -50,6 +50,18 @@ export interface Lot {
   sqft?: number;
 }
 
+/**
+ * Today at the park, not in UTC. Late evening in Arkansas is already tomorrow
+ * in UTC, which would refuse a date the person can see on their own calendar.
+ */
+const parkToday = () =>
+  new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Chicago",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+
 export const STATUS_META: Record<
   LotStatus,
   { label: string; fill: string; stroke: string; text: string }
@@ -607,6 +619,8 @@ export function HtmLotMap({
 
           <input
             className="mt-3 w-full rounded-[10px] border border-[#DCE4EE] bg-white px-3.5 py-2.5 text-[16px] text-[#1B2231]"
+            // A walk you are going to do cannot be scheduled for last week.
+            min={parkToday()}
             onChange={(e) => setInspectDate(e.target.value)}
             type="date"
             value={inspectDate}
