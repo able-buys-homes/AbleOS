@@ -17,6 +17,7 @@
 // Somebody filled in thirteen sections standing in a driveway - that must
 // never be lost to a webhook being down.
 import { createClient } from "@supabase/supabase-js";
+import { randomBytes, timingSafeEqual } from "node:crypto";
 import { applicationPdf } from "../lib/applicationPdf.js";
 import { requireUser } from "../lib/apiAuth.js";
 import { websiteApplication } from "../lib/websiteApplication.js";
@@ -35,6 +36,84 @@ const FEE_PER_ADULT_CENTS = 2500;
  * over is another. Computed here and nowhere else, so the browser can never
  * set its own price and a webhook can never be trusted for the amount.
  */
+/**
+ * Constant-time compare for the poll token. A plain === leaks the token one
+ * character at a time to anyone patient enough to measure the response, and
+ * this token is what stands between a stranger and knowing who has paid.
+ */
+function tokenMatches(supplied, expected) {
+    if (typeof supplied !== "string" || typeof expected !== "string") {
+        return false;
+    }
+    if (!supplied || !expected) return false;
+
+    const a = Buffer.from(supplied);
+    const b = Buffer.from(expected);
+    if (a.length !== b.length) return false;
+
+    return timingSafeEqual(a, b);
+}
+
+const esc = (value) =>
+    String(value ?? "").replace(
+        /[<>&"']/g,
+        (c) =>
+            ({
+                "<": "&lt;",
+                ">": "&gt;",
+                "&": "&amp;",
+                '"': "&quot;",
+                "'": "&#39;",
+            })[c],
+    );
+
+/**
+ * The receipt, drawn rather than rendered from a template. SVG because it
+ * needs no image library on the server - the browser turns it into a PNG for
+ * download, and a serverless function that has to load a canvas is a
+ * serverless function that times out.
+ */
+function receiptSvg({ receiptNo, name, reference, amountCents, paidAt, paymentIntent }) {
+    const amount = (Number(amountCents ?? 0) / 100).toFixed(2);
+
+    const when = new Intl.DateTimeFormat("en-US", {
+        timeZone: "America/Chicago",
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+    }).format(paidAt ? new Date(paidAt) : new Date());
+
+    const row = (y, label, value, weight = "400") => `
+    <text x="56" y="${y}" font-family="Georgia, serif" font-size="13" fill="#8A7B6E" letter-spacing="1.4">${esc(label.toUpperCase())}</text>
+    <text x="764" y="${y}" text-anchor="end" font-family="Georgia, serif" font-size="17" font-weight="${weight}" fill="#3A2F26">${esc(value)}</text>
+    <line x1="56" y1="${y + 16}" x2="764" y2="${y + 16}" stroke="#E5DDD3" stroke-width="1"/>`;
+
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="820" height="560" viewBox="0 0 820 560" role="img" aria-label="Application fee receipt ${esc(receiptNo)}">
+  <rect width="820" height="560" fill="#FAF7F2"/>
+  <rect x="0" y="0" width="820" height="6" fill="#B4462B"/>
+
+  <text x="56" y="76" font-family="Georgia, serif" font-size="26" letter-spacing="4" fill="#3A2F26">HOMETOWN MEADOWS</text>
+  <text x="56" y="100" font-family="Georgia, serif" font-size="13" letter-spacing="2" fill="#B4462B">A FAMILY COMMUNITY · NASHVILLE, ARKANSAS</text>
+
+  <text x="764" y="76" text-anchor="end" font-family="Georgia, serif" font-size="13" letter-spacing="2.5" fill="#8A7B6E">RECEIPT</text>
+  <text x="764" y="102" text-anchor="end" font-family="Georgia, serif" font-size="20" font-weight="600" fill="#3A2F26">${esc(receiptNo)}</text>
+
+  <line x1="56" y1="130" x2="764" y2="130" stroke="#3A2F26" stroke-width="1.5"/>
+
+  <text x="56" y="176" font-family="Georgia, serif" font-size="22" fill="#3A2F26">Application fee — paid in full</text>
+
+  ${row(232, "Received from", name || "Applicant")}
+  ${row(284, "Date", when)}
+  ${row(336, "Application reference", reference || "—")}
+  ${row(388, "Method", "Card, via Stripe")}
+  ${row(440, "Amount paid", "$" + amount, "700")}
+
+  <text x="56" y="492" font-family="Georgia, serif" font-size="11" fill="#8A7B6E">Payment ID ${esc(paymentIntent || "—")}</text>
+  <text x="56" y="514" font-family="Georgia, serif" font-size="12" fill="#6F6259">121 Smith Lane, Nashville, AR 71852 · (870) 233-9798</text>
+  <text x="56" y="534" font-family="Georgia, serif" font-size="11" fill="#8A7B6E">This is a receipt for an application fee. It does not reserve a home.</text>
+</svg>`;
+}
+
 function feeCentsFor(app) {
     const co = String(app?.coApplicant?.name ?? "").trim() ? 1 : 0;
     const adultOccupants = (Array.isArray(app?.occupants) ? app.occupants : [])
@@ -203,13 +282,27 @@ export default async function handler(req, res) {
                 });
             }
 
+            // Taken from the sequence, once, at the moment the money is
+            // recorded. Not generated when the receipt is asked for - two
+            // requests would then produce two numbers for one payment.
+            const { data: receiptNo, error: seqError } = await supabase.rpc(
+                "next_fee_receipt_no",
+            );
+
+            if (seqError) throw seqError;
+
+            const paidAt = new Date().toISOString();
+
             const { error: stampError } = await supabase
                 .from("applicants")
                 .update({
                     fee_amount: paidCents / 100,
-                    fee_paid_on: new Date().toISOString().slice(0, 10),
+                    fee_paid_on: paidAt.slice(0, 10),
+                    fee_paid_at: paidAt,
+                    fee_receipt_no: receiptNo,
+                    fee_stripe_payment_intent: paymentIntent,
                     notes: `Fee paid through Stripe · ${paymentIntent}`,
-                    updated_at: new Date().toISOString(),
+                    updated_at: paidAt,
                 })
                 .eq("id", applicant.id);
 
@@ -230,6 +323,109 @@ export default async function handler(req, res) {
         } catch (err) {
             console.error("application fee callback failed:", err);
             return res.status(500).json({ error: "Could not record the fee" });
+        }
+    }
+
+    /* ---- Has the fee landed yet? ---- */
+    //
+    // Answered only to the browser that submitted the application, which was
+    // handed a token once. Without it this endpoint would let anyone walk a
+    // list of applications and learn who has paid. It returns whether money
+    // arrived and nothing about the person.
+    if (req.method === "GET" && req.query?.status) {
+        const id = String(req.query.status);
+        const token = String(req.query.token ?? "");
+
+        if (!token) return res.status(401).json({ error: "Not authorised" });
+
+        try {
+            const supabase = getClient();
+
+            const { data: row, error } = await supabase
+                .from("htm_applications")
+                .select("id, poll_token")
+                .eq("id", id)
+                .maybeSingle();
+
+            if (error) throw error;
+
+            // Same answer whether the application does not exist or the token
+            // is wrong, so neither can be probed for.
+            if (!row || !tokenMatches(token, row.poll_token)) {
+                return res.status(401).json({ error: "Not authorised" });
+            }
+
+            const { data: applicant } = await supabase
+                .from("applicants")
+                .select("fee_paid_on, fee_amount, fee_receipt_no")
+                .eq("application_id", id)
+                .maybeSingle();
+
+            return res.status(200).json({
+                paid: Boolean(applicant?.fee_paid_on),
+                amount: applicant?.fee_amount ?? null,
+                receipt_no: applicant?.fee_receipt_no ?? null,
+            });
+        } catch (err) {
+            console.error("application status failed:", err);
+            return res.status(500).json({ error: "Could not check the fee" });
+        }
+    }
+
+    /* ---- The receipt ---- */
+    //
+    // Same token, same reasoning. A receipt carries a name and an amount, so
+    // it is not something a guessed id should ever return.
+    if (req.method === "GET" && req.query?.receipt) {
+        const id = String(req.query.receipt);
+        const token = String(req.query.token ?? "");
+
+        if (!token) return res.status(401).json({ error: "Not authorised" });
+
+        try {
+            const supabase = getClient();
+
+            const { data: row, error } = await supabase
+                .from("htm_applications")
+                .select("id, poll_token, applicant_name")
+                .eq("id", id)
+                .maybeSingle();
+
+            if (error) throw error;
+            if (!row || !tokenMatches(token, row.poll_token)) {
+                return res.status(401).json({ error: "Not authorised" });
+            }
+
+            const { data: applicant } = await supabase
+                .from("applicants")
+                .select(
+                    "fee_paid_on, fee_paid_at, fee_amount, fee_receipt_no, fee_stripe_payment_intent",
+                )
+                .eq("application_id", id)
+                .maybeSingle();
+
+            // No receipt before there is money. Anything else would be a
+            // document saying somebody paid when they have not.
+            if (!applicant?.fee_paid_on || !applicant?.fee_receipt_no) {
+                return res.status(404).json({ error: "No fee has been paid yet" });
+            }
+
+            const svg = receiptSvg({
+                receiptNo: applicant.fee_receipt_no,
+                name: row.applicant_name,
+                reference: `HTM-${String(row.id).replace(/-/g, "").slice(0, 8).toUpperCase()}`,
+                amountCents: Math.round(Number(applicant.fee_amount) * 100),
+                paidAt: applicant.fee_paid_at ?? applicant.fee_paid_on,
+                paymentIntent: applicant.fee_stripe_payment_intent,
+            });
+
+            res.setHeader("Content-Type", "image/svg+xml; charset=utf-8");
+            res.setHeader("Cache-Control", "private, no-store");
+
+            return res.status(200).send(svg);
+        } catch (err) {
+            console.error("application receipt failed:", err);
+            return res.status(500).json({ error: "Could not build the receipt" });
         }
     }
 
@@ -407,6 +603,10 @@ export default async function handler(req, res) {
         const feeCents = feeCentsFor(app);
         const adults = feeCents / FEE_PER_ADULT_CENTS;
 
+        // Handed to the submitting browser once, so it can ask whether the fee
+        // has landed. Stored here and never returned by any read.
+        const pollToken = randomBytes(32).toString("base64url");
+
         const { data: created, error: insertError } = await supabase
             .from("htm_applications")
             .insert({
@@ -420,6 +620,7 @@ export default async function handler(req, res) {
                 // never saw it.
                 taken_by: user?.id ?? null,
                 source: fromWebsite ? "website" : "cockpit",
+                poll_token: pollToken,
             })
             .select("id, created_at")
             .single();
@@ -500,6 +701,7 @@ export default async function handler(req, res) {
                 id: created.id,
                 fee_cents: feeCents,
                 adults,
+                poll_token: pollToken,
                 message:
                     "Application saved. No Shared Drive copy was filed — the automation is not configured yet.",
             });
@@ -552,6 +754,7 @@ export default async function handler(req, res) {
                 id: created.id,
                 fee_cents: feeCents,
                 adults,
+                poll_token: pollToken,
                 message:
                     "Application saved. The Shared Drive copy did not go through — it is recorded on the application so nobody goes looking for a file that is not there.",
             });
@@ -562,6 +765,7 @@ export default async function handler(req, res) {
             id: created.id,
             fee_cents: feeCents,
             adults,
+            poll_token: pollToken,
             message: "Application saved and sent to the Shared Drive.",
         });
     } catch (err) {
