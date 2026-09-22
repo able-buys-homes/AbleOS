@@ -1059,11 +1059,13 @@ function NewJobSheet({
               onChange={(e) => pickLot(Number(e.target.value))}
               value={j.lot}
             >
-              {lots.map((l) => (
-                <option key={l.number} value={l.number}>
-                  Lot {l.number}
-                </option>
-              ))}
+              {[...lots]
+                .sort((a, b) => a.number - b.number)
+                .map((l) => (
+                  <option key={l.number} value={l.number}>
+                    Lot {l.number}
+                  </option>
+                ))}
             </select>
           ) : (
             <input
@@ -1095,11 +1097,13 @@ function NewJobSheet({
             }
             value={j.category}
           >
-            {(Object.keys(CAT) as Category[]).map((k) => (
-              <option key={k} value={k}>
-                {CAT[k]}
-              </option>
-            ))}
+            {(Object.keys(CAT) as Category[])
+              .sort((a, b) => CAT[a].localeCompare(CAT[b]))
+              .map((k) => (
+                <option key={k} value={k}>
+                  {CAT[k]}
+                </option>
+              ))}
           </select>
 
           <Label>What is wrong</Label>

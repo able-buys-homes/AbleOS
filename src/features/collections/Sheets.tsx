@@ -233,7 +233,23 @@ export function Sheets({
   }, [kind]);
 
   // Lots with counsel never appear here.
-  const choosable = [...(data?.pastDue ?? []), ...(data?.current ?? [])];
+  // Lot numbers are text in the database, so a plain sort puts 10 before 2.
+  // Compared as numbers when both are numbers, and alphabetically otherwise,
+  // which keeps "106 Fox Run Rd" with the addresses instead of wedged between
+  // two lots. payable and planable are filtered from this, so they inherit it.
+  const choosable = [...(data?.pastDue ?? []), ...(data?.current ?? [])].sort(
+    (a, b) => {
+      const x = Number(a.lot_number);
+      const y = Number(b.lot_number);
+      const bothNumeric = Number.isFinite(x) && Number.isFinite(y);
+
+      if (bothNumeric) return x - y;
+      if (Number.isFinite(x)) return -1;
+      if (Number.isFinite(y)) return 1;
+
+      return String(a.lot_number).localeCompare(String(b.lot_number));
+    },
+  );
 
   // Only lots with a rent recorded can take a payment. The server refuses the
   // rest, so they are not offered here either.
