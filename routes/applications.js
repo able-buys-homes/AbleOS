@@ -167,6 +167,22 @@ const LIST_COLUMNS =
     "id, created_at, status, applicant_name, applicant_phone, lot_number, applying_for, taken_by, drive_url, drive_error, drive_synced_at";
 
 export default async function handler(req, res) {
+    // The community site is on its own domain, so the two read endpoints it
+    // uses need to say so explicitly. Named rather than "*": only that site
+    // has any business asking these, and both still require the token.
+    if (req.query?.status || req.query?.receipt) {
+        res.setHeader(
+            "Access-Control-Allow-Origin",
+            "https://hometownmeadows.com",
+        );
+        res.setHeader("Vary", "Origin");
+
+        if (req.method === "OPTIONS") {
+            res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
+            return res.status(204).end();
+        }
+    }
+
     /* ---- n8n reporting back. Not a signed-in user. ---- */
     if (req.method === "PATCH" && req.query?.drive) {
         const secret = process.env.N8N_SHARED_SECRET;
