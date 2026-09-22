@@ -636,7 +636,7 @@ export function ZoInspect() {
               // An inspection is a record of a walk that happened. It cannot
               // have happened tomorrow.
               max={parkToday()}
-              onChange={(v) => set("inspected_at", v)}
+              onChange={(v) => set("inspected_at", v)}  
               type="date"
               value={draft.inspected_at}
             />

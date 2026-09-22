@@ -196,7 +196,11 @@ export default async function handler(req, res) {
                 return res.status(404).json({ error: "No applicant row for that application" });
             }
             if (applicant.fee_paid_on) {
-                return res.status(200).json({ ok: true, already: true });
+                return res.status(200).json({
+                    ok: true,
+                    already: true,
+                    applicant_name: row.applicant_name,
+                });
             }
 
             const { error: stampError } = await supabase
@@ -219,7 +223,10 @@ export default async function handler(req, res) {
                 link: "/ellery/applicants",
             });
 
-            return res.status(200).json({ ok: true });
+            return res.status(200).json({
+                ok: true,
+                applicant_name: row.applicant_name,
+            });
         } catch (err) {
             console.error("application fee callback failed:", err);
             return res.status(500).json({ error: "Could not record the fee" });
