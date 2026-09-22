@@ -171,10 +171,19 @@ export default async function handler(req, res) {
     // uses need to say so explicitly. Named rather than "*": only that site
     // has any business asking these, and both still require the token.
     if (req.query?.status || req.query?.receipt) {
-        res.setHeader(
-            "Access-Control-Allow-Origin",
+        // Both spellings, because the site answers on www and a person typing
+        // the bare domain gets redirected there. Echoed back rather than
+        // wildcarded, so only these two origins are ever allowed.
+        const allowed = [
             "https://hometownmeadows.com",
-        );
+            "https://www.hometownmeadows.com",
+        ];
+        const origin = String(req.headers.origin ?? "");
+
+        if (allowed.includes(origin)) {
+            res.setHeader("Access-Control-Allow-Origin", origin);
+        }
+
         res.setHeader("Vary", "Origin");
 
         if (req.method === "OPTIONS") {
@@ -352,7 +361,15 @@ export default async function handler(req, res) {
         const id = String(req.query.status);
         const token = String(req.query.token ?? "");
 
-        if (!token) return res.status(401).json({ error: "Not authorised" });
+        // A malformed id must answer the same as a wrong one. Letting Postgres
+        // reject it produces a 500, which quietly tells a prober that their
+        // guess was at least the right shape.
+        const looksLikeId =
+            /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+
+        if (!token || !looksLikeId) {
+            return res.status(401).json({ error: "Not authorised" });
+        }
 
         try {
             const supabase = getClient();
