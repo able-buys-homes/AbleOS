@@ -47,6 +47,39 @@ function secretMatches(header, secret) {
     return crypto.timingSafeEqual(a, b);
 }
 
+/**
+ * One notification per six hours, however many times this runs in between.
+ *
+ * The sync runs hourly. Without the window, a QuickBooks outage over a weekend
+ * would put forty identical notices on Raj's desk and bury everything else,
+ * which is the same as telling him nothing.
+ */
+async function notifyOnce(supabase, title, body) {
+    const since = new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString();
+
+    const { data: recent } = await supabase
+        .from("notifications")
+        .select("id")
+        .eq("recipient", "raj")
+        .eq("type", "qbo_sync_failed")
+        .gte("created_at", since)
+        .limit(1);
+
+    if (recent?.length) return false;
+
+    await supabase.from("notifications").insert({
+        recipient: "raj",
+        type: "qbo_sync_failed",
+        title,
+        body: String(body ?? "").slice(0, 500),
+        // Raj cannot open Zo's screens. A notification that lands on a locked
+        // page is worse than one with no link at all.
+        link: "/raj",
+    });
+
+    return true;
+}
+
 export default async function handler(req, res) {
     if (req.method !== "POST") {
         res.setHeader("Allow", "POST");
@@ -158,9 +191,41 @@ export default async function handler(req, res) {
             }
         }
 
+        // Nobody watches a cron. If something did not post, it has to appear
+        // on a desk - a column nobody queries and a log nobody opens are not
+        // the same as being told.
+        const failed = result.invoices.failed + result.payments.failed;
+
+        if (failed > 0) {
+            try {
+                await notifyOnce(
+                    supabase,
+                    `${failed} ${failed === 1 ? "item" : "items"} did not reach QuickBooks`,
+                    result.errors.slice(0, 3).join(" · ") ||
+                        "The sync ran but could not post everything. The rent ledger itself is unaffected.",
+                );
+            } catch (notifyError) {
+                console.error("qbo-sync could not notify", notifyError?.message ?? notifyError);
+            }
+        }
+
         return res.status(200).json({ ok: true, ...result });
     } catch (err) {
         console.error("qbo-sync failed", err?.message ?? err);
+
+        // The whole run fell over - an expired token, Intuit down, a bug of
+        // our own. The books quietly stop moving, which is exactly the failure
+        // that goes unnoticed for a fortnight.
+        try {
+            await notifyOnce(
+                supabase,
+                "QuickBooks sync could not run",
+                err?.message ?? String(err),
+            );
+        } catch {
+            // If even the notification cannot be written, the log is all we have.
+        }
+
         return res
             .status(err?.status || 500)
             .json({ error: err?.message ?? "Could not sync QuickBooks", ...result });
