@@ -48,6 +48,7 @@ import tasks from "../routes/tasks.js";
 import socialQueue from "../routes/social-queue.js";
 import unitInspectionDrive from "../routes/unit-inspection-drive.js";
 import unitInspections from "../routes/unit-inspections.js";
+import stripeRent from "../routes/stripe-rent.js";
 
 /** Longest job is the rehab reset, which purges Drive and Notion. */
 export const config = { maxDuration: 60 };
@@ -92,6 +93,7 @@ const ROUTES = {
     "task-comments": taskComments,
     "task-evidence": taskEvidence,
     tasks,
+    "stripe-rent": stripeRent,
     "social-queue": socialQueue,
     "unit-inspection-drive": unitInspectionDrive,
     "unit-inspections": unitInspections,
