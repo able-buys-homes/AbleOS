@@ -50,6 +50,7 @@ import unitInspectionDrive from "../routes/unit-inspection-drive.js";
 import unitInspections from "../routes/unit-inspections.js";
 import stripeRent from "../routes/stripe-rent.js";
 import qboAuth from "../routes/qbo-auth.js";
+import qboSync from "../routes/qbo-sync.js"; 
 
 /** Longest job is the rehab reset, which purges Drive and Notion. */
 export const config = { maxDuration: 60 };
@@ -86,6 +87,7 @@ const ROUTES = {
     "pipeline-deals": pipelineDeals,
     pof,
     portal,
+    "qbo-sync": qboSync,
     "qbo-auth": qboAuth,
     "push-subscribe": pushSubscribe,
     "rehab-stages": rehabStages,
