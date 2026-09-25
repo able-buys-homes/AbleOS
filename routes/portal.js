@@ -40,7 +40,29 @@ const CHARGE_LABEL = {
     other: "Other charge",
 };
 
+// The portal is served from its own origin, so it has to be named here. Listed
+// rather than wildcarded: only these can ask, and every one of them still has
+// to carry a resident's token.
+const ALLOWED_ORIGINS = [
+    "https://portal.hometownmeadows.com",
+    "https://hometownmeadows.com",
+    "https://www.hometownmeadows.com",
+    "http://localhost:5173",
+];
+
 export default async function handler(req, res) {
+    const origin = String(req.headers.origin ?? "");
+
+    if (ALLOWED_ORIGINS.includes(origin)) {
+        res.setHeader("Access-Control-Allow-Origin", origin);
+        res.setHeader("Access-Control-Allow-Headers", "authorization, content-type");
+        res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+    }
+
+    res.setHeader("Vary", "Origin");
+
+    if (req.method === "OPTIONS") return res.status(204).end();
+
     let session;
     try {
         session = await requireResident(req);
