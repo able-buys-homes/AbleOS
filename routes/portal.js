@@ -72,12 +72,19 @@ export default async function handler(req, res) {
             .json({ error: err?.message || "Not signed in" });
     }
 
-    if (req.method !== "GET") {
-        res.setHeader("Allow", "GET");
-        return res.status(405).json({ error: "Method not allowed" });
+    const { account, lot } = session;
+
+    // Rent payment. It lives on this route so it inherits requireResident
+    // above - which means the lot comes from the session, never from the
+    // request body. A resident cannot pay against someone else's home.
+    if (req.method === "POST" && req.query.checkout === "1") {
+        return startRentCheckout(req, res, { lot, account, origin });
     }
 
-    const { account, lot } = session;
+    if (req.method !== "GET") {
+        res.setHeader("Allow", "GET, POST");
+        return res.status(405).json({ error: "Method not allowed" });
+    }
 
     try {
         const supabase = getClient();
@@ -226,4 +233,171 @@ export default async function handler(req, res) {
         console.error("portal failed:", err);
         return res.status(500).json({ error: "Could not load your account" });
     }
+}
+
+/**
+ * Starts a Stripe Checkout session for rent.
+ *
+ * The amount the browser sends is a request, not an instruction. What gets
+ * charged is min(request, outstanding), computed here from the ledger in the
+ * same process that calls Stripe - there is no hop in between where the
+ * figure could be altered.
+ */
+async function startRentCheckout(req, res, { lot, account, origin }) {
+    const secret = process.env.STRIPE_SECRET_KEY;
+
+    if (!secret) {
+        return res
+            .status(503)
+            .json({ error: "Card payments are not switched on yet." });
+    }
+
+    // A placeholder rent means nobody has confirmed the figure with this
+    // resident. We will not take money against a number they never agreed to.
+    if (lot.rent_placeholder || lot.contract_rent == null) {
+        return res.status(409).json({
+            error: "Your rent is still being confirmed. Please call the office before paying online.",
+        });
+    }
+
+    const supabase = getClient();
+
+    // A lot with counsel is untouchable. Accepting money after the file is
+    // with Barrett can get the case dismissed. Same rule as Zo's screen, and
+    // it is a server check on both.
+    const { data: openCase, error: caseError } = await supabase
+        .from("eviction_cases")
+        .select("id")
+        .eq("lot_id", lot.id)
+        .is("possession_at", null)
+        .maybeSingle();
+
+    if (caseError) {
+        return res.status(500).json({ error: "Could not check that home" });
+    }
+
+    if (openCase) {
+        return res.status(409).json({
+            error: "This account is with our attorney. Please call the office - we cannot take a card payment here.",
+        });
+    }
+
+    // The same two sums the dashboard shows, but with no row limit, so the cap
+    // is the real balance rather than the most recent sixty lines of it.
+    const [chargesRes, paymentsRes] = await Promise.all([
+        supabase.from("rent_ledger").select("amount").eq("lot_id", lot.id),
+        supabase
+            .from("payments")
+            .select("amount, reverses_id")
+            .eq("lot_id", lot.id),
+    ]);
+
+    if (chargesRes.error || paymentsRes.error) {
+        return res.status(500).json({ error: "Could not read your balance" });
+    }
+
+    const charged = (chargesRes.data ?? []).reduce(
+        (sum, c) => sum + Number(c.amount ?? 0),
+        0,
+    );
+
+    // A reversed payment is not money we hold, so it cannot reduce what they
+    // are allowed to pay.
+    const paid = (paymentsRes.data ?? [])
+        .filter((p) => !p.reverses_id)
+        .reduce((sum, p) => sum + Number(p.amount ?? 0), 0);
+
+    const outstandingCents = Math.round((charged - paid) * 100);
+
+    if (outstandingCents <= 0) {
+        return res
+            .status(409)
+            .json({ error: "You have nothing outstanding. Thank you." });
+    }
+
+    const requestedCents = Math.round(Number(req.body?.amount ?? 0) * 100);
+
+    // No amount sent means pay it all. An amount above the balance is capped
+    // rather than refused - overpaying by accident should not cost them a trip
+    // to the office to get it back.
+    const amountCents =
+        requestedCents > 0
+            ? Math.min(requestedCents, outstandingCents)
+            : outstandingCents;
+
+    if (amountCents < 100) {
+        return res
+            .status(400)
+            .json({ error: "The smallest card payment is $1.00." });
+    }
+
+    const site = ALLOWED_ORIGINS.includes(origin)
+        ? origin
+        : "https://hometownmeadows.com";
+
+    const form = {
+        mode: "payment",
+        "payment_method_types[0]": "card",
+        success_url: `${site}/portal/payments?paid=1`,
+        cancel_url: `${site}/portal/payments?cancelled=1`,
+        "line_items[0][quantity]": "1",
+        "line_items[0][price_data][currency]": "usd",
+        "line_items[0][price_data][unit_amount]": String(amountCents),
+        "line_items[0][price_data][product_data][name]": `Rent - Lot ${lot.lot_number}`,
+        "metadata[kind]": "rent",
+        "metadata[lot_id]": String(lot.id),
+        "metadata[lot_number]": String(lot.lot_number),
+        // The sync listens to payment_intent.succeeded, not to the session, so
+        // the metadata has to ride on the intent as well. Without this the
+        // rent lands in the application-fee branch.
+        "payment_intent_data[metadata][kind]": "rent",
+        "payment_intent_data[metadata][lot_id]": String(lot.id),
+        "payment_intent_data[metadata][lot_number]": String(lot.lot_number),
+        "payment_intent_data[metadata][resident_account_id]": String(account.id),
+        "payment_intent_data[description]": `Rent - Lot ${lot.lot_number}`,
+    };
+
+    // Built by hand rather than with URLSearchParams, which is not reliably
+    // present in every runtime this has to survive.
+    const body = Object.entries(form)
+        .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
+        .join("&");
+
+    let response;
+
+    try {
+        response = await fetch("https://api.stripe.com/v1/checkout/sessions", {
+            method: "POST",
+            headers: {
+                Authorization: `Bearer ${secret}`,
+                "Content-Type": "application/x-www-form-urlencoded",
+            },
+            body,
+        });
+    } catch {
+        return res
+            .status(502)
+            .json({ error: "Could not reach the card processor. Please try again." });
+    }
+
+    const payload = await response.json().catch(() => null);
+
+    if (!response.ok || !payload?.url) {
+        // Logged, not returned. Stripe's message can name internal detail and
+        // the resident can do nothing with it.
+        console.error(
+            "portal rent checkout failed",
+            payload?.error?.message ?? response.status,
+        );
+
+        return res.status(502).json({
+            error: "The card processor refused that. Please call the office.",
+        });
+    }
+
+    return res.status(200).json({
+        url: payload.url,
+        amount: money(amountCents / 100),
+        outstanding: money(outstandingCents / 100),
+    });
 }
