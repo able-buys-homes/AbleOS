@@ -143,11 +143,44 @@ export default async function handler(req, res) {
             throw insertError;
         }
 
+        // Where to send the receipt.
+        //
+        // The address is the one the resident typed on Stripe's page, which
+        // lives on the Checkout Session rather than the PaymentIntent. Read
+        // through the session rather than by expanding the charge, because
+        // that needs no permission this key does not already have.
+        //
+        // Deliberately after the insert and deliberately forgiving: a receipt
+        // we cannot address is a nuisance, but a payment we failed to record
+        // because of an address lookup would be a disaster.
+        let email = intent.receipt_email ?? null;
+
+        if (!email) {
+            try {
+                const sessionRes = await fetch(
+                    `https://api.stripe.com/v1/checkout/sessions?payment_intent=${encodeURIComponent(
+                        intent.id,
+                    )}&limit=1`,
+                    { headers: { Authorization: `Bearer ${stripeKey}` } },
+                );
+
+                const sessions = await sessionRes.json().catch(() => null);
+                email = sessions?.data?.[0]?.customer_details?.email ?? null;
+            } catch {
+                email = null;
+            }
+        }
+
         return res.status(201).json({
             ok: true,
             lot_id: lotId,
+            lot_number: meta.lot_number ?? null,
             amount,
             receipt_number: receipt,
+            paid_at: new Date((intent.created ?? 0) * 1000).toISOString(),
+            // Null when Stripe collected no address. The caller should send
+            // nothing rather than guess at one.
+            email,
         });
     } catch (err) {
         console.error("stripe-rent failed", err?.message ?? err);
