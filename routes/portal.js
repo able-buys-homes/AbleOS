@@ -16,6 +16,92 @@ import { createClient } from "@supabase/supabase-js";
 import { requireResident } from "../lib/apiAuth.js";
 import { currentPeriod, dueDateFor, lastDayToPay } from "../lib/rentRules.js";
 
+/** XML escaping. A tenant named O'Brien must not break their own receipt. */
+const escapeXml = (value) =>
+    String(value ?? "").replace(
+        /[<>&"']/g,
+        (c) =>
+            ({
+                "<": "&lt;",
+                ">": "&gt;",
+                "&": "&amp;",
+                '"': "&quot;",
+                "'": "&#39;",
+            })[c],
+    );
+
+/** How a payment method reads to a resident, not to a database. */
+const RECEIPT_METHOD = {
+    portal: "Card, via Stripe",
+    card: "Card",
+    cash: "Cash",
+    money_order: "Money order",
+    cashiers_check: "Cashier's check",
+    bank: "Bank transfer",
+    po_box: "Received by post",
+    other: "Other",
+};
+
+/**
+ * The receipt, drawn rather than rendered from a template. SVG because it
+ * needs no image library on the server - the browser turns it into a PNG for
+ * download, and a serverless function that has to load a canvas is a
+ * serverless function that times out.
+ *
+ * Dated in the park's timezone, always. This is the document a resident brings
+ * to an argument about whether rent was late, so it has to say the date the
+ * office would recognise rather than the one their phone happens to be in.
+ */
+function rentReceiptSvg({ receiptNo, name, lotNumber, amount, paidAt, method, voided }) {
+    const money = Number(amount ?? 0).toFixed(2);
+
+    const when = new Intl.DateTimeFormat("en-US", {
+        timeZone: "America/Chicago",
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+    }).format(paidAt ? new Date(paidAt) : new Date());
+
+    const row = (y, label, value, weight = "400") => `
+    <text x="56" y="${y}" font-family="Georgia, serif" font-size="13" fill="#8A7B6E" letter-spacing="1.4">${escapeXml(label.toUpperCase())}</text>
+    <text x="764" y="${y}" text-anchor="end" font-family="Georgia, serif" font-size="17" font-weight="${weight}" fill="#3A2F26">${escapeXml(value)}</text>
+    <line x1="56" y1="${y + 16}" x2="764" y2="${y + 16}" stroke="#E5DDD3" stroke-width="1"/>`;
+
+    // A reversed payment still gets a receipt, and the receipt says so. Hiding
+    // it would leave the resident holding proof of a payment we no longer
+    // recognise, which is how disputes start.
+    const voidBand = voided
+        ? `
+  <rect x="0" y="130" width="820" height="34" fill="#B4462B"/>
+  <text x="410" y="153" text-anchor="middle" font-family="Georgia, serif" font-size="15" letter-spacing="3" fill="#FAF7F2">THIS PAYMENT WAS REVERSED</text>`
+        : "";
+
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="820" height="560" viewBox="0 0 820 560" role="img" aria-label="Rent receipt ${escapeXml(receiptNo)}">
+  <rect width="820" height="560" fill="#FAF7F2"/>
+  <rect x="0" y="0" width="820" height="6" fill="#B4462B"/>
+
+  <text x="56" y="76" font-family="Georgia, serif" font-size="26" letter-spacing="4" fill="#3A2F26">HOMETOWN MEADOWS</text>
+  <text x="56" y="100" font-family="Georgia, serif" font-size="13" letter-spacing="2" fill="#B4462B">A FAMILY COMMUNITY · NASHVILLE, ARKANSAS</text>
+
+  <text x="764" y="76" text-anchor="end" font-family="Georgia, serif" font-size="13" letter-spacing="2.5" fill="#8A7B6E">RECEIPT</text>
+  <text x="764" y="102" text-anchor="end" font-family="Georgia, serif" font-size="20" font-weight="600" fill="#3A2F26">${escapeXml(receiptNo)}</text>
+
+  <line x1="56" y1="130" x2="764" y2="130" stroke="#3A2F26" stroke-width="1.5"/>
+  ${voidBand}
+
+  <text x="56" y="198" font-family="Georgia, serif" font-size="22" fill="#3A2F26">Rent payment received</text>
+
+  ${row(252, "Received from", name || "Resident")}
+  ${row(304, "Lot", String(lotNumber ?? "—"))}
+  ${row(356, "Date", when)}
+  ${row(408, "Method", method || "—")}
+  ${row(460, "Amount paid", "$" + money, "700")}
+
+  <text x="56" y="512" font-family="Georgia, serif" font-size="12" fill="#6F6259">121 Smith Lane, Nashville, AR 71852 · (870) 233-9798</text>
+  <text x="56" y="534" font-family="Georgia, serif" font-size="11" fill="#8A7B6E">Keep this receipt for your records. Your full history is at portal.hometownmeadows.com</text>
+</svg>`;
+}
+
 let cachedClient = null;
 
 function getClient() {
@@ -73,6 +159,69 @@ export default async function handler(req, res) {
     }
 
     const { account, lot } = session;
+
+    
+    // One receipt, drawn on demand.
+    //
+    // Scoped to the lot from the session, so a resident who guesses another
+    // payment's id gets nothing. Drawn each time rather than stored, because a
+    // stored image can drift from the ledger it claims to describe.
+    if (req.method === "GET" && req.query.receipt) {
+        const paymentId = String(req.query.receipt);
+
+        if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(paymentId)) {
+            return res.status(400).json({ error: "Which receipt?" });
+        }
+
+        try {
+            const supabase = getClient();
+
+            const [paymentRes, reversalRes] = await Promise.all([
+                supabase
+                    .from("payments")
+                    .select("id, amount, received_at, method, receipt_number, reverses_id")
+                    .eq("id", paymentId)
+                    .eq("lot_id", lot.id)
+                    .maybeSingle(),
+                supabase
+                    .from("payments")
+                    .select("id")
+                    .eq("reverses_id", paymentId)
+                    .limit(1),
+            ]);
+
+            if (paymentRes.error || reversalRes.error) {
+                return res.status(500).json({ error: "Could not read that receipt" });
+            }
+
+            const payment = paymentRes.data;
+
+            if (!payment) return res.status(404).json({ error: "No such receipt" });
+
+            // A reversal entry is the undoing of a payment, not a payment. It
+            // has no receipt of its own.
+            if (payment.reverses_id) {
+                return res.status(409).json({ error: "That entry is a reversal, not a payment" });
+            }
+
+            const svg = rentReceiptSvg({
+                receiptNo: payment.receipt_number || payment.id.slice(0, 8).toUpperCase(),
+                name: lot.tenant_name || account.display_name || "Resident",
+                lotNumber: lot.lot_number,
+                amount: payment.amount,
+                paidAt: payment.received_at,
+                method: RECEIPT_METHOD[payment.method ?? ""] ?? "Payment",
+                voided: Boolean(reversalRes.data?.length),
+            });
+
+            res.setHeader("Content-Type", "image/svg+xml; charset=utf-8");
+            res.setHeader("Cache-Control", "private, no-store");
+            return res.status(200).send(svg);
+        } catch (err) {
+            console.error("portal receipt failed", err?.message ?? err);
+            return res.status(500).json({ error: "Could not draw that receipt" });
+        }
+    }
 
     // Rent payment. It lives on this route so it inherits requireResident
     // above - which means the lot comes from the session, never from the
