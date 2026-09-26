@@ -15,7 +15,9 @@ import { PipelineBoard } from "./pages/PipelineBoard";
 import { DocumentTitle } from "./lib/DocumentTitle";
 import { ZoCollections } from "./pages/ZoCollections";
 import { HtmApplication } from "./pages/HtmApplication";
+import { DaneNotices } from "./pages/DaneNotices";
 import { ZoJobs } from "./pages/ZoJobs";
+import { ZoNotices } from "./pages/ZoNotices";
 import { ZoMap } from "./pages/ZoMap";
 import { RajApprovals } from "./pages/RajApprovals";
 import { ElleryApplicants } from "./pages/ElleryApplicants";
@@ -135,6 +137,24 @@ export function App() {
             element={
               <ProtectedRoute cockpit="zo">
                 <ZoMap />
+              </ProtectedRoute>
+            }
+          />
+          {/* Announcements. One board, two doors - Dane and Zo write to the
+              same table, so the park is never told two different things. */}
+          <Route
+            path="/zo/notices"
+            element={
+              <ProtectedRoute cockpit="zo">
+                <ZoNotices />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/dane/notices"
+            element={
+              <ProtectedRoute cockpit="dane">
+                <DaneNotices />
               </ProtectedRoute>
             }
           />
