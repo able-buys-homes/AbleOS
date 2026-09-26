@@ -14,7 +14,7 @@
 
 import crypto from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
-import { postCharge, postPayment } from "../lib/qboLedger.js";
+import { postCharge, postPayment, debugPaymentMethod } from "../lib/qboLedger.js";
 
 const CHARGE_LABEL = {
     rent: "Lot rent",
@@ -90,6 +90,16 @@ export default async function handler(req, res) {
     if (!secret) return res.status(500).json({ error: "N8N_SHARED_SECRET is not set" });
     if (!secretMatches(req.headers.authorization, secret)) {
         return res.status(401).json({ error: "Not authorised" });
+    }
+
+    // Temporary diagnostic. Remove once the payment method question is settled.
+    if (req.body?.debug_method) {
+        try {
+            const info = await debugPaymentMethod(String(req.body.debug_method));
+            return res.status(200).json({ ok: true, debug: info });
+        } catch (err) {
+            return res.status(500).json({ error: err?.message ?? String(err) });
+        }
     }
 
     const limit = Math.min(Math.max(Number(req.body?.limit) || 50, 1), 200);
