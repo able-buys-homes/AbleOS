@@ -483,6 +483,51 @@ export default async function handler(req, res) {
         }
     }
 
+    // A resident giving us an address to write to.
+    //
+    // Their sign-in address is built from the lot number and is not a real
+    // mailbox, so it is refused here - saving it would send every notice into
+    // a void and look, from the office, like delivery was working.
+    if (req.method === "POST" && req.query.contact === "1") {
+        const email = String(req.body?.email ?? "").trim().toLowerCase();
+        const optIn =
+            typeof req.body?.emailOptIn === "boolean" ? req.body.emailOptIn : undefined;
+
+        if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
+            return res.status(400).json({ error: "That does not look like an email address" });
+        }
+
+        if (email.endsWith("@hometownmeadows.com")) {
+            return res.status(400).json({
+                error: "Use your own email address, not the one you sign in with",
+            });
+        }
+
+        try {
+            const supabase = getClient();
+
+            const patch = {};
+            if (req.body?.email !== undefined) patch.contact_email = email || null;
+            if (optIn !== undefined) patch.email_opt_in = optIn;
+
+            if (!Object.keys(patch).length) {
+                return res.status(400).json({ error: "Nothing to change" });
+            }
+
+            const { error } = await supabase
+                .from("resident_accounts")
+                .update(patch)
+                .eq("id", account.id);
+
+            if (error) throw new Error(error.message);
+
+            return res.status(200).json({ ok: true });
+        } catch (err) {
+            console.error("portal contact update failed", err?.message ?? err);
+            return res.status(500).json({ error: "Could not save that" });
+        }
+    }
+
     // Rent payment. It lives on this route so it inherits requireResident
     // above - which means the lot comes from the session, never from the
     // request body. A resident cannot pay against someone else's home.
@@ -649,6 +694,8 @@ export default async function handler(req, res) {
                 property: lot.property,
                 movedIn: lot.move_in_on,
                 assisted: Boolean(lot.hap_household),
+                contactEmail: account.contact_email ?? null,
+                emailOptIn: account.email_opt_in !== false,
             },
             rent: {
                 confirmed: rentConfirmed,
