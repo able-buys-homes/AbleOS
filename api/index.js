@@ -6,6 +6,7 @@
 // deployment at 12. Keeping the handlers outside /api means they no longer
 // count, so endpoints can be added freely from here on.
 
+import announcements from "../routes/announcements.js";
 import applicants from "../routes/applicants.js";
 import applications from "../routes/applications.js";
 import approveStage from "../routes/approve-stage.js";
@@ -56,6 +57,7 @@ import qboSync from "../routes/qbo-sync.js";
 export const config = { maxDuration: 60 };
 
 const ROUTES = {
+    announcements,
     applicants,
     applications,
     "approve-stage": approveStage,

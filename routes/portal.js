@@ -425,6 +425,64 @@ export default async function handler(req, res) {
         }
     }
 
+    // Marking an announcement read. Per resident, so one person opening it
+    // does not clear the badge for the whole park.
+    if (req.method === "POST" && req.query.read === "1") {
+        try {
+            const supabase = getClient();
+
+            const today = new Intl.DateTimeFormat("en-CA", {
+                timeZone: "America/Chicago",
+            }).format(new Date());
+
+            if (req.body?.all === true) {
+                const { data: live, error: liveError } = await supabase
+                    .from("announcements")
+                    .select("id")
+                    .is("archived_at", null)
+                    .lte("publish_at", new Date().toISOString())
+                    .or(`expires_on.is.null,expires_on.gte.${today}`)
+                    .limit(200);
+
+                if (liveError) throw new Error(liveError.message);
+
+                const rows = (live ?? []).map((a) => ({
+                    announcement_id: a.id,
+                    resident_account_id: account.id,
+                }));
+
+                if (rows.length) {
+                    const { error } = await supabase
+                        .from("announcement_reads")
+                        .upsert(rows, { onConflict: "announcement_id,resident_account_id" });
+
+                    if (error) throw new Error(error.message);
+                }
+
+                return res.status(200).json({ ok: true, marked: rows.length });
+            }
+
+            const id = String(req.body?.id ?? "");
+
+            if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
+                return res.status(400).json({ error: "Which notice?" });
+            }
+
+            const { error } = await supabase
+                .from("announcement_reads")
+                .upsert(
+                    { announcement_id: id, resident_account_id: account.id },
+                    { onConflict: "announcement_id,resident_account_id" },
+                );
+
+            if (error) throw new Error(error.message);
+            return res.status(200).json({ ok: true });
+        } catch (err) {
+            console.error("portal mark read failed", err?.message ?? err);
+            return res.status(500).json({ error: "Could not mark that read" });
+        }
+    }
+
     // Rent payment. It lives on this route so it inherits requireResident
     // above - which means the lot comes from the session, never from the
     // request body. A resident cannot pay against someone else's home.
@@ -509,6 +567,55 @@ export default async function handler(req, res) {
         // resident. Showing it as a balance would be presenting a stand-in as
         // a debt. Better to say plainly that it is not settled.
         const rentConfirmed = !lot.rent_placeholder && lot.contract_rent != null;
+        // Park announcements. Not the notices table - that one is legal
+        // eviction paperwork and has no business on a resident's phone.
+        const todayInPark = new Intl.DateTimeFormat("en-CA", {
+            timeZone: "America/Chicago",
+        }).format(new Date());
+
+        const [annRes, readRes] = await Promise.all([
+            supabase
+                .from("announcements")
+                .select("id, category, title, body, pinned, publish_at, expires_on")
+                .is("archived_at", null)
+                .lte("publish_at", new Date().toISOString())
+                .or(`expires_on.is.null,expires_on.gte.${todayInPark}`)
+                .order("pinned", { ascending: false })
+                .order("publish_at", { ascending: false })
+                .limit(50),
+            supabase
+                .from("announcement_reads")
+                .select("announcement_id")
+                .eq("resident_account_id", account.id),
+        ]);
+
+        if (annRes.error) throw new Error(annRes.error.message);
+        if (readRes.error) throw new Error(readRes.error.message);
+
+        const readIds = new Set((readRes.data ?? []).map((r) => r.announcement_id));
+
+        const notices = (annRes.data ?? []).map((a) => {
+            // Blank lines are paragraphs. Whoever wrote it in the office
+            // pressed Enter twice for a reason.
+            const paragraphs = String(a.body ?? "")
+                .split(/\n\s*\n/)
+                .map((p) => p.trim())
+                .filter(Boolean);
+
+            const first = paragraphs[0] ?? "";
+
+            return {
+                id: a.id,
+                title: a.title,
+                summary: first.length > 160 ? `${first.slice(0, 157)}…` : first,
+                body: paragraphs,
+                category: a.category,
+                postedAt: a.publish_at,
+                pinned: Boolean(a.pinned),
+                read: readIds.has(a.id),
+            };
+        });
+
         // Signed links for whatever the resident photographed. They expire:
         // nothing here is a permanent URL, so a link that leaks stops working
         // rather than sitting on the internet forever.
@@ -616,7 +723,7 @@ export default async function handler(req, res) {
             // geo-tagged proof of posting. That is not what a resident portal
             // means by notices, and serving one through a web page is not
             // service. Community announcements have nowhere to live yet.
-            notices: [],
+            notices,
         });
     } catch (err) {
         console.error("portal failed:", err);
