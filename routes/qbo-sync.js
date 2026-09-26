@@ -116,7 +116,9 @@ export default async function handler(req, res) {
 
         const { data: payments, error: paymentsError } = await supabase
             .from("payments")
-            .select("id, lot_id, amount, received_at, receipt_number, reverses_id, qbo_payment_id")
+            .select(
+                "id, lot_id, amount, received_at, method, receipt_number, reverses_id, qbo_payment_id",
+            )
             .is("qbo_payment_id", null)
             .is("reverses_id", null)
             .gt("amount", 0)
