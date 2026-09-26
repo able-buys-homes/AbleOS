@@ -1,6 +1,6 @@
 // src/components/ZoTabBar.tsx
-// The five places Zo goes, fixed to the bottom of every /zo screen.
-// One row, five targets, sized to be hit with a thumb in work gloves.
+// The six places Zo goes, fixed to the bottom of every /zo screen.
+// One row, six targets, sized to be hit with a thumb in work gloves.
 //
 // Labels are the words Zo says out loud - "Rent", not "Collections". The
 // route keeps its existing path so nothing already deployed has to move.
@@ -11,6 +11,7 @@ import {
   ClipboardCheckIcon,
   HardHatIcon,
   MapIcon,
+  MegaphoneIcon,
   WrenchIcon,
 } from "lucide-react";
 
@@ -22,6 +23,7 @@ const TABS = [
   { to: "/zo/jobs", label: "Jobs", Icon: WrenchIcon },
   { to: "/zo", label: "Rehab", Icon: HardHatIcon },
   { to: "/zo/inspect", label: "Inspect", Icon: ClipboardCheckIcon },
+  { to: "/zo/notices", label: "Bulletin", Icon: MegaphoneIcon },
 ] as const;
 
 export function ZoTabBar() {
@@ -52,7 +54,7 @@ export function ZoTabBar() {
               to={to}
             >
               <>
-                {/* Identical size and weight on all five. The active tab
+                {/* Identical size and weight on all six. The active tab
                     differs by colour and nothing else - a heavier stroke on
                     the active icon read as a larger label. */}
                 <Icon aria-hidden="true" size={22} strokeWidth={2} />

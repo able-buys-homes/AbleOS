@@ -1,9 +1,11 @@
 import React from "react";
+import { useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   ClipboardListIcon,
   FileTextIcon,
   ListChecksIcon,
+  MegaphoneIcon,
   PlusIcon,
   CheckIcon,
 } from "lucide-react";
@@ -60,6 +62,7 @@ const reveal = {
 };
 
 export function DaneCockpit() {
+  const navigate = useNavigate();
   const [addOrderOpen, setAddOrderOpen] = React.useState(false);
   const [toast, setToast] = React.useState("");
   const [orders, setOrders] = React.useState<Order[]>([]);
@@ -417,6 +420,16 @@ export function DaneCockpit() {
                 onClick={() => setTasksOpen(true)}
                 subtitle="Work Raj has assigned to you"
                 title="Tasks from Raj"
+                tone="blue"
+              />
+              {/* The same board Zo writes to. One screen, so the park is
+                  never told two different things. */}
+              <NavCard
+                count={null}
+                icon={<MegaphoneIcon size={17} strokeWidth={2.5} />}
+                onClick={() => navigate("/dane/notices")}
+                subtitle="What the park sees in the resident portal"
+                title="Announcements"
                 tone="blue"
               />
             </section>
