@@ -63,6 +63,29 @@ const reveal = {
 
 export function DaneCockpit() {
   const navigate = useNavigate();
+  const [announcementCount, setAnnouncementCount] = React.useState<number | null>(null);
+
+  React.useEffect(() => {
+    let cancelled = false;
+
+    void (async () => {
+      const res = await apiFetch("/api/announcements");
+      if (!res.ok) return;
+
+      const data = await res.json().catch(() => null);
+      if (cancelled || !data) return;
+
+      setAnnouncementCount(
+        (data.announcements ?? []).filter(
+          (a: { archived_at: string | null }) => !a.archived_at,
+        ).length,
+      );
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   const [addOrderOpen, setAddOrderOpen] = React.useState(false);
   const [toast, setToast] = React.useState("");
   const [orders, setOrders] = React.useState<Order[]>([]);
@@ -425,7 +448,7 @@ export function DaneCockpit() {
               {/* The same board Zo writes to. One screen, so the park is
                   never told two different things. */}
               <NavCard
-                count={null}
+                count={announcementCount}
                 icon={<MegaphoneIcon size={17} strokeWidth={2.5} />}
                 onClick={() => navigate("/dane/notices")}
                 subtitle="What the park sees in the resident portal"
