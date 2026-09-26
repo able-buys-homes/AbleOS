@@ -12,6 +12,7 @@
 // balance built on a placeholder rent would be reading a number we invented,
 // and they would be right to argue with it.
 
+import crypto from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
 import { requireResident } from "../lib/apiAuth.js";
 import { currentPeriod, dueDateFor, lastDayToPay } from "../lib/rentRules.js";
@@ -220,6 +221,207 @@ export default async function handler(req, res) {
         } catch (err) {
             console.error("portal receipt failed", err?.message ?? err);
             return res.status(500).json({ error: "Could not draw that receipt" });
+        }
+    }
+
+    // A resident opening a job.
+    //
+    // The lot comes from the session, never the body, so nobody can raise
+    // work against another home. Everything else is checked against the same
+    // vocabulary the database enforces - a rejected check constraint reaches
+    // the resident as a blank failure, which teaches them the portal is
+    // broken when in fact they picked a valid-looking option.
+    if (req.method === "POST" && req.query.workorder === "1") {
+        const CATEGORIES = new Set([
+            "plumbing",
+            "electrical",
+            "hvac",
+            "roof",
+            "skirting",
+            "appliance",
+            "grounds",
+            "pest",
+            "other",
+        ]);
+
+        // "cosmetic" is missing on purpose. It is the office's own triage
+        // word, not something a resident should have to grade their own
+        // problem with.
+        const PRIORITIES = new Set(["routine", "urgent", "emergency"]);
+
+        const LOCATIONS = new Set([
+            "kitchen",
+            "primary_bath",
+            "second_bath",
+            "living_room",
+            "bedroom",
+            "utility",
+            "exterior",
+            "driveway",
+        ]);
+
+        const category = String(req.body?.category ?? "").trim();
+        const priority = String(req.body?.priority ?? "routine").trim();
+        const location = String(req.body?.location ?? "").trim();
+        const title = String(req.body?.title ?? "").trim();
+        const note = String(req.body?.note ?? "").trim();
+
+        if (!CATEGORIES.has(category)) {
+            return res.status(400).json({ error: "Pick a category" });
+        }
+        if (!PRIORITIES.has(priority)) {
+            return res.status(400).json({ error: "Pick how urgent this is" });
+        }
+        if (location && !LOCATIONS.has(location)) {
+            return res.status(400).json({ error: "Pick a location" });
+        }
+        if (title.length < 3) {
+            return res.status(400).json({ error: "Give it a short summary" });
+        }
+        if (note.length < 3) {
+            return res.status(400).json({ error: "Tell us what is happening" });
+        }
+
+        const photoPaths = (Array.isArray(req.body?.photoPaths) ? req.body.photoPaths : [])
+            .map((p) => String(p))
+            .filter(Boolean)
+            .slice(0, 4);
+
+        // Every photo has to live in this resident's own folder. Without this
+        // a request could quietly attach a photo belonging to another lot.
+        const prefix = `portal/${lot.id}/`;
+
+        if (photoPaths.some((p) => !p.startsWith(prefix))) {
+            return res.status(400).json({ error: "Those photos do not belong to this home" });
+        }
+
+        try {
+            const supabase = getClient();
+
+            // Double-tap protection. A resident on a slow phone presses Submit
+            // twice, and two identical jobs waste a visit.
+            const since = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+
+            const { data: recent, error: recentError } = await supabase
+                .from("work_orders")
+                .select("id")
+                .eq("lot_id", lot.id)
+                .eq("title", title.slice(0, 120))
+                .gte("opened_at", since)
+                .limit(1);
+
+            if (recentError) throw new Error(recentError.message);
+
+            if (recent?.length) {
+                return res.status(200).json({ ok: true, id: recent[0].id, duplicate: true });
+            }
+
+            const { data: created, error: insertError } = await supabase
+                .from("work_orders")
+                .insert({
+                    lot_id: lot.id,
+                    title: title.slice(0, 120),
+                    note: note.slice(0, 2000),
+                    category,
+                    priority,
+                    status: "new",
+                    location: location || null,
+                    preferred_window: req.body?.preferredWindow
+                        ? String(req.body.preferredWindow).slice(0, 120)
+                        : null,
+                    // Null rather than false when nothing was asked. False is
+                    // a claim that they said no.
+                    entry_permission:
+                        typeof req.body?.entryPermission === "boolean"
+                            ? req.body.entryPermission
+                            : null,
+                    pets_on_site:
+                        typeof req.body?.petsOnSite === "boolean"
+                            ? req.body.petsOnSite
+                            : null,
+                    opened_photo_paths: photoPaths,
+                    // Kept in step with the array so screens still reading the
+                    // single column show the first photo rather than none.
+                    opened_photo_path: photoPaths[0] ?? null,
+                    occupant_name: lot.tenant_name ?? account.display_name ?? null,
+                    opened_by: "resident",
+                })
+                .select("id, title, priority, status, opened_at")
+                .single();
+
+            if (insertError) throw new Error(insertError.message);
+
+            // Zo dispatches, so Zo is told. Raj is told too - a system that
+            // speaks up only when something is on fire teaches him that
+            // silence means nothing is happening.
+            const heading =
+                priority === "emergency"
+                    ? `EMERGENCY - Lot ${lot.lot_number}`
+                    : `Lot ${lot.lot_number} raised a request`;
+
+            const body = `${title.slice(0, 120)} - ${priority}. Opened by the resident in the portal.`;
+
+            await supabase.from("notifications").insert([
+                { recipient: "zo", type: "work_order_opened", title: heading, body, link: "/zo/jobs" },
+                { recipient: "raj", type: "work_order_opened", title: heading, body, link: "/raj" },
+            ]);
+
+            return res.status(201).json({ ok: true, workOrder: created });
+        } catch (err) {
+            console.error("portal work order failed", err?.message ?? err);
+            return res.status(500).json({ error: "Could not open that request" });
+        }
+    }
+
+    // Signed upload slots for a resident's photos.
+    //
+    // The browser uploads straight to storage rather than posting megabytes
+    // through a serverless function that would time out on a bad phone
+    // signal. Each slot names one path inside this resident's own folder, so
+    // a slot cannot be turned into a way to overwrite another lot's photo.
+    if (req.method === "POST" && req.query.upload === "1") {
+        const BUCKET = "collections-photos";
+
+        const ALLOWED = new Map([
+            ["image/jpeg", "jpg"],
+            ["image/jpg", "jpg"],
+            ["image/png", "png"],
+            ["image/webp", "webp"],
+            ["image/heic", "heic"],
+        ]);
+
+        const types = (Array.isArray(req.body?.types) ? req.body.types : [])
+            .map((t) => String(t).toLowerCase().trim())
+            .slice(0, 4);
+
+        if (!types.length) {
+            return res.status(400).json({ error: "Nothing to upload" });
+        }
+
+        if (types.some((t) => !ALLOWED.has(t))) {
+            return res.status(400).json({ error: "Photos only - JPEG, PNG, WebP or HEIC" });
+        }
+
+        try {
+            const supabase = getClient();
+            const slots = [];
+
+            for (const type of types) {
+                const path = `portal/${lot.id}/${crypto.randomUUID()}.${ALLOWED.get(type)}`;
+
+                const { data, error } = await supabase.storage
+                    .from(BUCKET)
+                    .createSignedUploadUrl(path);
+
+                if (error) throw new Error(error.message);
+
+                slots.push({ path, token: data.token });
+            }
+
+            return res.status(200).json({ ok: true, bucket: BUCKET, slots });
+        } catch (err) {
+            console.error("portal upload slots failed", err?.message ?? err);
+            return res.status(500).json({ error: "Could not prepare the upload" });
         }
     }
 
