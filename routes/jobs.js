@@ -95,7 +95,8 @@ export default async function handler(req, res) {
             // in the bucket could be fetched by asking for it.
             if (
                 !path.startsWith("htm/job_done/") &&
-                !path.startsWith("htm/job_open/")
+                !path.startsWith("htm/job_open/") &&
+                !path.startsWith("portal/")
             ) {
                 return res.status(400).json({ error: "Not a job photo" });
             }
@@ -155,6 +156,7 @@ export default async function handler(req, res) {
                             ? (lot?.tenant_name ?? null)
                             : null,
                     parts: partsByJob.get(job.id) ?? [],
+                    opened_photo_urls: [],
                     // A job waiting three weeks must not look like one ordered
                     // yesterday. Counts only parts that have not turned up,
                     // and only while the job is actually waiting - a finished
@@ -173,7 +175,11 @@ export default async function handler(req, res) {
             // One call for every photo rather than one per job. These links
             // expire - nothing here is a permanent URL.
             const paths = jobs
-                .flatMap((j) => [j.photo_path, j.opened_photo_path])
+                .flatMap((j) => [
+                    j.photo_path,
+                    j.opened_photo_path,
+                    ...(Array.isArray(j.opened_photo_paths) ? j.opened_photo_paths : []),
+                ])
                 .filter((p) => typeof p === "string" && p.length > 0);
 
             if (paths.length > 0) {
@@ -192,6 +198,19 @@ export default async function handler(req, res) {
                     j.opened_photo_url = j.opened_photo_path
                         ? (urlByPath.get(j.opened_photo_path) ?? null)
                         : null;
+
+                    // Everything the resident sent, in the order they sent
+                    // it. The single column above is the first of them,
+                    // kept for screens that have not moved across yet.
+                    j.opened_photo_urls = (
+                        Array.isArray(j.opened_photo_paths) && j.opened_photo_paths.length
+                            ? j.opened_photo_paths
+                            : j.opened_photo_path
+                              ? [j.opened_photo_path]
+                              : []
+                    )
+                        .map((path) => urlByPath.get(path))
+                        .filter(Boolean);
                 }
             }
 

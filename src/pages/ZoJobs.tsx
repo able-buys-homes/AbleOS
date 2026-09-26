@@ -45,6 +45,12 @@ type Row = {
   parts?: PartRow[];
   /** Worked out by the server against the park's calendar, not the browser's. */
   part_overdue?: boolean;
+  location: string | null;
+  preferred_window: string | null;
+  entry_permission: boolean | null;
+  pets_on_site: boolean | null;
+  opened_by: string | null;
+  opened_photo_urls?: string[];
 };
 
 type PartRow = {
@@ -106,6 +112,13 @@ export function ZoJobs() {
           status: r.status,
           openedAt: r.opened_at,
           note: r.note ?? undefined,
+          location: r.location ?? undefined,
+          preferredWindow: r.preferred_window ?? undefined,
+          // Null stays undefined. False is a refusal; undefined is silence.
+          entryPermission: r.entry_permission ?? undefined,
+          petsOnSite: r.pets_on_site ?? undefined,
+          openedBy: r.opened_by ?? undefined,
+          photos: r.opened_photo_urls ?? [],
           assignedTo: r.assigned_to ?? undefined,
           // Only built when a part is actually named. An empty parts object
           // would make every job look like it were waiting on something.

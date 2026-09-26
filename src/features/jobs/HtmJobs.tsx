@@ -38,8 +38,10 @@ export type Category =
   | "electrical"
   | "hvac"
   | "roof"
+  | "skirting"
   | "appliance"
   | "grounds"
+  | "pest"
   | "other";
 
 /** One thing a job is waiting on. A job can be waiting on several. */
@@ -65,6 +67,20 @@ export interface Job {
   status: JobStatus;
   openedAt: string;
   note?: string;
+  /** Where in the home. Only a resident-raised job has one. */
+  location?: string;
+  /** When they said they would be in. Their words, not a slug. */
+  preferredWindow?: string;
+  /**
+   * Undefined means nobody was ever asked - an office-raised job. False
+   * means the resident said no, and a tech must not let themselves in.
+   */
+  entryPermission?: boolean;
+  petsOnSite?: boolean;
+  /** "resident" when they raised it themselves, otherwise the cockpit. */
+  openedBy?: string;
+  /** What the resident photographed. Signed links, they expire. */
+  photos?: string[];
   assignedTo?: string;
   /**
    * What the job is waiting on. Only meaningful while the status is
@@ -180,9 +196,22 @@ const CAT: Record<Category, string> = {
   electrical: "Electrical",
   hvac: "Heat / AC",
   roof: "Roof",
+  skirting: "Skirting",
   appliance: "Appliance",
   grounds: "Grounds",
+  pest: "Pest control",
   other: "Other",
+};
+
+export const LOC: Record<string, string> = {
+  kitchen: "Kitchen",
+  primary_bath: "Primary bathroom",
+  second_bath: "Second bathroom",
+  living_room: "Living room",
+  bedroom: "Bedroom",
+  utility: "Utility room",
+  exterior: "Exterior / lot",
+  driveway: "Driveway & carport",
 };
 
 const rank: Record<Priority, number> = {
@@ -517,6 +546,68 @@ export default function HtmJobs({
                 {j.note}
               </p>
             )}
+            {(j.location ||
+              j.preferredWindow ||
+              j.entryPermission !== undefined ||
+              j.petsOnSite ||
+              (j.photos?.length ?? 0) > 0) && (
+              <div className="mt-3 rounded-lg border border-[#E3E5E9] bg-[#F7F8FA] px-3 py-2.5">
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[12.5px] text-[#4A5261]">
+                  {j.openedBy === "resident" && (
+                    <span className="rounded-full border border-[#C9D7EE] bg-[#E8F0FC] px-2 py-0.5 text-[11px] font-bold uppercase tracking-[0.04em] text-[#1E4C8A]">
+                      From the resident
+                    </span>
+                  )}
+                  {j.location && (
+                    <span>
+                      <b className="font-semibold text-[#1B2231]">Where</b>{" "}
+                      {LOC[j.location] ?? j.location}
+                    </span>
+                  )}
+                  {j.preferredWindow && (
+                    <span>
+                      <b className="font-semibold text-[#1B2231]">Best time</b>{" "}
+                      {j.preferredWindow}
+                    </span>
+                  )}
+                </div>
+
+                {(j.entryPermission !== undefined || j.petsOnSite) && (
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {j.entryPermission === true && (
+                      <span className="rounded-full border border-[#B7E2CC] bg-[#E6F5EC] px-2 py-0.5 text-[11px] font-bold uppercase tracking-[0.04em] text-[#1B7A4B]">
+                        May enter when out
+                      </span>
+                    )}
+                    {j.entryPermission === false && (
+                      <span className="rounded-full border border-[#E9B8B2] bg-[#FDE7E5] px-2 py-0.5 text-[11px] font-bold uppercase tracking-[0.04em] text-[#B3261E]">
+                        Do not enter unless someone is home
+                      </span>
+                    )}
+                    {j.petsOnSite && (
+                      <span className="rounded-full border border-[#E5D3A8] bg-[#FBF3DE] px-2 py-0.5 text-[11px] font-bold uppercase tracking-[0.04em] text-[#8A6A16]">
+                        Pets on site - knock first
+                      </span>
+                    )}
+                  </div>
+                )}
+
+                {(j.photos?.length ?? 0) > 0 && (
+                  <div className="mt-2.5 flex flex-wrap gap-2">
+                    {(j.photos ?? []).map((url, i) => (
+                      <a key={i} href={url} target="_blank" rel="noreferrer">
+                        <img
+                          src={url}
+                          alt="What the resident sent"
+                          className="h-16 w-16 rounded-md border border-[#E3E5E9] object-cover"
+                        />
+                      </a>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
 
             <Label>Where is it up to</Label>
             <select
