@@ -313,32 +313,7 @@ export default async function handler(req, res) {
             if (recentError) throw new Error(recentError.message);
 
             if (recent?.length) {
-                // Signed links for whatever the resident photographed. They expire:
-        // nothing here is a permanent URL, so a link that leaks stops working
-        // rather than sitting on the internet forever.
-        const pathsToSign = [
-            ...new Set(
-                (ordersRes.data ?? []).flatMap((w) => {
-                    const many = Array.isArray(w.opened_photo_paths) ? w.opened_photo_paths : [];
-                    if (many.length) return many;
-                    return w.opened_photo_path ? [w.opened_photo_path] : [];
-                }),
-            ),
-        ];
-
-        const photoUrlByPath = new Map();
-
-        if (pathsToSign.length) {
-            const { data: signed } = await supabase.storage
-                .from("collections-photos")
-                .createSignedUrls(pathsToSign, 3600);
-
-            for (const item of signed ?? []) {
-                if (item?.path && item?.signedUrl) photoUrlByPath.set(item.path, item.signedUrl);
-            }
-        }
-
-        return res.status(200).json({ ok: true, id: recent[0].id, duplicate: true });
+                return res.status(200).json({ ok: true, id: recent[0].id, duplicate: true });
             }
 
             const { data: created, error: insertError } = await supabase
@@ -534,6 +509,31 @@ export default async function handler(req, res) {
         // resident. Showing it as a balance would be presenting a stand-in as
         // a debt. Better to say plainly that it is not settled.
         const rentConfirmed = !lot.rent_placeholder && lot.contract_rent != null;
+        // Signed links for whatever the resident photographed. They expire:
+        // nothing here is a permanent URL, so a link that leaks stops working
+        // rather than sitting on the internet forever.
+        const pathsToSign = [
+            ...new Set(
+                (ordersRes.data ?? []).flatMap((w) => {
+                    const many = Array.isArray(w.opened_photo_paths) ? w.opened_photo_paths : [];
+                    if (many.length) return many;
+                    return w.opened_photo_path ? [w.opened_photo_path] : [];
+                }),
+            ),
+        ];
+
+        const photoUrlByPath = new Map();
+
+        if (pathsToSign.length) {
+            const { data: signed } = await supabase.storage
+                .from("collections-photos")
+                .createSignedUrls(pathsToSign, 3600);
+
+            for (const item of signed ?? []) {
+                if (item?.path && item?.signedUrl) photoUrlByPath.set(item.path, item.signedUrl);
+            }
+        }
+
 
         return res.status(200).json({
             resident: {
