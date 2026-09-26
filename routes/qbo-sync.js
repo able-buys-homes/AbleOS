@@ -14,7 +14,7 @@
 
 import crypto from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
-import { postCharge, postPayment } from "../lib/qboLedger.js";
+import { postCharge, postPayment, postApplicationFee } from "../lib/qboLedger.js";
 
 const CHARGE_LABEL = {
     rent: "Lot rent",
@@ -98,6 +98,7 @@ export default async function handler(req, res) {
     const result = {
         invoices: { posted: 0, failed: 0 },
         payments: { posted: 0, failed: 0 },
+        fees: { posted: 0, failed: 0 },
         errors: [],
     };
 
@@ -136,6 +137,32 @@ export default async function handler(req, res) {
         if (reversalsError) throw new Error(reversalsError.message);
 
         const reversed = new Set((reversals ?? []).map((r) => r.reverses_id));
+
+        /* ---- Application fees. They belong to no lot, so they are done
+                before the lot lookups and are unaffected by them - a park
+                with nothing owing must still post its fees. ---- */
+        const { data: fees, error: feesError } = await supabase
+            .from("applicants")
+            .select(
+                "id, name, fee_amount, fee_paid_on, fee_paid_at, fee_receipt_no, fee_stripe_payment_intent, qbo_txn_id",
+            )
+            .is("qbo_txn_id", null)
+            .not("fee_paid_on", "is", null)
+            .gt("fee_amount", 0)
+            .order("fee_paid_on", { ascending: true })
+            .limit(limit);
+
+        if (feesError) throw new Error(feesError.message);
+
+        for (const applicant of fees ?? []) {
+            try {
+                await postApplicationFee(applicant);
+                result.fees.posted += 1;
+            } catch (err) {
+                result.fees.failed += 1;
+                result.errors.push(`fee ${applicant.id}: ${err?.message ?? err}`);
+            }
+        }
 
         const lotIds = [
             ...new Set([
@@ -196,7 +223,7 @@ export default async function handler(req, res) {
         // Nobody watches a cron. If something did not post, it has to appear
         // on a desk - a column nobody queries and a log nobody opens are not
         // the same as being told.
-        const failed = result.invoices.failed + result.payments.failed;
+        const failed = result.invoices.failed + result.payments.failed + result.fees.failed;
 
         if (failed > 0) {
             try {
