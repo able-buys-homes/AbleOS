@@ -445,8 +445,14 @@ export function DaneCockpit() {
                 title="Tasks from Raj"
                 tone="blue"
               />
-              {/* The same board Zo writes to. One screen, so the park is
-                  never told two different things. */}
+            </section>
+
+            {/* The same board Zo writes to. One screen, so the park is
+                never told two different things. */}
+            <section aria-labelledby="announcements-heading" className="pt-8">
+              <h2 className="sr-only" id="announcements-heading">
+                Announcements
+              </h2>
               <NavCard
                 count={announcementCount}
                 icon={<MegaphoneIcon size={17} strokeWidth={2.5} />}
