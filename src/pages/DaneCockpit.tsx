@@ -449,7 +449,7 @@ export function DaneCockpit() {
 
             {/* The same board Zo writes to. One screen, so the park is
                 never told two different things. */}
-            <section aria-labelledby="announcements-heading" className="pt-8">
+            <section aria-labelledby="announcements-heading" className="pt-3">
               <h2 className="sr-only" id="announcements-heading">
                 Announcements
               </h2>
