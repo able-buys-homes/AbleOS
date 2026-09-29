@@ -483,6 +483,29 @@ export default async function handler(req, res) {
         }
     }
 
+    // Stamped after the browser has changed the password with Supabase.
+    //
+    // Always "now", never a date from the request. It does not verify the
+    // password actually changed - it only records that the resident says it
+    // did. That is acceptable: the reminder exists to protect the resident,
+    // and anyone calling this by hand only silences their own reminder.
+    if (req.method === "POST" && req.query.password_changed === "1") {
+        try {
+            const supabase = getClient();
+
+            const { error } = await supabase
+                .from("resident_accounts")
+                .update({ password_changed_at: new Date().toISOString() })
+                .eq("id", account.id);
+
+            if (error) throw new Error(error.message);
+            return res.status(200).json({ ok: true });
+        } catch (err) {
+            console.error("portal password stamp failed", err?.message ?? err);
+            return res.status(500).json({ error: "Could not record that" });
+        }
+    }
+
     // A resident giving us an address to write to.
     //
     // Their sign-in address is built from the lot number and is not a real
@@ -509,6 +532,38 @@ export default async function handler(req, res) {
             const patch = {};
             if (req.body?.email !== undefined) patch.contact_email = email || null;
             if (optIn !== undefined) patch.email_opt_in = optIn;
+
+            // Phone numbers arrive however people type them. Stored in one
+            // shape so the office can read them at a glance and dial them.
+            const formatPhone = (raw) => {
+                const digits = String(raw ?? "").replace(/\D/g, "");
+                const ten =
+                    digits.length === 11 && digits.startsWith("1") ? digits.slice(1) : digits;
+
+                if (ten.length === 0) return null;
+                if (ten.length !== 10) return undefined;
+
+                return `(${ten.slice(0, 3)}) ${ten.slice(3, 6)}-${ten.slice(6)}`;
+            };
+
+            for (const [field, column] of [
+                ["phone", "contact_phone"],
+                ["emergencyPhone", "emergency_phone"],
+            ]) {
+                if (req.body?.[field] === undefined) continue;
+
+                const formatted = formatPhone(req.body[field]);
+
+                if (formatted === undefined) {
+                    return res.status(400).json({ error: "That phone number needs ten digits" });
+                }
+
+                patch[column] = formatted;
+            }
+
+            if (req.body?.emergencyName !== undefined) {
+                patch.emergency_name = String(req.body.emergencyName).trim().slice(0, 80) || null;
+            }
 
             if (!Object.keys(patch).length) {
                 return res.status(400).json({ error: "Nothing to change" });
@@ -696,6 +751,10 @@ export default async function handler(req, res) {
                 assisted: Boolean(lot.hap_household),
                 contactEmail: account.contact_email ?? null,
                 emailOptIn: account.email_opt_in !== false,
+                phone: account.contact_phone ?? null,
+                emergencyName: account.emergency_name ?? null,
+                emergencyPhone: account.emergency_phone ?? null,
+                passwordChanged: Boolean(account.password_changed_at),
             },
             rent: {
                 confirmed: rentConfirmed,
