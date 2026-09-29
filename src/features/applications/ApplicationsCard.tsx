@@ -137,7 +137,7 @@ export function ApplicationsCard() {
   return (
     <>
       <button
-        className="mt-4 flex w-full items-center justify-between gap-3 rounded-2xl border border-[#DCE4EE] bg-white px-4 py-4 text-left"
+        className="flex w-full items-center justify-between gap-3 bg-white px-4 py-4 text-left"
         onClick={() => setOpen(true)}
         type="button"
       >
