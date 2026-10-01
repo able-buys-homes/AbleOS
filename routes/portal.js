@@ -499,6 +499,17 @@ export default async function handler(req, res) {
                 .eq("id", account.id);
 
             if (error) throw new Error(error.message);
+
+            // Never blocks the resident: a missed notice is a nuisance, a
+            // failed password change is not.
+            await supabase.from("notifications").insert({
+                recipient: "zo",
+                type: "portal_password_changed",
+                title: `Lot ${lot.lot_number} changed their portal password`,
+                body: "Done by the resident in the portal. Nothing to do.",
+                link: null,
+            }).then(() => null, () => null);
+
             return res.status(200).json({ ok: true });
         } catch (err) {
             console.error("portal password stamp failed", err?.message ?? err);
@@ -575,6 +586,24 @@ export default async function handler(req, res) {
                 .eq("id", account.id);
 
             if (error) throw new Error(error.message);
+
+            // Says what changed, not the new values. The details are on the
+            // resident's record; a notification is not the place for them.
+            const changed = [
+                patch.contact_email !== undefined && "email",
+                patch.email_opt_in !== undefined && "email notices on/off",
+                patch.contact_phone !== undefined && "phone",
+                (patch.emergency_name !== undefined || patch.emergency_phone !== undefined) &&
+                    "emergency contact",
+            ].filter(Boolean);
+
+            await supabase.from("notifications").insert({
+                recipient: "zo",
+                type: "portal_contact_updated",
+                title: `Lot ${lot.lot_number} updated their contact details`,
+                body: `Changed in the portal: ${changed.join(", ")}.`,
+                link: null,
+            }).then(() => null, () => null);
 
             return res.status(200).json({ ok: true });
         } catch (err) {

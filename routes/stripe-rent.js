@@ -143,6 +143,16 @@ export default async function handler(req, res) {
             throw insertError;
         }
 
+        // Zo hears about every portal payment within seconds. After the
+        // insert, so a duplicate retry (answered above) never notifies twice.
+        await supabase.from("notifications").insert({
+            recipient: "zo",
+            type: "portal_payment",
+            title: `Lot ${meta.lot_number ?? "?"} paid $${Number(amount).toFixed(2)} in the portal`,
+            body: `Card payment through Stripe. Receipt ${receipt}. Already recorded — nothing to enter.`,
+            link: "/zo/collections",
+        }).then(() => null, () => null);
+
         // Where to send the receipt.
         //
         // The address is the one the resident typed on Stripe's page, which
