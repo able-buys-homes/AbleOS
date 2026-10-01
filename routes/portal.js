@@ -15,6 +15,7 @@
 import crypto from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
 import { requireResident } from "../lib/apiAuth.js";
+import { sendPush } from "../lib/sendPush.js";
 import { currentPeriod, dueDateFor, lastDayToPay } from "../lib/rentRules.js";
 
 /** XML escaping. A tenant named O'Brien must not break their own receipt. */
@@ -366,6 +367,9 @@ export default async function handler(req, res) {
                 { recipient: "raj", type: "work_order_opened", title: heading, body, link: "/raj" },
             ]);
 
+            // To Zo's phone, even when the app is closed.
+            await sendPush("zo", { title: heading, body, url: "/zo/jobs", tag: `wo-${created?.id ?? lot.id}` });
+
             return res.status(201).json({ ok: true, workOrder: created });
         } catch (err) {
             console.error("portal work order failed", err?.message ?? err);
@@ -510,6 +514,12 @@ export default async function handler(req, res) {
                 link: null,
             }).then(() => null, () => null);
 
+            await sendPush("zo", {
+                title: `Lot ${lot.lot_number} changed their portal password`,
+                body: "Done by the resident in the portal. Nothing to do.",
+                url: "/zo",
+            });
+
             return res.status(200).json({ ok: true });
         } catch (err) {
             console.error("portal password stamp failed", err?.message ?? err);
@@ -604,6 +614,12 @@ export default async function handler(req, res) {
                 body: `Changed in the portal: ${changed.join(", ")}.`,
                 link: null,
             }).then(() => null, () => null);
+
+            await sendPush("zo", {
+                title: `Lot ${lot.lot_number} updated their contact details`,
+                body: `Changed in the portal: ${changed.join(", ")}.`,
+                url: "/zo",
+            });
 
             return res.status(200).json({ ok: true });
         } catch (err) {

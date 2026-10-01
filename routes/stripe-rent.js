@@ -13,6 +13,7 @@
 
 import crypto from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
+import { sendPush } from "../lib/sendPush.js";
 
 let cachedClient = null;
 
@@ -152,6 +153,14 @@ export default async function handler(req, res) {
             body: `Card payment through Stripe. Receipt ${receipt}. Already recorded — nothing to enter.`,
             link: "/zo/collections",
         }).then(() => null, () => null);
+
+        // To Zo's phone, even when the app is closed.
+        await sendPush("zo", {
+            title: `Lot ${meta.lot_number ?? "?"} paid $${Number(amount).toFixed(2)} in the portal`,
+            body: `Card payment through Stripe. Receipt ${receipt}.`,
+            url: "/zo/collections",
+            tag: `pay-${intent.id}`,
+        });
 
         // Where to send the receipt.
         //
