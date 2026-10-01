@@ -39,6 +39,7 @@ type Row = {
   top_job: { id: string; title: string; priority: string } | null;
   month_charged: number;
   month_paid: number;
+  hap_household: boolean | null;
 };
 
 const num = (v: string | number | null) =>
@@ -91,6 +92,7 @@ export function ZoMap() {
           bed: num(r.bed),
           bath: num(r.bath),
           sqft: r.sq_ft ?? undefined,
+          hapHousehold: r.hap_household === true,
         }));
 
       setLots(mapped);

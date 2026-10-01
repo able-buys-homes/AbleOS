@@ -49,6 +49,8 @@ export interface Lot {
   bed?: number;
   bath?: number;
   sqft?: number;
+  /** A housing authority pays part of the rent. */
+  hapHousehold?: boolean;
 }
 
 /**
@@ -458,6 +460,7 @@ export function HtmLotMap({
   const [draftStatus, setDraftStatus] = React.useState<LotStatus>("verify");
   const [draftName, setDraftName] = React.useState("");
   const [draftRent, setDraftRent] = React.useState("");
+  const [draftPortion, setDraftPortion] = React.useState("");
   const [draftMoveIn, setDraftMoveIn] = React.useState("");
   const [draftNote, setDraftNote] = React.useState("");
   const [busy, setBusy] = React.useState(false);
@@ -479,6 +482,15 @@ export function HtmLotMap({
   // is asked for here and nowhere else on this screen.
   const movingIn =
     draftStatus === "occupied" && selected?.status !== "occupied";
+
+  // An assisted household has two figures: the contract rent and the part
+  // the resident pays. The server refuses a move-in without both.
+  const needsPortion = movingIn && selected?.hapHousehold === true;
+  const portionMissing =
+    needsPortion &&
+    (draftPortion.trim() === "" ||
+      Number(draftPortion) < 0 ||
+      Number(draftPortion) > Number(draftRent));
 
   // A notification asked for one lot. Select it and bring the card to the
   // eye, exactly as a tap would - arriving with a card open somewhere below
@@ -503,6 +515,7 @@ export function HtmLotMap({
     // Blank on purpose. This is a new tenancy - carrying the last resident's
     // figure forward is how somebody gets charged the wrong rent.
     setDraftRent("");
+    setDraftPortion("");
     // Today by default, because most move-ins are recorded as they happen. Zo
     // can change it, and should if he is catching up on one from Tuesday -
     // this date fixes the resident's due day for the whole tenancy.
@@ -547,6 +560,7 @@ export function HtmLotMap({
     repair_note?: string | null;
     contract_rent?: number;
     move_in_on?: string;
+    tenant_portion?: number;
   }) {
     if (!selected?.lotId) {
       setProblem(
@@ -1052,6 +1066,27 @@ export function HtmLotMap({
                           type="number"
                           value={draftRent}
                         />
+
+                        {needsPortion && (
+                          <>
+                            <label className="mt-3 block text-[12px] font-bold uppercase tracking-[0.05em] text-[#6C7484]">
+                              Tenant's portion
+                            </label>
+                            <input
+                              className="mt-1.5 block w-full min-w-0 appearance-none rounded-[10px] border border-[#DCE4EE] bg-white px-3 py-2.5 text-[15px] text-[#1B2231]"
+                              inputMode="decimal"
+                              min={0}
+                              onChange={(e) => setDraftPortion(e.target.value)}
+                              placeholder="0.00"
+                              step="0.01"
+                              type="number"
+                              value={draftPortion}
+                            />
+                            <p className="mt-1.5 text-[13px] leading-relaxed text-[#6C7484]">
+                              What the resident pays each month. The housing authority covers the rest of the contract rent.
+                            </p>
+                          </>
+                        )}
                       </>
                     )}
                   </>
@@ -1085,7 +1120,7 @@ export function HtmLotMap({
                     className="flex-1 rounded-[10px] bg-[#1E3A8A] px-3.5 py-2.5 text-[14px] font-semibold text-white disabled:opacity-60"
                     disabled={
                       busy ||
-                      (movingIn && (Number(draftRent) <= 0 || !draftMoveIn))
+                      (movingIn && (Number(draftRent) <= 0 || !draftMoveIn || portionMissing))
                     }
                     onClick={() =>
                       save({
@@ -1100,6 +1135,9 @@ export function HtmLotMap({
                           ? Number(draftRent)
                           : undefined,
                         move_in_on: movingIn ? draftMoveIn : undefined,
+                        tenant_portion: needsPortion
+                          ? Number(draftPortion)
+                          : undefined,
                       })
                     }
                     type="button"
@@ -1110,14 +1148,15 @@ export function HtmLotMap({
 
                 {/* Says why the button is off. A disabled button with no
                     explanation reads as broken. */}
-                {movingIn && (Number(draftRent) <= 0 || !draftMoveIn) && (
+                {movingIn && (Number(draftRent) <= 0 || !draftMoveIn || portionMissing) && (
                   <p className="mt-2.5 text-[13px] leading-relaxed text-[#B91C1C]">
-                    Both the move-in date and the monthly rent are needed — Save
-                    turns on once they are there.
+                    {needsPortion
+                      ? "The move-in date, the monthly rent and the tenant's portion (no more than the rent) are needed — Save turns on once they are there."
+                      : "Both the move-in date and the monthly rent are needed — Save turns on once they are there."}
                   </p>
                 )}
               </div>
-            ) : (
+            ) : ( 
               <>
                 <div className="mt-3.5 flex flex-wrap gap-2.5 border-t border-[#E3E5E9] pt-3.5">
                 {selected.status === "occupied" && (
