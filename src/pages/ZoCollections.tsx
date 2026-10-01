@@ -29,6 +29,7 @@ import { ApplicationsCard } from "../features/applications/ApplicationsCard";
 import { planTerms } from "../features/collections/planTerms";
 import { Sheets } from "../features/collections/Sheets";
 import { ProofSheet } from "../features/collections/ProofSheet";
+import { byLot } from "../lib/byLot";
 
 type Lot = {
   id: string;
@@ -209,7 +210,11 @@ export function ZoCollections() {
   // Grouped the way Zo reads the roll. A lot on an approved plan is not
   // "late" - it has terms Raj agreed to, and filing it under Late is how a
   // resident doing exactly what was asked of them gets chased anyway.
-  const everyone = [...(data?.pastDue ?? []), ...(data?.current ?? [])];
+  // Lot order everywhere, 1 to 50. Addresses like "106 Fox Run Rd" go last.
+  const pastDue = [...(data?.pastDue ?? [])].sort(byLot);
+  const current = [...(data?.current ?? [])].sort(byLot);
+  const withCounsel = [...(data?.withCounsel ?? [])].sort(byLot);
+  const everyone = [...pastDue, ...current].sort(byLot);
 
   // A plan that has been paid off is not an ongoing plan. Leaving it under
   // "On a plan" showing zero tells Zo there is still something to collect
@@ -220,13 +225,13 @@ export function ZoCollections() {
   const planFinished = everyone.filter(
     (lot) => lot.active_plan && (lot.plan_progress?.remaining ?? 0) <= 0,
   );
-  const late = (data?.pastDue ?? []).filter(
+  const late = pastDue.filter(
     (lot) => !lot.active_plan && lot.is_late,
   );
   // Owes rent, but the 5th has not passed. Not late — so these belong with
   // the people who simply have not paid yet, not in a section that reads as
   // the first step towards eviction.
-  const dueNotLate = (data?.pastDue ?? []).filter(
+  const dueNotLate = pastDue.filter(
     (lot) => !lot.active_plan && !lot.is_late,
   );
   // An empty home is not a resident who paid. Counting it as one inflates
@@ -235,21 +240,21 @@ export function ZoCollections() {
   // real residents yet, so every balance is zero - and calling that "paid"
   // would report seventeen people as square when nothing is known about any
   // of them.
-  const settled = (data?.current ?? []).filter(
+  const settled = current.filter(
     (lot) => !lot.active_plan && lot.occupied,
   );
   const paid = [
     ...planFinished,
     ...settled.filter((lot) => lot.paid_this_month),
-  ];
+  ].sort(byLot);
 
   const kpiRows =
     kpi === "late" ? late : kpi === "plan" ? onPlan : kpi === "paid" ? paid : [];
   const notPaid = [
     ...dueNotLate,
     ...settled.filter((lot) => !lot.paid_this_month),
-  ];
-  const vacant = (data?.current ?? []).filter(
+  ].sort(byLot);
+  const vacant = current.filter(
     (lot) => !lot.active_plan && !lot.occupied,
   );
 
@@ -398,7 +403,7 @@ export function ZoCollections() {
                   title="With Barrett"
                 />
                 <Stack>
-                  {data.withCounsel.map((lot) => (
+                  {withCounsel.map((lot) => (
                     <div className="p-4" key={lot.id}>
                       <LotHead lot={lot} />
                       <div className="mt-3 text-[22px] font-bold tracking-[-0.02em]">

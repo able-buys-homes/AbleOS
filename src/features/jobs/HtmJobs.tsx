@@ -283,7 +283,10 @@ export default function HtmJobs({
         const bDone = b.status === "completed" ? 1 : 0;
         return (
           aDone - bDone ||
-          rank[a.priority] - rank[b.priority] ||
+          // Emergencies, then urgent. Routine and cosmetic share one tier,
+          // so the rest of the board reads in lot order, 1 to 50.
+          Math.min(rank[a.priority], 2) - Math.min(rank[b.priority], 2) ||
+          a.lot - b.lot ||
           +new Date(a.openedAt) - +new Date(b.openedAt)
         );
       }),
