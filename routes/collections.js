@@ -305,6 +305,78 @@ export default async function handler(req, res) {
             });
         }
 
+        /* ---- a past-due balance carried over from QuickBooks ---- */
+        // Zo only. The figure comes from the accountant's QuickBooks, so it is
+        // stored as its own charge type, never sent back to QuickBooks (it is
+        // already invoiced there), and never carries a late fee of its own.
+        // One per lot, so the same QuickBooks balance cannot be entered twice.
+        if (req.method === "POST" && req.query?.prior) {
+            if (profile.cockpit !== "zo") {
+                return res.status(403).json({ error: "Only Zo can add a QuickBooks balance" });
+            }
+
+            const lotId = String(req.body?.lot_id || "");
+            const amount = Number(req.body?.amount);
+            const owedSince = String(req.body?.owed_since || "");
+            const note = String(req.body?.note || "").trim().slice(0, 500);
+
+            if (!lotId) return res.status(400).json({ error: "Pick a lot" });
+            if (!Number.isFinite(amount) || amount <= 0) {
+                return res.status(400).json({ error: "Enter the amount owed, more than $0" });
+            }
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(owedSince) || owedSince > parkTodayISO()) {
+                return res.status(400).json({ error: "Enter the date it has been owed since — not in the future" });
+            }
+            if (!note) {
+                return res.status(400).json({ error: "Say where the figure came from, e.g. \"QuickBooks balance as of Oct 1\"" });
+            }
+
+            const { data: lot, error: lotError } = await supabase
+                .from("lots")
+                .select("id, lot_number")
+                .eq("id", lotId)
+                .maybeSingle();
+            if (lotError) throw lotError;
+            if (!lot) return res.status(404).json({ error: "No such lot" });
+
+            const { data: existing, error: existingError } = await supabase
+                .from("rent_ledger")
+                .select("id, amount")
+                .eq("lot_id", lotId)
+                .eq("charge_type", "prior_balance")
+                .limit(1);
+            if (existingError) throw existingError;
+            if (existing?.length) {
+                return res.status(409).json({
+                    error: `Lot ${lot.lot_number} already has a QuickBooks balance of $${money(existing[0].amount)}. Ask Dane to correct it rather than adding a second one.`,
+                });
+            }
+
+            const { error: insertError } = await supabase.from("rent_ledger").insert({
+                lot_id: lotId,
+                period: `${owedSince.slice(0, 7)}-01`,
+                charge_type: "prior_balance",
+                amount: money(amount),
+                due_date: owedSince,
+                source: "qbo_import",
+                note,
+            });
+            if (insertError) throw insertError;
+
+            await supabase.from("notifications").insert({
+                recipient: "raj",
+                type: "prior_balance",
+                title: `QuickBooks balance added to Lot ${lot.lot_number}`,
+                body: `Zo added $${money(amount)} owed since ${owedSince}: ${note}`,
+                link: "/raj",
+            });
+
+            return res.status(200).json({
+                ok: true,
+                message: `Added $${money(amount)} to Lot ${lot.lot_number}. It shows as late and is paid off first.`,
+            });
+        }
+
         /* ---- propose a plan ---- */
         if (req.method === "POST" && req.query?.plan) {
             if (!["zo", "raj", "dane"].includes(profile.cockpit)) {
@@ -694,6 +766,17 @@ export default async function handler(req, res) {
 
             const lateEligible = hasOlderCharge || chargedInTime;
 
+            // A balance carried over from QuickBooks was already overdue when
+            // it was entered, so it is late now - until payments clear it.
+            // Payments pay the oldest money first, and this is the oldest.
+            const priorBalance = charges
+                .filter((c) => c.lot_id === lot.id && c.charge_type === "prior_balance")
+                .reduce((sum, c) => sum + Number(c.amount), 0);
+            const paidEver = payments
+                .filter((p) => p.lot_id === lot.id)
+                .reduce((sum, p) => sum + Number(p.amount), 0);
+            const priorUnpaid = money(Math.max(0, priorBalance - paidEver));
+
             return {
                 ...lot,
                 owed,
@@ -726,7 +809,9 @@ export default async function handler(req, res) {
                 // the 5th is the last day. Filing them under Late is how
                 // someone gets chased on the 3rd for rent they still have two
                 // days to pay.
-                is_late: owed > 0 && graceOver && lateEligible,
+                is_late: owed > 0 && ((graceOver && lateEligible) || priorUnpaid > 0),
+                prior_balance: money(priorBalance),
+                prior_unpaid: priorUnpaid,
                 // So a row can say when rent is actually due for this tenancy,
                 // rather than implying a park-wide 1st that no longer exists.
                 due_this_month: dueThisMonth,

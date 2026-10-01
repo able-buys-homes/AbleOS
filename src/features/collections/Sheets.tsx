@@ -21,7 +21,7 @@ type Lot = {
 };
 
 type Props = {
-  kind: "pay" | "plan" | "post" | "rent";
+  kind: "pay" | "plan" | "post" | "rent" | "prior";
   lot: Lot | null;
   data: { pastDue: Lot[]; current: Lot[] } | null;
   onClose: () => void;
@@ -199,6 +199,12 @@ export function Sheets({
     lot?.tenant_portion != null ? String(lot.tenant_portion) : "",
   );
   const [rentNote, setRentNote] = React.useState("");
+
+  // A past-due balance copied from QuickBooks.
+  const [priorLotId, setPriorLotId] = React.useState(lot?.id ?? "");
+  const [priorAmount, setPriorAmount] = React.useState("");
+  const [priorSince, setPriorSince] = React.useState("");
+  const [priorNote, setPriorNote] = React.useState("");
   const [dueDay, setDueDay] = React.useState(
     lot?.rent_due_day != null ? String(lot.rent_due_day) : "",
   );
@@ -314,6 +320,123 @@ export function Sheets({
     } finally {
       setBusy(false);
     }
+  }
+
+  if (kind === "prior") {
+    const chosen = lot ?? choosable.find((l) => l.id === priorLotId) ?? null;
+    const today = new Date().toLocaleDateString("en-CA");
+
+    return (
+      <Shell
+        footer={
+          <>
+            <Btn onClick={onClose}>Cancel</Btn>
+            <Btn
+              disabled={
+                busy ||
+                !priorLotId ||
+                Number(priorAmount) <= 0 ||
+                !priorSince ||
+                priorSince > today ||
+                !priorNote.trim()
+              }
+              onClick={() =>
+                send(
+                  "/api/collections?prior=1",
+                  {
+                    lot_id: priorLotId,
+                    amount: Number(priorAmount),
+                    owed_since: priorSince,
+                    note: priorNote.trim(),
+                  },
+                  "Past-due balance added.",
+                )
+              }
+              variant="primary"
+            >
+              {busy ? "Saving…" : "Add the balance"}
+            </Btn>
+          </>
+        }
+        inline={inline}
+        onClose={onClose}
+        sub={chosen ? `Lot ${chosen.lot_number}` : undefined}
+        title="Add a past-due balance"
+      >
+        <div className="mb-5">
+          <Stamp>
+            For money this resident already owed before Able OS, copied from
+            QuickBooks. It is added to what they owe, shows as late straight
+            away, and is paid off before this month's rent. It is not sent back
+            to QuickBooks — it is already there. One per lot: if it is wrong,
+            ask Dane to correct it.
+          </Stamp>
+        </div>
+
+        {!lot && (
+          <div className="mb-4.5">
+            <Label>Which lot?</Label>
+            <select
+              className={inputClass}
+              onChange={(e) => setPriorLotId(e.target.value)}
+              value={priorLotId}
+            >
+              <option value="">Pick a lot</option>
+              {choosable.map((l) => (
+                <option key={l.id} value={l.id}>
+                  Lot {l.lot_number} — {l.tenant_name ?? "No name"}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        <div className="mb-4.5 grid gap-3 sm:grid-cols-2">
+          <div className="min-w-0">
+            <Label>Amount owed</Label>
+            <input
+              className={inputClass}
+              inputMode="decimal"
+              min={0}
+              onChange={(e) => setPriorAmount(e.target.value)}
+              placeholder="0.00"
+              step="0.01"
+              type="number"
+              value={priorAmount}
+            />
+          </div>
+          <div className="min-w-0">
+            <Label>Owed since</Label>
+            <input
+              className={`${inputClass} block min-w-0 appearance-none`}
+              max={today}
+              onChange={(e) => setPriorSince(e.target.value)}
+              type="date"
+              value={priorSince}
+            />
+          </div>
+        </div>
+
+        <div className="mb-4.5">
+          <Label>What is this for?</Label>
+          <input
+            className={inputClass}
+            maxLength={500}
+            onChange={(e) => setPriorNote(e.target.value)}
+            placeholder="Past-due rent from QuickBooks, Jul–Sep"
+            type="text"
+            value={priorNote}
+          />
+          <p className="mt-1.5 text-[13.5px] leading-relaxed text-[#6C7484]">
+            Required. Raj sees this, and it stays on the lot's record.
+          </p>
+        </div>
+
+        {problem && (
+          <p className="mb-3 text-[15px] text-[#B91C1C]">{problem}</p>
+        )}
+      </Shell>
+    );
   }
 
   if (kind === "rent") {

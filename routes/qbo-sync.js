@@ -108,6 +108,9 @@ export default async function handler(req, res) {
         const { data: charges, error: chargesError } = await supabase
             .from("rent_ledger")
             .select("id, lot_id, period, charge_type, amount, due_date, qbo_txn_id")
+            // Past-due balances Zo copied from QuickBooks are already invoiced
+            // there. Posting them again would double what the resident owes.
+            .neq("charge_type", "prior_balance")
             .is("qbo_txn_id", null)
             .gt("amount", 0)
             .order("due_date", { ascending: true })

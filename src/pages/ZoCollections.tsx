@@ -134,7 +134,7 @@ export function ZoCollections() {
   const [kpi, setKpi] = React.useState<null | "late" | "plan" | "paid">(null);
 
   const [sheet, setSheet] = React.useState<
-    null | "pay" | "plan" | "post" | "rent"
+    null | "pay" | "plan" | "post" | "rent" | "prior"
   >(null);
   const [sheetLot, setSheetLot] = React.useState<Lot | null>(null);
   const [proofId, setProofId] = React.useState<string | null>(null);
@@ -197,7 +197,7 @@ export function ZoCollections() {
     window.setTimeout(() => setToast({ msg: "" }), 4200);
   }
 
-  function openSheet(kind: "pay" | "plan" | "post" | "rent", lot?: Lot) {
+  function openSheet(kind: "pay" | "plan" | "post" | "rent" | "prior", lot?: Lot) {
     // Close the group modal first. Two overlays on top of each other leaves
     // Zo tapping a form he cannot see the edges of.
     setKpi(null);
@@ -356,6 +356,13 @@ export function ZoCollections() {
                 The empty line stays qualified on purpose: a flat "nobody is
                 late" would be a claim about the residents, and eleven lots
                 have no rent or due day recorded to judge them by. */}
+            {/* Money owed from before Able OS, copied from QuickBooks. */}
+            <div className="mt-3">
+              <Btn onClick={() => openSheet("prior")} variant="ghost">
+                + Add a past-due balance
+              </Btn>
+            </div>
+
             <SectionBar count={late.length} title="Late" />
             <Stack>
               {late.length === 0 && (
