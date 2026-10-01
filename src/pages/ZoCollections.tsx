@@ -35,6 +35,8 @@ type Lot = {
   id: string;
   lot_number: string;
   tenant_name: string | null;
+  /** A past-due balance Zo copied from QuickBooks. */
+  prior_balance?: number;
   tenancy_type: "park_owned" | "lot_only" | null;
   hap_household: boolean;
   contract_rent: string | number | null;
@@ -352,17 +354,6 @@ export function ZoCollections() {
               </div>
             )}
 
-            {/* Always on screen, so the section sits where the mock puts it.
-                The empty line stays qualified on purpose: a flat "nobody is
-                late" would be a claim about the residents, and eleven lots
-                have no rent or due day recorded to judge them by. */}
-            {/* Money owed from before Able OS, copied from QuickBooks. */}
-            <div className="mt-3">
-              <Btn onClick={() => openSheet("prior")} variant="ghost">
-                + Add a past-due balance
-              </Btn>
-            </div>
-
             <SectionBar count={late.length} title="Late" />
             <Stack>
               {late.length === 0 && (
@@ -378,6 +369,7 @@ export function ZoCollections() {
                   onPlan={() => openSheet("plan", lot)}
                   onPost={() => openSheet("post", lot)}
                   onSetRent={() => openSheet("rent", lot)}
+                  onPrior={() => openSheet("prior", lot)}
                   onProof={setProofId}
                 />
               ))}
@@ -398,6 +390,7 @@ export function ZoCollections() {
                   onPlan={() => openSheet("plan", lot)}
                   onPost={() => openSheet("post", lot)}
                   onSetRent={() => openSheet("rent", lot)}
+                  onPrior={() => openSheet("prior", lot)}
                   onProof={setProofId}
                 />
               ))}
@@ -447,6 +440,7 @@ export function ZoCollections() {
                   onPlan={() => openSheet("plan", lot)}
                   onPost={() => openSheet("post", lot)}
                   onSetRent={() => openSheet("rent", lot)}
+                  onPrior={() => openSheet("prior", lot)}
                   onProof={setProofId}
                 />
               ))}
@@ -462,6 +456,7 @@ export function ZoCollections() {
                   onPlan={() => openSheet("plan", lot)}
                   onPost={() => openSheet("post", lot)}
                   onSetRent={() => openSheet("rent", lot)}
+                  onPrior={() => openSheet("prior", lot)}
                   onProof={setProofId}
                 />
               ))}
@@ -479,6 +474,7 @@ export function ZoCollections() {
                       onPlan={() => openSheet("plan", lot)}
                       onPost={() => openSheet("post", lot)}
                       onSetRent={() => openSheet("rent", lot)}
+                  onPrior={() => openSheet("prior", lot)}
                       onProof={setProofId}
                     />
                   ))}
@@ -771,6 +767,7 @@ export function ZoCollections() {
                     onPost={() => openSheet("post", lot)}
                     onProof={setProofId}
                     onSetRent={() => openSheet("rent", lot)}
+                  onPrior={() => openSheet("prior", lot)}
                   />
                 ))}
               </Stack>
@@ -917,6 +914,7 @@ function LotRow({
   onPost,
   onPlan,
   onSetRent,
+  onPrior,
   onProof,
 }: {
   lot: Lot;
@@ -924,6 +922,7 @@ function LotRow({
   onPost: () => void;
   onPlan: () => void;
   onSetRent: () => void;
+  onPrior: () => void;
   onProof: (noticeId: string) => void;
 }) {
   const [open, setOpen] = React.useState(false);
@@ -1120,6 +1119,13 @@ function LotRow({
               <Btn onClick={onPlan}>Propose a plan</Btn>
             )}
             {lot.pending_plan && <Btn disabled>Plan waiting on Raj</Btn>}
+            {/* Money owed from before Able OS, copied from QuickBooks. One per
+                lot, so once it is in, the button says so instead. */}
+            {Number(lot.prior_balance ?? 0) > 0 ? (
+              <Btn disabled>Past-due added</Btn>
+            ) : (
+              <Btn onClick={onPrior}>Add past-due</Btn>
+            )}
           </div>
         </div>
       )}
