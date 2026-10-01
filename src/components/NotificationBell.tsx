@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { BellIcon, CheckCheckIcon } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { apiFetch } from "../lib/apiFetch";
+import { syncPush } from "../lib/push";
 
 type Notification = {
   id: string;
@@ -66,6 +67,8 @@ export function NotificationBell() {
 
   React.useEffect(() => {
     load();
+    // Keeps this phone registered for alerts, even after an app update.
+    syncPush();
   }, [load]);
 
   // Poll while visible, and refresh the moment the app regains focus.
@@ -75,7 +78,10 @@ export function NotificationBell() {
     }, POLL_MS);
 
     function handleVisibility() {
-      if (!document.hidden) load();
+      if (!document.hidden) {
+        load();
+        syncPush();
+      }
     }
 
     document.addEventListener("visibilitychange", handleVisibility);

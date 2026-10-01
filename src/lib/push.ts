@@ -92,6 +92,40 @@ export async function enablePush(): Promise<PushState> {
   return "granted";
 }
 
+/**
+ * Re-saves this device's registration without asking anything. Called every
+ * time the app opens or comes back to the front, so the server always knows
+ * this phone - even after an app update quietly replaced its subscription.
+ * Safe to repeat: the server upserts on the endpoint, so there are no
+ * duplicates and no double alerts.
+ */
+export async function syncPush(): Promise<void> {
+  try {
+    if (getPushState() !== "granted" || !VAPID_PUBLIC_KEY) return;
+
+    const registration = await navigator.serviceWorker.ready;
+    const subscription =
+      (await registration.pushManager.getSubscription()) ??
+      (await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+      }));
+
+    const json = subscription.toJSON();
+
+    await apiFetch("/api/push-subscribe", {
+      method: "POST",
+      body: JSON.stringify({
+        endpoint: json.endpoint,
+        keys: json.keys,
+        userAgent: navigator.userAgent,
+      }),
+    });
+  } catch (err) {
+    console.warn("Could not refresh this device's push registration", err);
+  }
+}
+
 /** Unsubscribes this device and forgets it server-side. */
 export async function disablePush() {
   const registration = await navigator.serviceWorker.ready;
