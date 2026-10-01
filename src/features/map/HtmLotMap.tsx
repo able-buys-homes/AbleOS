@@ -13,6 +13,7 @@ import { apiFetch } from "../../lib/apiFetch";
 
 export type LotStatus =
   | "occupied"
+  | "vacant"
   | "ready"
   | "moving_out"
   | "needs_repair"
@@ -72,6 +73,13 @@ export const STATUS_META: Record<
     stroke: "#2A3648",
     text: "#2A3648",
   },
+  // Nobody lives here, but nobody has said it is ready to rent either.
+  vacant: {
+    label: "Vacant",
+    fill: "#F1F5F9",
+    stroke: "#64748B",
+    text: "#334155",
+  },
   ready: {
     label: "Ready to rent",
     fill: "#DFF3EA",
@@ -126,6 +134,7 @@ export type Paint =
   | "on_plan"
   | "late"
   | "occupied"
+  | "vacant"
   | "ready"
   | "moving_out"
   | "needs_repair"
@@ -173,6 +182,15 @@ export const PAINT_META: Record<
   },
   // Empty homes are dashed. A hollow dashed box reads as "nobody here" from
   // across a gravel driveway in sunlight, which a fill colour does not.
+  // Empty but not confirmed rentable. Grey rather than green, so it is
+  // never mistaken for a home Zo can show today.
+  vacant: {
+    label: "Vacant",
+    fill: "#FFFFFF",
+    stroke: "#64748B",
+    text: "#334155",
+    dashed: true,
+  },
   ready: {
     label: "Ready to rent",
     fill: "#FFFFFF",
@@ -276,6 +294,7 @@ export const OCCUPIED_PAINTS: Paint[] = ["paid", "on_plan", "late", "occupied"];
 /** Statuses that count as a rentable door. The office is not a door. */
 const RENTABLE: LotStatus[] = [
   "occupied",
+  "vacant",
   "ready",
   "moving_out",
   "needs_repair",
@@ -1115,7 +1134,7 @@ export function HtmLotMap({
                     emergencies to the top, so it will be the first thing
                     there. Deep-linking to a single job is worth doing later. */}
                 <button
-                  className="rounded-[10px] border border-[#DCE4EE] bg-whit e px-3.5 py-2.5 text-[14px] font-semibold text-[#1B2231]"
+                  className="rounded-[10px] border border-[#DCE4EE] bg-white px-3.5 py-2.5 text-[14px] font-semibold text-[#1B2231]"
                   onClick={() => navigate("/zo/jobs")}
                   type="button"
                 >

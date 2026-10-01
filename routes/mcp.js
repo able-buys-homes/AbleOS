@@ -486,7 +486,7 @@ async function occupancyStatus(supabase) {
     );
 
     const rentable = lots.filter((l) =>
-        ["occupied", "ready", "moving_out", "needs_repair", "full_rehab"].includes(l.home_status),
+        ["occupied", "vacant", "ready", "moving_out", "needs_repair", "full_rehab"].includes(l.home_status),
     );
 
     const occupied = lots.filter((l) => l.home_status === "occupied").length;

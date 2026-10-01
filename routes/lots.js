@@ -35,6 +35,7 @@ function ordinal(n) {
 
 const STATUSES = [
     "occupied",
+    "vacant",
     "ready",
     "moving_out",
     "needs_repair",
