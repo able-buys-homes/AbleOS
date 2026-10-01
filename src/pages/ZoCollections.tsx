@@ -1122,9 +1122,9 @@ function LotRow({
             {/* Money owed from before Able OS, copied from QuickBooks. One per
                 lot, so once it is in, the button says so instead. */}
             {Number(lot.prior_balance ?? 0) > 0 ? (
-              <Btn disabled>Past-due added</Btn>
+              <Btn disabled>Overdue added</Btn>
             ) : (
-              <Btn onClick={onPrior}>Add past-due</Btn>
+              <Btn onClick={onPrior}>Add overdue</Btn>
             )}
           </div>
         </div>

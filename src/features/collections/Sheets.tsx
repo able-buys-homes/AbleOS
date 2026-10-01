@@ -349,7 +349,7 @@ export function Sheets({
                     owed_since: priorSince,
                     note: priorNote.trim(),
                   },
-                  "Past-due balance added.",
+                  "Overdue balance added.",
                 )
               }
               variant="primary"
@@ -361,7 +361,7 @@ export function Sheets({
         inline={inline}
         onClose={onClose}
         sub={chosen ? `Lot ${chosen.lot_number}` : undefined}
-        title="Add a past-due balance"
+        title="Add an overdue balance"
       >
         <div className="mb-5">
           <Stamp>
@@ -423,7 +423,7 @@ export function Sheets({
             className={inputClass}
             maxLength={500}
             onChange={(e) => setPriorNote(e.target.value)}
-            placeholder="Past-due rent from QuickBooks, Jul–Sep"
+            placeholder="Overdue rent from QuickBooks, Jul–Sep"
             type="text"
             value={priorNote}
           />
