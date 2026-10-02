@@ -163,60 +163,6 @@ export default async function handler(req, res) {
 
     const { account, lot } = session;
 
-    
-    // A resident withdrawing their own request. Only while it is still
-    // waiting for the office - once Zo has started, parts may be ordered or a
-    // visit booked, and that is a phone call, not a button.
-    if (req.method === "POST" && req.query.cancel_workorder === "1") {
-        const orderId = String(req.body?.id ?? "");
-        if (!orderId) return res.status(400).json({ error: "Which request?" });
-
-        try {
-            const supabase = getClient();
-
-            const { data: order, error: orderError } = await supabase
-                .from("work_orders")
-                .select("id, lot_id, title, status, opened_by")
-                .eq("id", orderId)
-                .eq("lot_id", lot.id)
-                .maybeSingle();
-
-            if (orderError) throw new Error(orderError.message);
-            if (!order) return res.status(404).json({ error: "That request was not found" });
-
-            if (order.status === "cancelled") return res.status(200).json({ ok: true });
-
-            if (order.status !== "new" || order.opened_by !== "resident") {
-                return res.status(409).json({
-                    error: "The office has already started on this request. Call the office to cancel it.",
-                });
-            }
-
-            const { error: updateError } = await supabase
-                .from("work_orders")
-                .update({ status: "cancelled", updated_at: new Date().toISOString() })
-                .eq("id", order.id)
-                .eq("status", "new");
-
-            if (updateError) throw new Error(updateError.message);
-
-            const heading = `Lot ${lot.lot_number} cancelled a request`;
-            const body = `"${String(order.title ?? "").slice(0, 120)}" was withdrawn by the resident in the portal. Nothing to do.`;
-
-            await supabase.from("notifications").insert([
-                { recipient: "zo", type: "work_order_cancelled", title: heading, body, link: "/zo/jobs" },
-                { recipient: "raj", type: "work_order_cancelled", title: heading, body, link: "/raj" },
-            ]).then(() => null, () => null);
-
-            await sendPush("zo", { title: heading, body, url: "/zo/jobs", tag: `wo-${order.id}` });
-
-            return res.status(200).json({ ok: true });
-        } catch (err) {
-            console.error("portal cancel work order failed", err?.message ?? err);
-            return res.status(500).json({ error: "Could not cancel that request" });
-        }
-    }
-
     // A resident withdrawing their own request. Only while it is still
     // waiting for the office - once Zo has started, parts may be ordered or a
     // visit booked, and that is a phone call, not a button.
