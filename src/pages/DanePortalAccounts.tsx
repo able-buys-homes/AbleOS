@@ -50,6 +50,7 @@ export function DanePortalAccounts() {
   const [created, setCreated] = React.useState<Created | null>(null);
   const [copied, setCopied] = React.useState(false);
   const [resettingId, setResettingId] = React.useState<string | null>(null);
+  const [confirmLot, setConfirmLot] = React.useState<PortalLot | null>(null);
 
   const load = React.useCallback(async () => {
     try {
@@ -104,10 +105,6 @@ export function DanePortalAccounts() {
   // The resident called because they are locked out. Dane checks it is them
   // first - the confirm is the moment to ask.
   async function resetPassword(l: PortalLot) {
-    const ok = window.confirm(
-      `Reset the portal password for Lot ${l.lot_number} — ${l.tenant_name}?\n\nOnly do this after checking it is really them. Their old password stops working straight away.`,
-    );
-    if (!ok) return;
 
     setResettingId(l.id);
     setProblem("");
@@ -309,7 +306,7 @@ export function DanePortalAccounts() {
                 <button
                   className="shrink-0 rounded-[10px] border border-[#DCE4EE] bg-white px-3 py-2 text-[13.5px] font-semibold text-[#1E3A8A] disabled:opacity-50"
                   disabled={resettingId !== null}
-                  onClick={() => resetPassword(l)}
+                  onClick={() => setConfirmLot(l)}
                   type="button"
                 >
                   {resettingId === l.id ? "Resetting…" : "Reset password"}
@@ -319,6 +316,66 @@ export function DanePortalAccounts() {
           </div>
         </section>
       </main>
+
+      {/* Confirm before a reset. The resident is on the phone; this is the
+          moment Dane checks it is really them. */}
+      {confirmLot && (
+        <div
+          className="fixed inset-0 z-[60] flex items-end justify-center bg-[#141A28]/55 p-0 sm:items-center sm:p-4"
+          onClick={() => setConfirmLot(null)}
+        >
+          <div
+            aria-labelledby="reset-title"
+            aria-modal="true"
+            className="w-full max-w-[460px] overflow-hidden rounded-t-[20px] bg-white sm:rounded-[18px]"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+          >
+            <div className="bg-[#1E3A8A] px-5 py-4 text-white">
+              <h2 className="text-[17px] font-bold" id="reset-title">
+                Reset portal password?
+              </h2>
+              <p className="mt-0.5 text-[13px] text-[#A9B4CC]">
+                Lot {confirmLot.lot_number} — {confirmLot.tenant_name}
+              </p>
+            </div>
+
+            <div className="space-y-3 p-5 text-[15px] leading-relaxed text-[#1B2231]">
+              <div className="rounded-[10px] border-l-4 border-l-[#D97706] bg-[#FFFCF5] px-4 py-3 text-[14px] text-[#92600A]">
+                <b className="block text-[#7A4E06]">Check it is really them first</b>
+                Ask for something only the resident would know — their move-in
+                month or what they paid last. Never ask for their old password.
+              </div>
+              <p>
+                Their current password <b>stops working straight away</b>. You will
+                get a new temporary one to give them, and the portal will ask them
+                to choose their own when they sign in.
+              </p>
+            </div>
+
+            <div className="flex gap-2.5 border-t border-[#E3E5E9] px-5 pb-[max(0.875rem,env(safe-area-inset-bottom))] pt-3.5">
+              <button
+                className="flex-1 rounded-[10px] border border-[#DCE4EE] bg-white px-3.5 py-2.5 text-[14px] font-semibold text-[#1B2231]"
+                onClick={() => setConfirmLot(null)}
+                type="button"
+              >
+                Cancel
+              </button>
+              <button
+                className="flex-1 rounded-[10px] bg-[#B4462B] px-3.5 py-2.5 text-[14px] font-semibold text-white"
+                onClick={() => {
+                  const lot = confirmLot;
+                  setConfirmLot(null);
+                  resetPassword(lot);
+                }}
+                type="button"
+              >
+                Reset password
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
