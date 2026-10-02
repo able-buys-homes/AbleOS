@@ -126,6 +126,7 @@ const CHARGE_LABEL = {
     rent: "Lot rent",
     late_fee: "Late fee",
     other: "Other charge",
+    prior_balance: "Overdue balance",
 };
 
 // The portal is served from its own origin, so it has to be named here. Listed
