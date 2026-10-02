@@ -163,6 +163,51 @@ export default async function handler(req, res) {
     const { account, lot } = session;
 
     
+    // The resident's own notices, checked every few seconds by the portal.
+    // Deliberately tiny: one indexed query, no photos, no balances. When the
+    // newest notice changes, the portal reloads everything else itself.
+    if (req.method === "GET" && req.query.inbox === "1") {
+        try {
+            const supabase = getClient();
+            const { data, error } = await supabase
+                .from("resident_notifications")
+                .select("id, type, title, body, link, created_at, read_at")
+                .eq("lot_id", lot.id)
+                .order("created_at", { ascending: false })
+                .limit(30);
+
+            if (error) throw new Error(error.message);
+
+            const items = data ?? [];
+            return res.status(200).json({
+                items,
+                unread: items.filter((n) => !n.read_at).length,
+                latest: items[0]?.created_at ?? null,
+            });
+        } catch (err) {
+            console.error("portal inbox failed", err?.message ?? err);
+            return res.status(500).json({ error: "Could not load your notices" });
+        }
+    }
+
+    // Opening the bell marks everything in it as seen.
+    if (req.method === "POST" && req.query.inbox_read === "1") {
+        try {
+            const supabase = getClient();
+            const { error } = await supabase
+                .from("resident_notifications")
+                .update({ read_at: new Date().toISOString() })
+                .eq("lot_id", lot.id)
+                .is("read_at", null);
+
+            if (error) throw new Error(error.message);
+            return res.status(200).json({ ok: true });
+        } catch (err) {
+            console.error("portal inbox read failed", err?.message ?? err);
+            return res.status(500).json({ error: "Could not mark those as read" });
+        }
+    }
+
     // One receipt, drawn on demand.
     //
     // Scoped to the lot from the session, so a resident who guesses another

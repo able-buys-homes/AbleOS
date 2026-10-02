@@ -17,6 +17,7 @@ import { createClient } from "@supabase/supabase-js";
 import { randomUUID } from "node:crypto";
 import { requireUser } from "../lib/apiAuth.js";
 import { recordRent } from "../lib/recordRent.js";
+import { notifyResident } from "../lib/notifyResident.js";
 import {
     currentPeriod,
     dueDateFor,
@@ -248,6 +249,13 @@ export default async function handler(req, res) {
 
             if (insertError) throw insertError;
 
+            await notifyResident(supabase, lotId, {
+                type: "payment_recorded",
+                title: `Your $${money(amount)} payment was recorded`,
+                body: `Receipt ${receipt}. Thank you.`,
+                link: "/payments",
+            });
+
             return res.status(201).json({
                 ok: true,
                 receipt,
@@ -297,6 +305,13 @@ export default async function handler(req, res) {
                 // notification that lands on a locked screen is worse than one
                 // with no link at all.
                 link: "/raj",
+            });
+
+            await notifyResident(supabase, lotId, {
+                type: "rent_set",
+                title: `Your rent is now $${money(tenantPortion)} a month`,
+                body: "This month is charged at that amount. Ask the office if it looks wrong.",
+                link: "/payments",
             });
 
             return res.status(200).json({
@@ -369,6 +384,13 @@ export default async function handler(req, res) {
                 title: `QuickBooks balance added to Lot ${lot.lot_number}`,
                 body: `Zo added $${money(amount)} owed since ${owedSince}: ${note}`,
                 link: "/raj",
+            });
+
+            await notifyResident(supabase, lotId, {
+                type: "overdue_added",
+                title: `An overdue balance of $${money(amount)} was added`,
+                body: `Owed since ${owedSince}: ${note}`,
+                link: "/payments",
             });
 
             return res.status(200).json({

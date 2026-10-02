@@ -13,6 +13,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { randomUUID } from "node:crypto";
 import { requireUser } from "../lib/apiAuth.js";
+import { notifyResident } from "../lib/notifyResident.js";
 
 const PROPERTY = "Hometown Meadows MHP";
 const CAN_USE = ["zo", "raj", "dane"];
@@ -342,7 +343,7 @@ export default async function handler(req, res) {
 
         const { data: job, error: jobError } = await supabase
             .from("work_orders")
-            .select("id, lot_id, status, fix, photo_path")
+            .select("id, lot_id, status, fix, photo_path, title, opened_by")
             .eq("id", jobId)
             .maybeSingle();
 
@@ -527,6 +528,32 @@ export default async function handler(req, res) {
             .eq("id", jobId);
 
         if (updateError) throw updateError;
+
+        // The resident hears about their own request moving on. Only theirs:
+        // a job the office opened on the lot is not news to them.
+        if (
+            job.opened_by === "resident" &&
+            patch.status !== undefined &&
+            patch.status !== job.status
+        ) {
+            const STATUS_WORD = {
+                new: "received",
+                in_progress: "in progress",
+                waiting_parts: "waiting on parts",
+                completed: "done",
+            };
+            await notifyResident(supabase, job.lot_id, {
+                type: "work_order_status",
+                title: `Your request "${String(job.title ?? "").slice(0, 60)}" is ${
+                    STATUS_WORD[patch.status] ?? patch.status
+                }`,
+                body:
+                    patch.status === "completed"
+                        ? "The office has marked it finished. Tell us if anything is still wrong."
+                        : "We will let you know when it moves on again.",
+                link: "/work-orders",
+            });
+        }
 
         // Told, not left to be discovered. Finished and stuck are both things
         // Raj wants to hear without opening a screen - one is a bill coming,

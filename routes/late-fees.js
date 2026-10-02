@@ -18,6 +18,7 @@
 //   - mark its own charge verified. Verification is Raj's gate on notices, and
 //     a machine must not walk through it.
 import { createClient } from "@supabase/supabase-js";
+import { notifyResident } from "../lib/notifyResident.js";
 import {
     LATE_FEE,
     currentPeriod,
@@ -226,6 +227,15 @@ export default async function handler(req, res) {
             // The unique index refuses a second fee for the month. If two runs
             // overlap, the loser is not an error.
             if (error && error.code !== "23505") throw error;
+
+            if (!error) {
+                await notifyResident(supabase, lot.id, {
+                    type: "late_fee",
+                    title: `A $${LATE_FEE} late fee was added`,
+                    body: "This month's rent was not paid by the last day to pay.",
+                    link: "/payments",
+                });
+            }
 
             charged.push({
                 lot: lot.lot_number,
