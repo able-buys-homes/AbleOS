@@ -131,6 +131,63 @@ export default async function handler(req, res) {
             return res.status(200).json({ lots });
         }
 
+        /* ---- reset a forgotten password ---- */
+        // The resident calls the office; Dane checks it is them and taps
+        // Reset. A new temporary password replaces the old one straight away,
+        // and the portal asks them to choose their own again.
+        if (req.query?.reset) {
+            const resetLotId = String(req.body?.lot_id || "");
+            if (!resetLotId) return res.status(400).json({ error: "Pick a lot" });
+
+            const { data: account, error: accountError } = await supabase
+                .from("resident_accounts")
+                .select("id, user_id, lot_id, lots(lot_number, tenant_name, property)")
+                .eq("lot_id", resetLotId)
+                .is("disabled_at", null)
+                .maybeSingle();
+
+            if (accountError) throw accountError;
+            if (!account || account.lots?.property !== PROPERTY) {
+                return res.status(404).json({ error: "That lot has no portal account to reset" });
+            }
+
+            const password = temporaryPassword();
+
+            const { error: resetError } = await supabase.auth.admin.updateUserById(
+                account.user_id,
+                { password },
+            );
+            if (resetError) throw resetError;
+
+            // Back to "still using the office's password", so the portal's
+            // reminder asks them to change it again.
+            await supabase
+                .from("resident_accounts")
+                .update({ password_changed_at: null })
+                .eq("id", account.id);
+
+            const lotNumber = account.lots?.lot_number ?? "?";
+            const tenant = account.lots?.tenant_name?.trim() || "the resident";
+
+            await supabase.from("notifications").insert({
+                recipient: "raj",
+                type: "portal_password_reset",
+                title: `Portal password reset for Lot ${lotNumber}`,
+                body: `${caller.profile.cockpit} issued ${tenant} a new temporary password.`,
+                link: "/raj",
+            }).then(() => null, () => null);
+
+            return res.status(200).json({
+                ok: true,
+                reset: true,
+                lot_number: lotNumber,
+                tenant_name: tenant,
+                sign_in: String(lotNumber),
+                temporary_password: password,
+                portal_url: "https://portal.hometownmeadows.com",
+            });
+        }
+
         /* ---- create one account ---- */
         const lotId = String(req.body?.lot_id || "");
         if (!lotId) return res.status(400).json({ error: "Pick a lot" });

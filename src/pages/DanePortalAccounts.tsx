@@ -30,6 +30,7 @@ type Created = {
   sign_in: string;
   temporary_password: string;
   portal_url: string;
+  reset?: boolean;
 };
 
 function shortDate(iso: string | null) {
@@ -48,6 +49,7 @@ export function DanePortalAccounts() {
   const [problem, setProblem] = React.useState("");
   const [created, setCreated] = React.useState<Created | null>(null);
   const [copied, setCopied] = React.useState(false);
+  const [resettingId, setResettingId] = React.useState<string | null>(null);
 
   const load = React.useCallback(async () => {
     try {
@@ -96,6 +98,37 @@ export function DanePortalAccounts() {
       setProblem(err instanceof Error ? err.message : "Could not create that account");
     } finally {
       setBusy(false);
+    }
+  }
+
+  // The resident called because they are locked out. Dane checks it is them
+  // first - the confirm is the moment to ask.
+  async function resetPassword(l: PortalLot) {
+    const ok = window.confirm(
+      `Reset the portal password for Lot ${l.lot_number} — ${l.tenant_name}?\n\nOnly do this after checking it is really them. Their old password stops working straight away.`,
+    );
+    if (!ok) return;
+
+    setResettingId(l.id);
+    setProblem("");
+    setCreated(null);
+    setCopied(false);
+
+    try {
+      const res = await apiFetch("/api/resident-accounts?reset=1", {
+        method: "POST",
+        body: JSON.stringify({ lot_id: l.id }),
+      });
+      const body = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(body?.error || "Could not reset that password");
+
+      setCreated(body as Created);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      load();
+    } catch (err) {
+      setProblem(err instanceof Error ? err.message : "Could not reset that password");
+    } finally {
+      setResettingId(null);
     }
   }
 
@@ -207,7 +240,9 @@ export function DanePortalAccounts() {
         {created && (
           <section className="mt-4 rounded-2xl border-2 border-[#15803D] bg-[#F0FDF4] p-5">
             <h2 className="text-[18px] font-semibold text-[#14532D]">
-              Account ready for Lot {created.lot_number}
+              {created.reset
+                ? `New password for Lot ${created.lot_number}`
+                : `Account ready for Lot ${created.lot_number}`}
             </h2>
             <p className="mt-1 text-[14.5px] text-[#166534]">
               Give these to {created.tenant_name}. The password is shown{" "}
@@ -271,6 +306,14 @@ export function DanePortalAccounts() {
                     {shortDate(l.last_seen_at)}
                   </div>
                 </div>
+                <button
+                  className="shrink-0 rounded-[10px] border border-[#DCE4EE] bg-white px-3 py-2 text-[13.5px] font-semibold text-[#1E3A8A] disabled:opacity-50"
+                  disabled={resettingId !== null}
+                  onClick={() => resetPassword(l)}
+                  type="button"
+                >
+                  {resettingId === l.id ? "Resetting…" : "Reset password"}
+                </button>
               </div>
             ))}
           </div>
