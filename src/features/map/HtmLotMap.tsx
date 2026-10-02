@@ -170,9 +170,9 @@ export const PAINT_META: Record<
   },
   late: {
     label: "Late",
-    fill: "#FECACA",
-    stroke: "#DC2626",
-    text: "#7F1D1D",
+    fill: "#FC2F00",
+    stroke: "#B82200",
+    text: "#FFFFFF",
   },
   // Someone lives here and there is nothing to act on. Hollow with a solid
   // outline: solid because it is not empty, hollow because nothing is known.
@@ -195,9 +195,9 @@ export const PAINT_META: Record<
   },
   ready: {
     label: "Ready to rent",
-    fill: "#FFFFFF",
-    stroke: "#15803D",
-    text: "#14532D",
+    fill: "#72CE27",
+    stroke: "#4E9A16",
+    text: "#14320A",
     dashed: true,
   },
   moving_out: {
