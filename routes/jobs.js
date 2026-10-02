@@ -117,6 +117,8 @@ export default async function handler(req, res) {
                 supabase
                     .from("work_orders")
                     .select("*")
+                    // Withdrawn by the resident - not work for Zo.
+                    .neq("status", "cancelled")
                     .order("opened_at", { ascending: true }),
                 supabase
                     .from("lots")
