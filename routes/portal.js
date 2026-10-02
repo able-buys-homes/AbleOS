@@ -216,6 +216,81 @@ export default async function handler(req, res) {
         }
     }
 
+    // A resident asking for a payment plan. This is a request, not a plan:
+    // the office calls them and sets real terms through the plan flow Raj
+    // approves. Nothing here moves money. One request a day per lot.
+    if (req.method === "POST" && req.query.plan_request === "1") {
+        const count = Number(req.body?.payments);
+        const reason = String(req.body?.reason ?? "").trim().slice(0, 500);
+
+        if (![2, 3, 4].includes(count)) {
+            return res.status(400).json({ error: "Choose two, three or four payments" });
+        }
+
+        try {
+            const supabase = getClient();
+
+            const since = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
+            const { data: recent, error: recentError } = await supabase
+                .from("resident_notifications")
+                .select("id")
+                .eq("lot_id", lot.id)
+                .eq("type", "plan_requested")
+                .gte("created_at", since)
+                .limit(1);
+
+            if (recentError) throw new Error(recentError.message);
+            if (recent?.length) {
+                return res.status(409).json({
+                    error: "Your request is already with the office. They will call you - or call them at (870) 233-9798.",
+                });
+            }
+
+            const [chargesRes, paymentsRes] = await Promise.all([
+                supabase.from("rent_ledger").select("amount").eq("lot_id", lot.id),
+                supabase.from("payments").select("amount").eq("lot_id", lot.id),
+            ]);
+            if (chargesRes.error) throw new Error(chargesRes.error.message);
+            if (paymentsRes.error) throw new Error(paymentsRes.error.message);
+
+            const owed =
+                Math.round(
+                    ((chargesRes.data ?? []).reduce((s, c) => s + Number(c.amount), 0) -
+                        (paymentsRes.data ?? []).reduce((s, p) => s + Number(p.amount), 0)) *
+                        100,
+                ) / 100;
+
+            if (owed <= 0) {
+                return res.status(409).json({ error: "Nothing is owed right now, so there is nothing to split." });
+            }
+
+            const heading = `Lot ${lot.lot_number} asked for a payment plan`;
+            const body = `$${owed.toFixed(2)} owed, asking for ${count} payments.${
+                reason ? ` "${reason}"` : ""
+            } Call them and propose the plan on the Rent tab.`;
+
+            await supabase.from("notifications").insert([
+                { recipient: "zo", type: "plan_requested", title: heading, body, link: "/zo/collections?tab=plans" },
+                { recipient: "raj", type: "plan_requested", title: heading, body, link: "/raj" },
+            ]).then(() => null, () => null);
+
+            await sendPush("zo", { title: heading, body, url: "/zo/collections?tab=plans", tag: `plan-${lot.id}` });
+
+            await supabase.from("resident_notifications").insert({
+                lot_id: lot.id,
+                type: "plan_requested",
+                title: "Your payment plan request was sent",
+                body: `The office will call you to agree ${count} payments for $${owed.toFixed(2)}. Nothing changes until you have agreed it.`,
+                link: "/payments",
+            });
+
+            return res.status(200).json({ ok: true, owed, payments: count });
+        } catch (err) {
+            console.error("portal plan request failed", err?.message ?? err);
+            return res.status(500).json({ error: "Could not send that request" });
+        }
+    }
+
     // The resident's own notices, checked every few seconds by the portal.
     // Deliberately tiny: one indexed query, no photos, no balances. When the
     // newest notice changes, the portal reloads everything else itself.
