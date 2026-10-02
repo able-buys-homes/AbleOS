@@ -47,9 +47,29 @@ function signInEmail(lotNumber) {
  * first sign-in.
  */
 function temporaryPassword() {
-    const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
-    const bytes = crypto.randomBytes(10);
-    return Array.from(bytes, (b) => alphabet[b % alphabet.length]).join("");
+    // Supabase requires 12+ characters with lower, upper, digit and symbol.
+    // 14, with at least one of each, and nothing that reads ambiguously.
+    const sets = [
+        "ABCDEFGHJKLMNPQRSTUVWXYZ",
+        "abcdefghjkmnpqrstuvwxyz",
+        "23456789",
+        "!@#$%",
+    ];
+    const all = sets.join("");
+    const pick = (chars) => chars[crypto.randomInt(chars.length)];
+
+    const chars = [
+        ...sets.map(pick),
+        ...Array.from({ length: 10 }, () => pick(all)),
+    ];
+
+    // Shuffle so the guaranteed characters are not always in front.
+    for (let i = chars.length - 1; i > 0; i--) {
+        const j = crypto.randomInt(i + 1);
+        [chars[i], chars[j]] = [chars[j], chars[i]];
+    }
+
+    return chars.join("");
 }
 
 export default async function handler(req, res) {
