@@ -7,6 +7,7 @@
 // count, so endpoints can be added freely from here on.
 
 import announcements from "../routes/announcements.js";
+import residentAccounts from "../routes/resident-accounts.js";
 import applicants from "../routes/applicants.js";
 import applications from "../routes/applications.js";
 import approveStage from "../routes/approve-stage.js";
@@ -92,6 +93,7 @@ const ROUTES = {
     "qbo-sync": qboSync,
     "qbo-auth": qboAuth,
     "push-subscribe": pushSubscribe,
+    "resident-accounts": residentAccounts,
     "rehab-stages": rehabStages,
     "reset-rehab": resetRehab,
     "subscription-intake": subscriptionIntake,

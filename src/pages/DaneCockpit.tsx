@@ -6,6 +6,7 @@ import {
   FileTextIcon,
   ListChecksIcon,
   MegaphoneIcon,
+  KeyIcon,
   PlusIcon,
   CheckIcon,
 } from "lucide-react";
@@ -459,6 +460,21 @@ export function DaneCockpit() {
                 onClick={() => navigate("/dane/notices")}
                 subtitle="What the park sees in the resident portal"
                 title="Announcements"
+                tone="blue"
+              />
+            </section>
+
+            {/* Sign-ins for the Tenant Portal, picked from Zo's occupied lots. */}
+            <section aria-labelledby="portal-accounts-heading" className="pt-3">
+              <h2 className="sr-only" id="portal-accounts-heading">
+                Portal accounts
+              </h2>
+              <NavCard
+                count={null}
+                icon={<KeyIcon size={17} strokeWidth={2.5} />}
+                onClick={() => navigate("/dane/portal-accounts")}
+                subtitle="Give a resident their Tenant Portal sign-in"
+                title="Portal accounts"
                 tone="blue"
               />
             </section>

@@ -1,0 +1,221 @@
+// routes/resident-accounts.js
+// Dane creates a resident's Tenant Portal account from his cockpit.
+//
+// GET  /api/resident-accounts   every lot Zo has marked occupied, with the
+//                               tenant on it and whether it already has an
+//                               active portal account
+// POST /api/resident-accounts   { lot_id } -> creates the account and returns
+//                               the sign-in and a one-time temporary password
+//
+// Occupancy is read live from `lots` - the same rows Zo's Map and Rent tabs
+// show - so this screen can never disagree with them. The POST checks again on
+// the server: a lot that is not occupied, or has no tenant named, is refused
+// whatever the browser sent.
+
+import crypto from "node:crypto";
+import { createClient } from "@supabase/supabase-js";
+import { requireUser, requireCockpit } from "../lib/apiAuth.js";
+
+const PROPERTY = "Hometown Meadows MHP";
+const CAN_USE = ["dane"];
+
+let cachedClient = null;
+
+function getClient() {
+    if (cachedClient) return cachedClient;
+
+    const url = process.env.SUPABASE_URL;
+    const key = process.env.SUPABASE_SECRET_KEY;
+    if (!url) throw new Error("SUPABASE_URL is not set");
+    if (!key) throw new Error("SUPABASE_SECRET_KEY is not set");
+
+    cachedClient = createClient(url, key, {
+        auth: { persistSession: false, autoRefreshToken: false },
+    });
+    return cachedClient;
+}
+
+/** The address the portal signs in with. Must match the portal's own rule. */
+function signInEmail(lotNumber) {
+    const slug = String(lotNumber).replace(/[^0-9a-z]/gi, "").toLowerCase();
+    return `lot${slug}@hometownmeadows.com`;
+}
+
+/**
+ * Easy to read aloud and type on a phone: no 0/O, 1/l/I. Ten characters from
+ * a 54-symbol alphabet is plenty for a password the resident must change on
+ * first sign-in.
+ */
+function temporaryPassword() {
+    const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
+    const bytes = crypto.randomBytes(10);
+    return Array.from(bytes, (b) => alphabet[b % alphabet.length]).join("");
+}
+
+export default async function handler(req, res) {
+    let caller;
+    try {
+        caller = await requireUser(req);
+        requireCockpit(caller.profile, CAN_USE);
+    } catch (err) {
+        return res
+            .status(err?.status || 401)
+            .json({ error: err?.message || "Not authorised" });
+    }
+
+    if (!["GET", "POST"].includes(req.method)) {
+        res.setHeader("Allow", "GET, POST");
+        return res.status(405).json({ error: "Method not allowed" });
+    }
+
+    try {
+        const supabase = getClient();
+
+        /* ---- the list Dane picks from ---- */
+        if (req.method === "GET") {
+            const [lotsRes, accountsRes] = await Promise.all([
+                supabase
+                    .from("lots")
+                    .select("id, lot_number, tenant_name, home_status")
+                    .eq("property", PROPERTY)
+                    .eq("home_status", "occupied"),
+                supabase
+                    .from("resident_accounts")
+                    .select("lot_id, created_at, created_by, last_seen_at")
+                    .is("disabled_at", null),
+            ]);
+
+            if (lotsRes.error) throw lotsRes.error;
+            if (accountsRes.error) throw accountsRes.error;
+
+            const accountByLot = new Map(
+                (accountsRes.data ?? []).map((a) => [a.lot_id, a]),
+            );
+
+            const lots = (lotsRes.data ?? []).map((lot) => {
+                const account = accountByLot.get(lot.id) ?? null;
+                return {
+                    id: lot.id,
+                    lot_number: lot.lot_number,
+                    tenant_name: lot.tenant_name,
+                    sign_in: String(lot.lot_number),
+                    has_account: Boolean(account),
+                    account_created_at: account?.created_at ?? null,
+                    last_seen_at: account?.last_seen_at ?? null,
+                    // A home Zo marked occupied without a name cannot be given
+                    // an account - there is nobody to give it to.
+                    can_create: !account && Boolean(lot.tenant_name?.trim()),
+                };
+            });
+
+            return res.status(200).json({ lots });
+        }
+
+        /* ---- create one account ---- */
+        const lotId = String(req.body?.lot_id || "");
+        if (!lotId) return res.status(400).json({ error: "Pick a lot" });
+
+        const { data: lot, error: lotError } = await supabase
+            .from("lots")
+            .select("id, lot_number, tenant_name, home_status, property")
+            .eq("id", lotId)
+            .maybeSingle();
+
+        if (lotError) throw lotError;
+        if (!lot || lot.property !== PROPERTY) {
+            return res.status(404).json({ error: "No such lot" });
+        }
+
+        // Checked here, not just in the dropdown. The browser is not the
+        // authority on who lives where - Zo's map is.
+        if (lot.home_status !== "occupied") {
+            return res.status(409).json({
+                error: `Lot ${lot.lot_number} is not occupied on Zo's map, so it cannot have a portal account.`,
+            });
+        }
+        if (!lot.tenant_name?.trim()) {
+            return res.status(409).json({
+                error: `Lot ${lot.lot_number} has no tenant named on Zo's map. Ask Zo to add the name first.`,
+            });
+        }
+
+        const { data: existing, error: existingError } = await supabase
+            .from("resident_accounts")
+            .select("id")
+            .eq("lot_id", lot.id)
+            .is("disabled_at", null)
+            .limit(1);
+
+        if (existingError) throw existingError;
+        if (existing?.length) {
+            return res.status(409).json({
+                error: `Lot ${lot.lot_number} already has a portal account.`,
+            });
+        }
+
+        const email = signInEmail(lot.lot_number);
+        const password = temporaryPassword();
+
+        const { data: created, error: createError } =
+            await supabase.auth.admin.createUser({
+                email,
+                password,
+                email_confirm: true,
+                user_metadata: { lot_number: lot.lot_number, role: "resident" },
+            });
+
+        if (createError) {
+            // The sign-in address belongs to the lot, so a previous tenant's
+            // account still holds it. Re-using it would hand them this
+            // household's portal - that needs a deliberate hand-over, not a
+            // side effect of this button.
+            if (/already|registered|exists/i.test(createError.message || "")) {
+                return res.status(409).json({
+                    error: `Lot ${lot.lot_number} had a portal sign-in before. Ask Raj to hand it over to the new tenant rather than creating a second one.`,
+                });
+            }
+            throw createError;
+        }
+
+        const { error: linkError } = await supabase.from("resident_accounts").insert({
+            user_id: created.user.id,
+            lot_id: lot.id,
+            display_name: lot.tenant_name.trim(),
+            created_by: caller.profile.cockpit,
+        });
+
+        if (linkError) {
+            // Never leave a sign-in that opens nothing. Undo the auth user.
+            await supabase.auth.admin.deleteUser(created.user.id).catch(() => null);
+            if (linkError.code === "23505") {
+                return res.status(409).json({
+                    error: `Lot ${lot.lot_number} already has a portal account.`,
+                });
+            }
+            throw linkError;
+        }
+
+        await supabase.from("notifications").insert({
+            recipient: "raj",
+            type: "portal_account_created",
+            title: `Portal account created for Lot ${lot.lot_number}`,
+            body: `${caller.profile.cockpit} gave ${lot.tenant_name.trim()} a Tenant Portal sign-in.`,
+            link: "/raj",
+        }).then(() => null, () => null);
+
+        // The password is returned once and never stored in plain text
+        // anywhere. Dane hands it over; the portal asks the resident to change
+        // it the first time they sign in.
+        return res.status(201).json({
+            ok: true,
+            lot_number: lot.lot_number,
+            tenant_name: lot.tenant_name.trim(),
+            sign_in: String(lot.lot_number),
+            temporary_password: password,
+            portal_url: "https://portal.hometownmeadows.com",
+        });
+    } catch (err) {
+        console.error("resident-accounts failed", err?.message ?? err);
+        return res.status(500).json({ error: "Could not create that account" });
+    }
+}
