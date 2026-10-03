@@ -57,6 +57,9 @@ type Lot = {
   owed: number;
   verified: boolean;
   locked: boolean;
+  /** This tenancy's due date this month, and the last day before it is late. */
+  due_this_month?: string | null;
+  last_day_to_pay?: string | null;
   active_plan: { id: string; status: string } | null;
   pending_plan: { id: string; status: string } | null;
   latest_notice: { id: string; posted_at: string | null } | null;
@@ -898,7 +901,20 @@ function subLine(lot: Lot) {
   if (lot.rent_placeholder)
     return "Rent not confirmed — ask the resident, then set the real amount";
   if (lot.owed < 0) return "Paid ahead";
-  if (lot.owed > 0) return lot.is_late ? "Late" : "Due now — not late yet";
+  if (lot.owed > 0) {
+    if (lot.is_late) return "Late";
+    // Say the real date. "Due now" on a rent due the 30th reads as a
+    // resident falling behind when they have weeks left.
+    const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Chicago" }).format(new Date());
+    const day = (iso: string) =>
+      new Date(`${iso}T00:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+    if (lot.due_this_month && lot.due_this_month > today) {
+      return `Due ${day(lot.due_this_month)} — not due yet`;
+    }
+    return lot.last_day_to_pay
+      ? `Due now — last day to pay ${day(lot.last_day_to_pay)}`
+      : "Due now — not late yet";
+  }
   if (lot.paid_this_month && lot.last_payment)
     return `Paid ${when(lot.last_payment.received_at)} · ${methodWord(
       lot.last_payment.method,
