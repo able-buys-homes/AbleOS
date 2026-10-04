@@ -46,7 +46,10 @@ function getClient() {
  * withdrawn from one holder without breaking it for everyone else.
  */
 function tokenMatches(supplied) {
-    const raw = process.env.MCP_TOKEN;
+    // One variable per holder, so one can be withdrawn without touching the others.
+    const raw = [process.env.MCP_TOKEN, process.env.MCP_TOKEN_ALICE]
+        .filter(Boolean)
+        .join(",");
     if (!raw) return true;
     if (typeof supplied !== "string" || !supplied) return false;
 
