@@ -238,7 +238,11 @@ export default async function handler(req, res) {
                 lot_id: lotId,
                 amount,
                 received_at: req.body?.received_at
-                    ? new Date(req.body.received_at).toISOString()
+                    // A date with no time is a day at the park: store it at midday Central,
+                    // so it reads as that same date everywhere, not the day before.
+                    ? (/^\d{4}-\d{2}-\d{2}$/.test(String(req.body.received_at))
+                        ? `${req.body.received_at}T17:00:00.000Z`
+                        : new Date(req.body.received_at).toISOString())
                     : new Date().toISOString(),
                 method,
                 entered_by: profile.cockpit,
