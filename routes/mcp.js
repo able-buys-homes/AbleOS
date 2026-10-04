@@ -361,6 +361,29 @@ const TOOLS = [
             },
         },
     },
+    {
+        name: "lot_roll",
+        description:
+            "Every lot at Hometown Meadows, one row each, by lot number: what the home is (occupied, vacant, ready, repair, rehab), the monthly rent, the due day, what the lot owes today, when it last paid, how many jobs are open and the next inspection. No resident names or contact details.",
+        inputSchema: { type: "object", properties: {} },
+    },
+    {
+        name: "work_order_list",
+        description:
+            "Every open work order, one row each: lot number, title, category, priority, status, days open and parts still awaited. Optionally include finished ones from the last N days. No resident names or contact details.",
+        inputSchema: {
+            type: "object",
+            properties: {
+                completed_days: { type: "number", description: "Also list jobs finished in the last N days. Defaults to 0." },
+            },
+        },
+    },
+    {
+        name: "dates_list",
+        description:
+            "Every outstanding critical date and every open document, one row each, with what it is, when it is due, which book it belongs to and whether it is overdue. Soonest first.",
+        inputSchema: { type: "object", properties: {} },
+    },
 ];
 
 /* ---------------- implementations ---------------- */
@@ -952,6 +975,101 @@ async function recentDeals(supabase, args) {
     };  
 }
 
+/* ---------- detail without personal data (lot numbers, never names) ---------- */
+
+async function lotRoll(supabase) {
+    const today = todayISO();
+    const [lots, charges, payments, jobs] = await Promise.all([
+        all(supabase, "lots", "id, lot_number, home_status, occupied, contract_rent, tenant_portion, rent_due_day, next_inspection_at",
+            (q) => q.eq("property", "Hometown Meadows MHP")),
+        all(supabase, "rent_ledger", "lot_id, amount"),
+        all(supabase, "payments", "lot_id, amount, received_at"),
+        all(supabase, "work_orders", "lot_id, status", (q) => q.not("status", "in", "(completed,cancelled)")),
+    ]);
+
+    const sum = (rows, id) => rows.filter((r) => r.lot_id === id).reduce((s, r) => s + Number(r.amount), 0);
+    const byNumber = (a, b) => {
+        const x = Number(a.lot_number), y = Number(b.lot_number);
+        if (Number.isFinite(x) && Number.isFinite(y)) return x - y;
+        if (Number.isFinite(x)) return -1;
+        if (Number.isFinite(y)) return 1;
+        return String(a.lot_number).localeCompare(String(b.lot_number));
+    };
+
+    return {
+        lots: [...lots].sort(byNumber).map((l) => {
+            const paid = payments.filter((p) => p.lot_id === l.id)
+                .sort((a, b) => String(b.received_at).localeCompare(String(a.received_at)));
+            const owed = Math.round((sum(charges, l.id) - sum(payments, l.id)) * 100) / 100;
+            return {
+                lot: l.lot_number,
+                home: l.home_status,
+                occupied: l.occupied,
+                monthly_rent: l.tenant_portion ?? l.contract_rent ?? null,
+                due_day: l.rent_due_day ?? null,
+                owed_today: owed,
+                last_paid_on: paid[0] ? String(paid[0].received_at).slice(0, 10) : null,
+                open_jobs: jobs.filter((j) => j.lot_id === l.id).length,
+                next_inspection: l.next_inspection_at ?? null,
+            };
+        }),
+        note: "Rent shown is what the resident pays. Lateness is decided per lot by its own due day and a five-day grace; this list shows the balance, not a verdict.",
+        as_of: today,
+    };
+}
+
+async function workOrderList(supabase, args) {
+    const today = todayISO();
+    const days = Number.isFinite(args?.completed_days) ? Math.max(0, Math.min(args.completed_days, 90)) : 0;
+    const since = days ? daysAgoISO(days) : null;
+
+    const [orders, lots, parts] = await Promise.all([
+        all(supabase, "work_orders", "id, lot_id, title, category, priority, status, opened_at, completed_at",
+            (q) => q.neq("status", "cancelled").order("opened_at", { ascending: true })),
+        all(supabase, "lots", "id, lot_number"),
+        all(supabase, "work_order_parts", "work_order_id, name, expected_on, arrived_on"),
+    ]);
+
+    const lotNo = new Map(lots.map((l) => [l.id, l.lot_number]));
+    const keep = orders.filter((o) =>
+        o.status !== "completed" || (since && o.completed_at && String(o.completed_at).slice(0, 10) >= since));
+
+    return {
+        count: keep.length,
+        jobs: keep.map((o) => {
+            const waiting = parts.filter((p) => p.work_order_id === o.id && !p.arrived_on);
+            return {
+                lot: lotNo.get(o.lot_id) ?? null,
+                title: o.title,
+                category: o.category,
+                priority: o.priority,
+                status: o.status,
+                opened_on: String(o.opened_at).slice(0, 10),
+                days_open: Math.max(0, Math.round((Date.parse(today) - Date.parse(String(o.opened_at).slice(0, 10))) / 86400000)),
+                completed_on: o.completed_at ? String(o.completed_at).slice(0, 10) : null,
+                parts_awaited: waiting.map((p) => ({ part: p.name, expected_on: p.expected_on, overdue: Boolean(p.expected_on && p.expected_on < today) })),
+            };
+        }),
+        as_of: today,
+    };
+}
+
+async function datesList(supabase) {
+    const today = todayISO();
+    const [dates, docs] = await Promise.all([
+        all(supabase, "critical_dates", "label, due_on, kind, portfolio, completed_at",
+            (q) => q.is("completed_at", null).order("due_on", { ascending: true })),
+        all(supabase, "documents", "doc_type, stage, due_on",
+            (q) => q.not("stage", "in", "(executed,filed,cancelled)").order("due_on", { ascending: true })),
+    ]);
+
+    return {
+        critical_dates: dates.map((d) => ({ what: d.label, kind: d.kind, book: d.portfolio, due_on: d.due_on, overdue: Boolean(d.due_on && d.due_on < today) })),
+        open_documents: docs.map((d) => ({ type: d.doc_type, stage: d.stage, due_on: d.due_on, overdue: Boolean(d.due_on && d.due_on < today) })),
+        as_of: today,
+    };
+}
+
 const NOTES_BUCKET = "project-notes";
 
 async function listNotes(supabase) {
@@ -1061,6 +1179,10 @@ async function runTool(name, args) {
     if (name === "verification_status") return verificationStatus(supabase);
     if (name === "open_work") return openWork(supabase);
     if (name === "project_log") return projectLog(supabase, args);
+
+    if (name === "lot_roll") return lotRoll(supabase);
+    if (name === "work_order_list") return workOrderList(supabase, args);
+    if (name === "dates_list") return datesList(supabase);
 
     throw new Error(`Unknown tool: ${name}`);
 }
