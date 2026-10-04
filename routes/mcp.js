@@ -178,8 +178,8 @@ const SYSTEM_MAP = {
         "HTM Application Submission": "The community application, into Ellery's cockpit.",
         "Intake heartbeat":
             "Daily at 09:00, asks the cockpit whether any deal has arrived in 24 hours and raises an alert if not, skipping weekends. A broken Gmail credential and a quiet week look identical from outside; this is what tells them apart.",
-        "n8n execution failed to Raj":
-            "Set as the error workflow on the intake, so a workflow cannot fail silently.",
+        "n8n execution failed (to Dane)":
+            "Set as the error workflow on the intake, payments and announcements, so a workflow cannot fail silently. Alerts go to the CTO.",
     },
     scheduled: {
         "rent-charges": "12:00 UTC daily. Raises each resident's rent charge on their own due date.",
