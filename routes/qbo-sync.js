@@ -16,6 +16,24 @@ import crypto from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
 import { postCharge, postPayment, postApplicationFee } from "../lib/qboLedger.js";
 
+/**
+ * QBO_LIVE_FROM (YYYY-MM-DD) is the day Able OS takes over the real books.
+ * Read in Kubera's time zone (US Central), so "the 5th" means the 5th at the
+ * park, not in UTC. Anything earlier stays with the accountant. Unset = no cut.
+ */
+function liveFrom() {
+    const raw = String(process.env.QBO_LIVE_FROM ?? "").trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return null;
+    const [y, m, d] = raw.split("-").map(Number);
+    const noonUtc = new Date(Date.UTC(y, m - 1, d, 12));
+    const parkHour = Number(new Intl.DateTimeFormat("en-US", {
+        timeZone: "America/Chicago", hour: "numeric", hourCycle: "h23",
+    }).format(noonUtc));
+    const offsetHours = 12 - parkHour;
+    return { date: raw, iso: new Date(Date.UTC(y, m - 1, d) + offsetHours * 3600000).toISOString() };
+}
+
+
 const CHARGE_LABEL = {
     rent: "Lot rent",
     late_fee: "Late fee",
@@ -102,6 +120,8 @@ export default async function handler(req, res) {
         errors: [],
     };
 
+    const cut = liveFrom();
+
     try {
         /* ---- Charges first. A payment cannot be applied to an invoice that
                 does not exist yet, so the order here is not cosmetic. ---- */
@@ -111,6 +131,7 @@ export default async function handler(req, res) {
             // Past-due balances Zo copied from QuickBooks are already invoiced
             // there. Posting them again would double what the resident owes.
             .neq("charge_type", "prior_balance")
+            .gte("created_at", cut ? cut.iso : "1970-01-01T00:00:00Z")
             .is("qbo_txn_id", null)
             .gt("amount", 0)
             .order("due_date", { ascending: true })
@@ -125,6 +146,7 @@ export default async function handler(req, res) {
             )
             .is("qbo_payment_id", null)
             .is("reverses_id", null)
+            .gte("received_at", cut ? cut.iso : "1970-01-01T00:00:00Z")
             .gt("amount", 0)
             .order("received_at", { ascending: true })
             .limit(limit);
@@ -151,6 +173,7 @@ export default async function handler(req, res) {
             )
             .is("qbo_txn_id", null)
             .not("fee_paid_on", "is", null)
+            .gte("fee_paid_on", cut ? cut.date : "1970-01-01")
             .gt("fee_amount", 0)
             .order("fee_paid_on", { ascending: true })
             .limit(limit);
