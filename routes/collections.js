@@ -255,7 +255,7 @@ export default async function handler(req, res) {
 
             await notifyResident(supabase, lotId, {
                 type: "payment_recorded",
-                title: `Your $${money(amount)} payment was recorded`,
+                title: `Your ${Number(amount).toFixed(2)} payment was recorded`,
                 body: `Receipt ${receipt}. Thank you.`,
                 link: "/payments",
             });
@@ -313,7 +313,7 @@ export default async function handler(req, res) {
 
             await notifyResident(supabase, lotId, {
                 type: "rent_set",
-                title: `Your rent is now $${money(tenantPortion)} a month`,
+                title: `Your rent is now ${Number(tenantPortion).toFixed(2)} a month`,
                 body: "This month is charged at that amount. Ask the office if it looks wrong.",
                 link: "/payments",
             });
@@ -392,7 +392,7 @@ export default async function handler(req, res) {
 
             await notifyResident(supabase, lotId, {
                 type: "overdue_added",
-                title: `An overdue balance of $${money(amount)} was added`,
+                title: `An overdue balance of ${Number(amount).toFixed(2)} was added`,
                 body: `Owed since ${owedSince}: ${note}`,
                 link: "/payments",
             });
