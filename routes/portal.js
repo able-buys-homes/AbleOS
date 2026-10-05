@@ -291,6 +291,47 @@ export default async function handler(req, res) {
         }
     }
 
+    // A resident reporting a problem with the portal itself. Goes to Dane:
+    // these are app problems, not home repairs. Page and device come from the
+    // browser so the resident never has to describe them.
+    if (req.method === "POST" && req.query.feedback === "1") {
+        const KINDS = ["button", "looks_wrong", "cant_find", "other"];
+        const kind = KINDS.includes(String(req.body?.kind)) ? String(req.body.kind) : "other";
+        const message = String(req.body?.message ?? "").trim().slice(0, 2000) || null;
+        const photoPath = req.body?.photoPath ? String(req.body.photoPath) : null;
+
+        if (photoPath && !photoPath.startsWith(`portal/${lot.id}/`)) {
+            return res.status(400).json({ error: "That photo could not be attached" });
+        }
+
+        try {
+            const supabase = getClient();
+            const { error } = await supabase.from("portal_feedback").insert({
+                lot_id: lot.id,
+                kind,
+                message,
+                photo_path: photoPath,
+                page: String(req.body?.page ?? "").slice(0, 200) || null,
+                device: String(req.body?.device ?? "").slice(0, 300) || null,
+            });
+            if (error) throw new Error(error.message);
+
+            const WORD = { button: "A button doesn't work", looks_wrong: "Something looks wrong", cant_find: "Can't find something", other: "Something else" };
+            const heading = `Portal problem from Lot ${lot.lot_number}`;
+            const body = `${WORD[kind]}${message ? `: "${message.slice(0, 140)}"` : ""}`;
+
+            await supabase.from("notifications").insert({
+                recipient: "dane", type: "portal_feedback", title: heading, body, link: "/dane/portal-feedback",
+            }).then(() => null, () => null);
+            await sendPush("dane", { title: heading, body, url: "/dane/portal-feedback", tag: `fb-${lot.id}` });
+
+            return res.status(201).json({ ok: true });
+        } catch (err) {
+            console.error("portal feedback failed", err?.message ?? err);
+            return res.status(500).json({ error: "Could not send that just now" });
+        }
+    }
+
     // The resident's own notices, checked every few seconds by the portal.
     // Deliberately tiny: one indexed query, no photos, no balances. When the
     // newest notice changes, the portal reloads everything else itself.
