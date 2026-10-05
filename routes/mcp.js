@@ -45,6 +45,22 @@ function getClient() {
  * MCP_TOKEN holds a comma-separated list, one per person, so a link can be
  * withdrawn from one holder without breaking it for everyone else.
  */
+/**
+ * Malli (Raj's agent) has its own key and a short list of tools: counts,
+ * statuses and dates by lot number - nothing with a name, phone or email.
+ * Malli can text and call people, so it gets the least it needs.
+ * Remove MCP_TOKEN_MALLI in Vercel to cut it off without touching anyone else.
+ */
+const MALLI_TOOLS = ["occupancy_status", "rent_status", "lot_roll", "work_order_list", "dates_list"];
+
+function isMalli(supplied) {
+    const expected = String(process.env.MCP_TOKEN_MALLI ?? "").trim();
+    if (!expected || typeof supplied !== "string" || !supplied) return false;
+    const a = Buffer.from(supplied);
+    const b = Buffer.from(expected);
+    return a.length === b.length && timingSafeEqual(a, b);
+}
+
 function tokenMatches(supplied) {
     // One variable per holder, so one can be withdrawn without touching the others.
     const raw = [process.env.MCP_TOKEN, process.env.MCP_TOKEN_ALICE]
@@ -1213,7 +1229,10 @@ export default async function handler(req, res) {
         return res.status(405).json({ error: "Method not allowed" });
     }
 
-    if (!tokenMatches(suppliedToken(req))) {
+    const supplied = suppliedToken(req);
+    const malli = isMalli(supplied);
+
+    if (!malli && !tokenMatches(supplied)) {
         return res.status(401).json({ error: "Not authorised" });
     }
 
@@ -1241,11 +1260,24 @@ export default async function handler(req, res) {
 
         if (method === "ping") return res.status(200).json(result(id, {}));
 
-        if (method === "tools/list") return res.status(200).json(result(id, { tools: TOOLS }));
+        if (method === "tools/list") {
+            const tools = malli ? TOOLS.filter((t) => MALLI_TOOLS.includes(t.name)) : TOOLS;
+            return res.status(200).json(result(id, { tools }));
+        }
 
         if (method === "tools/call") {
             const name = params?.name;
             const args = params?.arguments ?? {};
+
+            // Asked for by name, not only hidden from the list.
+            if (malli && !MALLI_TOOLS.includes(name)) {
+                return res.status(200).json(
+                    result(id, {
+                        content: [{ type: "text", text: "That tool is not available to this key." }],
+                        isError: true,
+                    }),
+                );
+            }
 
             try {
                 const value = await runTool(name, args);
