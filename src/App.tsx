@@ -17,6 +17,7 @@ import { ZoCollections } from "./pages/ZoCollections";
 import { HtmApplication } from "./pages/HtmApplication";
 import { DaneNotices } from "./pages/DaneNotices";
 import { DanePortalAccounts } from "./pages/DanePortalAccounts";
+import { DanePortalFeedback } from "./pages/DanePortalFeedback";
 import { ZoJobs } from "./pages/ZoJobs";
 import { ZoNotices } from "./pages/ZoNotices";
 import { ZoMap } from "./pages/ZoMap";
@@ -148,6 +149,14 @@ export function App() {
             element={
               <ProtectedRoute cockpit="zo">
                 <ZoNotices />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/dane/portal-feedback"
+            element={
+              <ProtectedRoute cockpit="dane">
+                <DanePortalFeedback />
               </ProtectedRoute>
             }
           />

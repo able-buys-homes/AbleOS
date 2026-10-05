@@ -7,6 +7,7 @@ import {
   ListChecksIcon,
   MegaphoneIcon,
   KeyIcon,
+  LifeBuoyIcon,
   PlusIcon,
   CheckIcon,
 } from "lucide-react";
@@ -475,6 +476,21 @@ export function DaneCockpit() {
                 onClick={() => navigate("/dane/portal-accounts")}
                 subtitle="Give a resident their Tenant Portal sign-in"
                 title="Portal accounts"
+                tone="blue"
+              />
+            </section>
+
+            {/* Problems residents reported about the portal itself. */}
+            <section aria-labelledby="portal-feedback-heading" className="pt-3">
+              <h2 className="sr-only" id="portal-feedback-heading">
+                Portal problems
+              </h2>
+              <NavCard
+                count={null}
+                icon={<LifeBuoyIcon size={17} strokeWidth={2.5} />}
+                onClick={() => navigate("/dane/portal-feedback")}
+                subtitle="What residents say isn't working in the portal"
+                title="Portal problems"
                 tone="blue"
               />
             </section>
