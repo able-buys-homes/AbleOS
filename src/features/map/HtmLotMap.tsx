@@ -722,14 +722,14 @@ export function HtmLotMap({
           label="Ready to rent"
           n={counts.ready}
           onClick={() => setFilter(filter === "ready" ? null : "ready")}
-          tone="text-[#0F5C41]"
+          tone="text-[#72CE27]"
         />
         <MapTile
           active={filter === "late"}
           label="Late"
           n={counts.late}
           onClick={() => setFilter(filter === "late" ? null : "late")}
-          tone="text-[#B3261E]"
+          tone="text-[#FC2F00]"
         />
       </div>
       <svg
