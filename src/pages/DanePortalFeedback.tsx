@@ -19,6 +19,8 @@ type Report = {
   device: string | null;
   created_at: string;
   resolved_at: string | null;
+  area: string | null;
+  steps: string | null;
 };
 
 const KIND: Record<string, string> = {
@@ -79,7 +81,7 @@ export function DanePortalFeedback() {
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
           <div className="text-[15px] font-semibold text-[#1B2231]">
-            Lot {r.lot_number ?? "?"} — {KIND[r.kind] ?? r.kind}
+            Lot {r.lot_number ?? "?"} — {r.area ? `${r.area}: ` : ""}{KIND[r.kind] ?? r.kind}
           </div>
           <div className="text-[13px] text-[#6C7484]">
             {when(r.created_at)}{r.page ? ` · on ${r.page}` : ""}
@@ -99,6 +101,11 @@ export function DanePortalFeedback() {
         <a href={r.photo_url} rel="noreferrer" target="_blank">
           <img alt="What the resident saw" className="mt-3 max-h-64 rounded-xl border border-[#DCE4EE]" src={r.photo_url} />
         </a>
+      )}
+      {r.steps && (
+        <p className="mt-3 rounded-xl bg-[#F2F4F7] px-3 py-2 text-[13px] text-[#4A5464]">
+          <span className="font-semibold">What they tapped: </span>{r.steps}
+        </p>
       )}
       {r.device && <p className="mt-3 break-words text-[12px] text-[#8A929E]">{r.device}</p>}
     </div>

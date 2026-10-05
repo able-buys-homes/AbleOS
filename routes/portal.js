@@ -311,6 +311,8 @@ export default async function handler(req, res) {
                 kind,
                 message,
                 photo_path: photoPath,
+                area: String(req.body?.area ?? "").slice(0, 60) || null,
+                steps: String(req.body?.steps ?? "").slice(0, 1000) || null,
                 page: String(req.body?.page ?? "").slice(0, 200) || null,
                 device: String(req.body?.device ?? "").slice(0, 300) || null,
             });
@@ -318,7 +320,8 @@ export default async function handler(req, res) {
 
             const WORD = { button: "A button doesn't work", looks_wrong: "Something looks wrong", cant_find: "Can't find something", other: "Something else" };
             const heading = `Portal problem from Lot ${lot.lot_number}`;
-            const body = `${WORD[kind]}${message ? `: "${message.slice(0, 140)}"` : ""}`;
+            const AREA = String(req.body?.area ?? "").slice(0, 60);
+            const body = `${AREA ? AREA + " — " : ""}${WORD[kind]}${message ? `: "${message.slice(0, 140)}"` : ""}`;
 
             await supabase.from("notifications").insert({
                 recipient: "dane", type: "portal_feedback", title: heading, body, link: "/dane/portal-feedback",
