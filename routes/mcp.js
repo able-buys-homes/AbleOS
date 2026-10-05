@@ -509,6 +509,7 @@ async function occupancyStatus(supabase) {
         supabase,
         "lots",
         "lot_number, occupied, home_status, rent_placeholder, next_inspection_at",
+        (q) => q.is("archived_at", null),
     );
 
     const rentable = lots.filter((l) =>
@@ -981,7 +982,7 @@ async function lotRoll(supabase) {
     const today = todayISO();
     const [lots, charges, payments, jobs] = await Promise.all([
         all(supabase, "lots", "id, lot_number, home_status, occupied, contract_rent, tenant_portion, rent_due_day, next_inspection_at",
-            (q) => q.eq("property", "Hometown Meadows MHP")),
+            (q) => q.eq("property", "Hometown Meadows MHP").is("archived_at", null)),
         all(supabase, "rent_ledger", "lot_id, amount"),
         all(supabase, "payments", "lot_id, amount, received_at"),
         all(supabase, "work_orders", "lot_id, status", (q) => q.not("status", "in", "(completed,cancelled)")),

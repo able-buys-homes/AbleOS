@@ -403,6 +403,135 @@ export default async function handler(req, res) {
             });
         }
 
+        /* ---- take a lot off the rent roll (soft) ---- */
+        // Zo only. Nothing is deleted: the outgoing resident is copied into
+        // tenancy_history, their portal sign-in is switched off, and the lot
+        // takes the status Zo picks - so the map changes with it. "archive"
+        // hides a lot that is not part of the park (e.g. 106 Fox Run Rd).
+        if (req.method === "POST" && req.query?.remove) {
+            if (profile.cockpit !== "zo") {
+                return res.status(403).json({ error: "Only Zo can remove a lot from the rent roll" });
+            }
+
+            const lotId = String(req.body?.lot_id || "");
+            const next = String(req.body?.next_status || "");
+            const ALLOWED_NEXT = ["vacant", "ready", "moving_out", "needs_repair", "full_rehab", "verify", "occupied", "archive"];
+            if (!lotId) return res.status(400).json({ error: "Pick a lot" });
+            if (!ALLOWED_NEXT.includes(next)) return res.status(400).json({ error: "Pick what the lot is now" });
+
+            const { data: lot, error: lotErr } = await supabase
+                .from("lots")
+                .select("id, lot_number, property, tenant_name, contract_rent, tenant_portion, move_in_on, rent_due_day, hap_household, archived_at")
+                .eq("id", lotId)
+                .maybeSingle();
+            if (lotErr) throw lotErr;
+            if (!lot || lot.property !== PROPERTY) return res.status(404).json({ error: "No such lot" });
+            if (lot.archived_at) return res.status(409).json({ error: "That lot is already off the rent roll" });
+
+            const [cRes, pRes] = await Promise.all([
+                supabase.from("rent_ledger").select("amount").eq("lot_id", lotId),
+                supabase.from("payments").select("amount").eq("lot_id", lotId),
+            ]);
+            if (cRes.error) throw cRes.error;
+            if (pRes.error) throw pRes.error;
+            const owed = money(
+                (cRes.data ?? []).reduce((s, c) => s + Number(c.amount), 0) -
+                (pRes.data ?? []).reduce((s, p) => s + Number(p.amount), 0),
+            );
+
+            const note = String(req.body?.note ?? "").trim().slice(0, 500) || null;
+            const newName = String(req.body?.new_tenant_name ?? "").trim().slice(0, 120);
+            const newRent = Number(req.body?.contract_rent);
+            const newPortion = req.body?.tenant_portion;
+            const moveIn = String(req.body?.move_in_on ?? "");
+
+            // Everything checked before anything changes, so a refusal leaves the lot as it was.
+            if (next === "occupied") {
+                if (!newName) return res.status(400).json({ error: "Who is moving in? Enter their name." });
+                if (!Number.isFinite(newRent) || newRent <= 0) return res.status(400).json({ error: "Enter the new monthly rent" });
+                if (!/^\d{4}-\d{2}-\d{2}$/.test(moveIn)) return res.status(400).json({ error: "Enter the move-in date" });
+                if (lot.hap_household) {
+                    const p = Number(newPortion);
+                    if (!Number.isFinite(p) || p < 0 || p > newRent) {
+                        return res.status(400).json({ error: "This is an assisted household. Enter the tenant's portion (no more than the rent)." });
+                    }
+                }
+                if (owed > 0) {
+                    return res.status(409).json({
+                        error: `Lot ${lot.lot_number} still owes ${owed.toFixed(2)}${lot.tenant_name ? ` from ${lot.tenant_name}` : ""}. Settle that first, so the new resident does not inherit it.`,
+                    });
+                }
+            }
+
+            const { error: histErr } = await supabase.from("tenancy_history").insert({
+                lot_id: lot.id,
+                tenant_name: lot.tenant_name,
+                contract_rent: lot.contract_rent,
+                tenant_portion: lot.tenant_portion,
+                move_in_on: lot.move_in_on,
+                rent_due_day: lot.rent_due_day,
+                balance_at_exit: owed,
+                next_status: next,
+                note,
+                ended_by: profile.cockpit,
+            });
+            if (histErr) throw histErr;
+
+            await supabase
+                .from("resident_accounts")
+                .update({ disabled_at: new Date().toISOString() })
+                .eq("lot_id", lot.id)
+                .is("disabled_at", null);
+
+            const now = new Date().toISOString();
+            const cleared = {
+                tenant_name: null, contract_rent: null, tenant_portion: null, hap_portion: null,
+                rent_due_day: null, move_in_on: null, rent_placeholder: false, rent_note: null,
+                rent_set_by: null, rent_set_at: null, rent_confirmed_by: null, rent_confirmed_at: null,
+                status_set_by: profile.cockpit, status_set_at: now, updated_at: now,
+            };
+
+            let patch;
+            if (next === "archive") {
+                patch = { ...cleared, occupied: false, archived_at: now, archived_by: profile.cockpit, archive_reason: note || "Not part of Hometown Meadows" };
+            } else if (next === "occupied") {
+                patch = { ...cleared, occupied: true, home_status: "occupied", tenant_name: newName };
+            } else {
+                patch = { ...cleared, occupied: false, home_status: next };
+            }
+
+            const { error: upErr } = await supabase.from("lots").update(patch).eq("id", lot.id);
+            if (upErr) throw upErr;
+
+            if (next === "occupied") {
+                const rent = await recordRent({
+                    supabase,
+                    lotId: lot.id,
+                    contractRent: newRent,
+                    tenantPortion: newPortion,
+                    dueDay: Number(moveIn.slice(8, 10)),
+                    moveInOn: moveIn,
+                    note,
+                    by: profile.cockpit,
+                });
+                if (!rent.ok) return res.status(rent.status).json({ error: rent.error });
+            }
+
+            const WORD = { vacant: "Vacant", ready: "Ready to rent", moving_out: "Moving out", needs_repair: "Needs repair", full_rehab: "Full rehab", verify: "Needs checking", occupied: `occupied by ${newName}`, archive: "hidden (not part of Hometown Meadows)" };
+            await supabase.from("notifications").insert({
+                recipient: "raj",
+                type: "lot_removed",
+                title: `Lot ${lot.lot_number} taken off the rent roll`,
+                body: `${profile.cockpit} removed ${lot.tenant_name ?? "the resident"}. The lot is now ${WORD[next]}.${owed > 0 ? ` ${owed.toFixed(2)} was still owed.` : ""}`,
+                link: "/raj",
+            }).then(() => null, () => null);
+
+            return res.status(200).json({
+                ok: true,
+                message: `Lot ${lot.lot_number}: ${lot.tenant_name ?? "resident"} removed. The lot is now ${WORD[next]}.${owed > 0 && next !== "occupied" ? ` ${owed.toFixed(2)} was still owed — Raj has been told.` : ""}`,
+            });
+        }
+
         /* ---- propose a plan ---- */
         if (req.method === "POST" && req.query?.plan) {
             if (!["zo", "raj", "dane"].includes(profile.cockpit)) {
@@ -680,7 +809,7 @@ export default async function handler(req, res) {
 
         const [lotsRes, chargesRes, paymentsRes, plansRes, noticesRes, casesRes] =
             await Promise.all([
-                supabase.from("lots").select("*").eq("property", PROPERTY),
+                supabase.from("lots").select("*").eq("property", PROPERTY).is("archived_at", null),
                 supabase.from("rent_ledger").select("*"),
                 supabase.from("payments").select("*"),
                 supabase

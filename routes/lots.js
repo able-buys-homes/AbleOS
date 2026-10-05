@@ -96,7 +96,8 @@ export default async function handler(req, res) {
                         .select(
                             "id, lot_number, tenant_name, home_status, repair_note, bed, bath, sq_ft, notes, occupied, status_set_by, status_set_at, hap_household, tenancy_type, contract_rent, tenant_portion, rent_placeholder, rent_due_day, move_in_on, next_inspection_at, next_inspection_set_by, next_inspection_set_at",
                         )
-                        .eq("property", PROPERTY),
+                        .eq("property", PROPERTY)
+                        .is("archived_at", null),
                     supabase.from("rent_ledger").select("lot_id, amount"),
                     supabase.from("payments").select("lot_id, amount"),
                     supabase.from("payment_plans").select("lot_id, status"),

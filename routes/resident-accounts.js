@@ -98,7 +98,8 @@ export default async function handler(req, res) {
                     .from("lots")
                     .select("id, lot_number, tenant_name, home_status")
                     .eq("property", PROPERTY)
-                    .eq("home_status", "occupied"),
+                    .eq("home_status", "occupied")
+                    .is("archived_at", null),
                 supabase
                     .from("resident_accounts")
                     .select("lot_id, created_at, created_by, last_seen_at")
