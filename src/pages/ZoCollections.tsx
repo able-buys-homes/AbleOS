@@ -29,6 +29,7 @@ import { ApplicationsCard } from "../features/applications/ApplicationsCard";
 import { planTerms } from "../features/collections/planTerms";
 import { Sheets } from "../features/collections/Sheets";
 import { ProofSheet } from "../features/collections/ProofSheet";
+import { RemoveLotSheet } from "../features/collections/RemoveLotSheet";
 import { byLot } from "../lib/byLot";
 
 type Lot = {
@@ -139,7 +140,7 @@ export function ZoCollections() {
   const [kpi, setKpi] = React.useState<null | "late" | "plan" | "paid">(null);
 
   const [sheet, setSheet] = React.useState<
-    null | "pay" | "plan" | "post" | "rent" | "prior"
+    null | "pay" | "plan" | "post" | "rent" | "prior" | "remove"
   >(null);
   const [sheetLot, setSheetLot] = React.useState<Lot | null>(null);
   const [proofId, setProofId] = React.useState<string | null>(null);
@@ -202,7 +203,7 @@ export function ZoCollections() {
     window.setTimeout(() => setToast({ msg: "" }), 4200);
   }
 
-  function openSheet(kind: "pay" | "plan" | "post" | "rent" | "prior", lot?: Lot) {
+  function openSheet(kind: "pay" | "plan" | "post" | "rent" | "prior" | "remove", lot?: Lot) {
     // Close the group modal first. Two overlays on top of each other leaves
     // Zo tapping a form he cannot see the edges of.
     setKpi(null);
@@ -373,6 +374,7 @@ export function ZoCollections() {
                   onPost={() => openSheet("post", lot)}
                   onSetRent={() => openSheet("rent", lot)}
                   onPrior={() => openSheet("prior", lot)}
+                  onRemove={() => openSheet("remove", lot)}
                   onProof={setProofId}
                 />
               ))}
@@ -394,6 +396,7 @@ export function ZoCollections() {
                   onPost={() => openSheet("post", lot)}
                   onSetRent={() => openSheet("rent", lot)}
                   onPrior={() => openSheet("prior", lot)}
+                  onRemove={() => openSheet("remove", lot)}
                   onProof={setProofId}
                 />
               ))}
@@ -444,6 +447,7 @@ export function ZoCollections() {
                   onPost={() => openSheet("post", lot)}
                   onSetRent={() => openSheet("rent", lot)}
                   onPrior={() => openSheet("prior", lot)}
+                  onRemove={() => openSheet("remove", lot)}
                   onProof={setProofId}
                 />
               ))}
@@ -460,6 +464,7 @@ export function ZoCollections() {
                   onPost={() => openSheet("post", lot)}
                   onSetRent={() => openSheet("rent", lot)}
                   onPrior={() => openSheet("prior", lot)}
+                  onRemove={() => openSheet("remove", lot)}
                   onProof={setProofId}
                 />
               ))}
@@ -478,6 +483,7 @@ export function ZoCollections() {
                       onPost={() => openSheet("post", lot)}
                       onSetRent={() => openSheet("rent", lot)}
                   onPrior={() => openSheet("prior", lot)}
+                  onRemove={() => openSheet("remove", lot)}
                       onProof={setProofId}
                     />
                   ))}
@@ -771,6 +777,7 @@ export function ZoCollections() {
                     onProof={setProofId}
                     onSetRent={() => openSheet("rent", lot)}
                   onPrior={() => openSheet("prior", lot)}
+                  onRemove={() => openSheet("remove", lot)}
                   />
                 ))}
               </Stack>
@@ -787,7 +794,19 @@ export function ZoCollections() {
         <ProofSheet noticeId={proofId} onClose={() => setProofId(null)} />
       )}
 
-      {sheet && (
+      {sheet === "remove" && sheetLot && (
+        <RemoveLotSheet
+          lot={sheetLot}
+          onClose={() => setSheet(null)}
+          onDone={(msg) => {
+            setSheet(null);
+            say(msg);
+            load();
+          }}
+        />
+      )}
+
+      {sheet && sheet !== "remove" && (
         <Sheets
           data={data}
           kind={sheet}
@@ -931,6 +950,7 @@ function LotRow({
   onPlan,
   onSetRent,
   onPrior,
+  onRemove,
   onProof,
 }: {
   lot: Lot;
@@ -939,6 +959,7 @@ function LotRow({
   onPlan: () => void;
   onSetRent: () => void;
   onPrior: () => void;
+  onRemove?: () => void;
   onProof: (noticeId: string) => void;
 }) {
   const [open, setOpen] = React.useState(false);
@@ -1143,6 +1164,16 @@ function LotRow({
               <Btn onClick={onPrior}>Add overdue</Btn>
             )}
           </div>
+          {/* Soft remove. Zo picks what the lot is now, so the map follows. */}
+          {onRemove && (
+            <button
+              className="mt-3 text-[13.5px] font-bold text-[#B42318] underline underline-offset-2"
+              onClick={onRemove}
+              type="button"
+            >
+              Remove from rent roll
+            </button>
+          )}
         </div>
       )}
     </div>
