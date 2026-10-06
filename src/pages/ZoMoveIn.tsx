@@ -476,6 +476,29 @@ export function ZoMoveIn() {
                     );
                   })
                 )}
+                {/* Most of a home is fine. Zo taps the problems, then fills the
+                    rest in one go - it never overwrites a Fair or Poor. */}
+                {!signed && !skipped[s.key] && s.items.some(([k]) => !c.items?.[k]?.rating) && (
+                  <button
+                    className="mt-2 w-full rounded-[9px] border border-[#1B7A4B] px-3 py-2.5 text-[14px] font-bold text-[#1B7A4B]"
+                    onClick={() =>
+                      save({
+                        ...c,
+                        items: {
+                          ...c.items,
+                          ...Object.fromEntries(
+                            s.items
+                              .filter(([k]) => !c.items?.[k]?.rating)
+                              .map(([k]) => [k, { rating: "good", note: "", photos: [], photo_urls: [] }]),
+                          ),
+                        },
+                      })
+                    }
+                    type="button"
+                  >
+                    Mark the rest Good
+                  </button>
+                )}
               </div>
             ))}
 
