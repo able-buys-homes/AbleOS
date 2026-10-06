@@ -7,6 +7,7 @@
 // at move-out. Saves as Zo goes: a dropped signal must not cost him the walk.
 
 import React from "react";
+import { createPortal } from "react-dom";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { MobileScreenShell } from "../components/MobileScreenShell";
 import { ZoScreenHeader } from "../components/ZoScreenHeader";
@@ -177,13 +178,14 @@ function PrintView({ c }: { c: any }) {
   const lotOnly = c.lease_type === "lot_only";
   const cell = "border border-[#999] px-2 py-1 align-top text-[11px]";
   const date = (v: any) => (v ? String(v).slice(0, 10) : "");
-  return (
-    <div className="hidden bg-white p-6 text-black print:block" id="movein-print">
+  // Rendered straight into <body>, outside the phone screen, so printing can
+  // drop everything else instead of leaving blank pages where it was.
+  return createPortal(
+    <div className="hidden bg-white text-black print:block" id="movein-print">
       <style>{`@media print {
         @page { margin: 12mm; }
-        body * { visibility: hidden; }
-        #movein-print, #movein-print * { visibility: visible; }
-        #movein-print { position: absolute; left: 0; top: 0; width: 100%; padding: 0; }
+        body > *:not(#movein-print) { display: none !important; }
+        #movein-print { display: block !important; }
         #movein-print table { page-break-inside: auto; }
         #movein-print tr { page-break-inside: avoid; }
       }`}</style>
@@ -287,7 +289,8 @@ function PrintView({ c }: { c: any }) {
           </div>
         ))}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
