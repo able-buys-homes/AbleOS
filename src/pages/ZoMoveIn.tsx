@@ -166,6 +166,131 @@ function SignaturePad({ label, onChange }: { label: string; onChange: (b: Blob |
   );
 }
 
+const WORD: Record<string, string> = { good: "GOOD", fair: "FAIR", poor: "POOR", na: "N/A" };
+
+/**
+ * The signed checklist as a document, laid out like the paper Exhibit C.
+ * Only shown when printing - the phone layout is for walking the home, not
+ * for a lease file.
+ */
+function PrintView({ c }: { c: any }) {
+  const lotOnly = c.lease_type === "lot_only";
+  const cell = "border border-[#999] px-2 py-1 align-top text-[11px]";
+  const date = (v: any) => (v ? String(v).slice(0, 10) : "");
+  return (
+    <div className="hidden bg-white p-6 text-black print:block" id="movein-print">
+      <style>{`@media print {
+        @page { margin: 12mm; }
+        body * { visibility: hidden; }
+        #movein-print, #movein-print * { visibility: visible; }
+        #movein-print { position: absolute; left: 0; top: 0; width: 100%; padding: 0; }
+        #movein-print table { page-break-inside: auto; }
+        #movein-print tr { page-break-inside: avoid; }
+      }`}</style>
+      <div className="text-center">
+        <div className="text-[18px] font-bold">HOMETOWN MEADOWS</div>
+        <div className="text-[14px]">Exhibit C - Move-In Condition Checklist</div>
+        <div className="text-[10px]">121 Smith Lane, Nashville, Arkansas 71852 | Office (870) 557-5751</div>
+      </div>
+      <table className="mt-3 w-full border-collapse">
+        <tbody>
+          <tr>
+            <td className={cell}><b>Resident(s):</b> {c.resident_names}</td>
+            <td className={cell}><b>Lot #:</b> {c.lot_number}</td>
+            <td className={cell}><b>Move-in date:</b> {date(c.move_in_on)}</td>
+          </tr>
+          <tr>
+            <td className={cell}><b>Lease type:</b> {lotOnly ? "Lot Only" : "Home and Lot"}</td>
+            <td className={cell}><b>Bedrooms:</b> {c.bedrooms ?? ""}</td>
+            <td className={cell}><b>Baths:</b> {c.baths ?? ""}</td>
+          </tr>
+        </tbody>
+      </table>
+
+      {SECTIONS.filter((s) => !lotOnly || s.lotOnly).map((s) => {
+        const used = s.items.some(([k]) => c.items?.[k]?.rating);
+        return (
+          <div className="mt-3" key={s.key}>
+            <div className="text-[13px] font-bold">{s.title}</div>
+            {!used ? (
+              <div className="text-[11px]">Not in this home.</div>
+            ) : (
+              <table className="w-full border-collapse">
+                <thead>
+                  <tr>
+                    <th className={`${cell} w-[45%] text-left`}>Item</th>
+                    <th className={`${cell} w-[12%] text-left`}>Condition</th>
+                    <th className={`${cell} text-left`}>Notes / Photos</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {s.items.map(([k, label]) => {
+                    const it = c.items?.[k] ?? {};
+                    return (
+                      <tr key={k}>
+                        <td className={cell}>{label}</td>
+                        <td className={`${cell} font-bold`}>{WORD[it.rating] ?? ""}</td>
+                        <td className={cell}>
+                          {it.note}
+                          {(it.photo_urls ?? []).filter(Boolean).length > 0 && (
+                            <div className="mt-1 flex gap-1">
+                              {(it.photo_urls ?? []).filter(Boolean).map((u: string, i: number) => (
+                                <img alt="" className="h-[60px] w-[60px] object-cover" key={i} src={u} />
+                              ))}
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
+          </div>
+        );
+      })}
+
+      <div className="mt-3 text-[13px] font-bold">11. Keys, readings & sign-off</div>
+      <table className="w-full border-collapse">
+        <tbody>
+          {KEY_FIELDS.map(([k, label]) => (
+            <tr key={k}>
+              <td className={`${cell} w-[45%]`}>{label}</td>
+              <td className={cell}>{c.keys_meters?.[k] ?? ""}</td>
+            </tr>
+          ))}
+          <tr>
+            <td className={cell}>Resident received copy of this checklist</td>
+            <td className={cell}>{c.keys_meters?.copy_given ? "Yes" : "No"}</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <p className="mt-3 text-[10.5px]">
+        <b>Resident's 5 days:</b> Resident may add anything missed in writing within 5 days after move-in (by{" "}
+        {date(c.additions_due_at)}). Anything not listed is considered in good condition at move-in. This checklist is
+        used to compare condition at move-out under Sections 6 and 18 of the Lease.
+      </p>
+
+      <div className="mt-3 grid grid-cols-3 gap-4 text-[11px]" style={{ pageBreakInside: "avoid" }}>
+        {[
+          ["Resident 1", c.resident_signature_url],
+          ["Resident 2", c.resident2_signature_url],
+          ["Community (Kubera Homes LLC d/b/a Hometown Meadows)", c.community_signature_url],
+        ].map(([label, url]) => (
+          <div key={label as string}>
+            <div className="flex h-[70px] items-end border-b border-black">
+              {url ? <img alt="" className="max-h-[66px]" src={url as string} /> : null}
+            </div>
+            <div className="mt-1">{label}</div>
+            <div>Date: {url ? date(c.signed_at) : ""}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function ZoMoveIn() {
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
@@ -568,6 +693,7 @@ export function ZoMoveIn() {
           </div>
         )}
       </div>
+      {c && signed && <PrintView c={c} />}
       <ZoTabBar />
     </MobileScreenShell>
   );
