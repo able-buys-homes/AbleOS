@@ -8,6 +8,7 @@
 
 import announcements from "../routes/announcements.js";
 import portalFeedback from "../routes/portal-feedback.js";
+import moveIn from "../routes/move-in.js";
 import residentAccounts from "../routes/resident-accounts.js";
 import applicants from "../routes/applicants.js";
 import applications from "../routes/applications.js";
@@ -95,6 +96,7 @@ const ROUTES = {
     "qbo-auth": qboAuth,
     "push-subscribe": pushSubscribe,
     "portal-feedback": portalFeedback,
+    "move-in": moveIn,
     "resident-accounts": residentAccounts,
     "rehab-stages": rehabStages,
     "reset-rehab": resetRehab,
