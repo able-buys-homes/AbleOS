@@ -519,6 +519,44 @@ export function ZoCollections() {
                 </div>
               </div>
 
+              {/* The next two papers after an approved application. Blank copies
+                  only - nothing on them carries a resident's details. */}
+              <div className="p-4">
+                <div className="text-[16px] font-bold tracking-[-0.01em]">
+                  Lease
+                </div>
+                <p className="mt-1 text-[13.5px] text-[#6C7484]">
+                  After the application is approved. Includes the community
+                  rules (Exhibit A) and the lead-paint page (Exhibit B).
+                </p>
+                <div className="mt-3.5 flex flex-wrap gap-2.5">
+                  <Btn
+                    onClick={() => window.open("/forms/residential-lease.pdf", "_blank")}
+                    variant="primary"
+                  >
+                    Print a blank one
+                  </Btn>
+                </div>
+              </div>
+
+              <div className="p-4">
+                <div className="text-[16px] font-bold tracking-[-0.01em]">
+                  Move-in checklist
+                </div>
+                <p className="mt-1 text-[13.5px] text-[#6C7484]">
+                  Exhibit C. Walk the home with the resident on move-in day and
+                  mark each item Good, Fair or Poor.
+                </p>
+                <div className="mt-3.5 flex flex-wrap gap-2.5">
+                  <Btn
+                    onClick={() => window.open("/forms/move-in-checklist.pdf", "_blank")}
+                    variant="primary"
+                  >
+                    Print a blank one
+                  </Btn>
+                </div>
+              </div>
+
               {/* What he has already taken, under the button that takes them.
                   The form used to be a one-way door. */}
               <ApplicationsCard />
