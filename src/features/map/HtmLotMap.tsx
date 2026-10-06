@@ -51,6 +51,14 @@ export interface Lot {
   sqft?: number;
   /** A housing authority pays part of the rent. */
   hapHousehold?: boolean;
+  /** From the OneBanc home inventory (Oct 2026). No values - those are the bank's. */
+  streetAddress?: string;
+  homeSerial?: string;
+  homeYear?: number;
+  homeMake?: string;
+  homeSize?: string;
+  /** Why the serial needs checking against the title, if it does. */
+  homeSerialNote?: string;
 }
 
 /**
@@ -913,6 +921,30 @@ export function HtmLotMap({
                   .filter(Boolean)
                   .join(" · ")}
               />
+
+              {/* From the OneBanc inventory. Read off a title at the door, so
+                  a doubtful serial says why rather than looking certain. */}
+              {selected.streetAddress && (
+                <Row label="Address" value={selected.streetAddress} />
+              )}
+              {selected.homeMake && (
+                <Row
+                  label="Make"
+                  value={[selected.homeYear, selected.homeMake, selected.homeSize]
+                    .filter(Boolean)
+                    .join(" · ")}
+                />
+              )}
+              {selected.homeMake && (
+                <Row
+                  label="Serial #"
+                  tone={selected.homeSerialNote ? "text-[#B45309]" : undefined}
+                  value={selected.homeSerial ?? "None on record"}
+                />
+              )}
+              {selected.homeSerialNote && (
+                <Row label="Verify" tone="text-[#B45309]" value={selected.homeSerialNote} />
+              )}
 
               {/* Only for a home with somebody in it. An empty lot cannot owe
                   rent, and giving it a rent line invites someone to chase a

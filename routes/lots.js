@@ -94,7 +94,7 @@ export default async function handler(req, res) {
                     supabase
                         .from("lots")
                         .select(
-                            "id, lot_number, tenant_name, home_status, repair_note, bed, bath, sq_ft, notes, occupied, status_set_by, status_set_at, hap_household, tenancy_type, contract_rent, tenant_portion, rent_placeholder, rent_due_day, move_in_on, next_inspection_at, next_inspection_set_by, next_inspection_set_at",
+                            "id, lot_number, tenant_name, home_status, repair_note, bed, bath, sq_ft, street_address, home_serial, home_year, home_make, home_size, home_serial_note, notes, occupied, status_set_by, status_set_at, hap_household, tenancy_type, contract_rent, tenant_portion, rent_placeholder, rent_due_day, move_in_on, next_inspection_at, next_inspection_set_by, next_inspection_set_at",
                         )
                         .eq("property", PROPERTY)
                         .is("archived_at", null),

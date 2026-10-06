@@ -40,6 +40,12 @@ type Row = {
   month_charged: number;
   month_paid: number;
   hap_household: boolean | null;
+  street_address: string | null;
+  home_serial: string | null;
+  home_year: number | null;
+  home_make: string | null;
+  home_size: string | null;
+  home_serial_note: string | null;
 };
 
 const num = (v: string | number | null) =>
@@ -93,6 +99,12 @@ export function ZoMap() {
           bath: num(r.bath),
           sqft: r.sq_ft ?? undefined,
           hapHousehold: r.hap_household === true,
+          streetAddress: r.street_address ?? undefined,
+          homeSerial: r.home_serial ?? undefined,
+          homeYear: r.home_year ?? undefined,
+          homeMake: r.home_make ?? undefined,
+          homeSize: r.home_size ?? undefined,
+          homeSerialNote: r.home_serial_note ?? undefined,
         }));
 
       setLots(mapped);
