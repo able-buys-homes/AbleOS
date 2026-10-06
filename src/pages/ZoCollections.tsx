@@ -101,6 +101,27 @@ type Tab = "roll" | "pay" | "plans" | "notices";
 // than handing Zo a link that 404s while a prospective resident watches.
 const BLANK_APPLICATION_URL = "";
 
+/**
+ * Opens a blank form. Fetched first and shown from memory, because a plain
+ * link to /forms/... was being caught by the app in Chrome and sent to the
+ * home screen. The tab is opened inside the tap so it is not blocked.
+ */
+async function openForm(path: string) {
+  const tab = window.open("", "_blank");
+  try {
+    const res = await fetch(path, { cache: "no-store" });
+    if (!res.ok || !(res.headers.get("content-type") ?? "").includes("pdf")) {
+      throw new Error("not a pdf");
+    }
+    const url = URL.createObjectURL(await res.blob());
+    if (tab) tab.location.href = url;
+    else window.location.href = url;
+  } catch {
+    if (tab) tab.close();
+    alert("The form did not open. Check your connection and try again.");
+  }
+}
+
 function statusOf(lot: Lot) {
   if (lot.locked) return { tone: "filed" as const, label: "Filed" };
   if (!lot.occupied) return { tone: "vacant" as const, label: "Vacant" };
@@ -531,7 +552,7 @@ export function ZoCollections() {
                 </p>
                 <div className="mt-3.5 flex flex-wrap gap-2.5">
                   <Btn
-                    onClick={() => window.open("/forms/residential-lease.pdf", "_blank")}
+                    onClick={() => openForm("/forms/residential-lease.pdf")}
                     variant="primary"
                   >
                     Print a blank one
@@ -549,7 +570,7 @@ export function ZoCollections() {
                 </p>
                 <div className="mt-3.5 flex flex-wrap gap-2.5">
                   <Btn
-                    onClick={() => window.open("/forms/move-in-checklist.pdf", "_blank")}
+                    onClick={() => openForm("/forms/move-in-checklist.pdf")}
                     variant="primary"
                   >
                     Print a blank one
