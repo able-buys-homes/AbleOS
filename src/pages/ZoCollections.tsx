@@ -522,7 +522,7 @@ export function ZoCollections() {
                   Nothing is kept if you close it half done.
                 </p>
                 <div className="mt-3.5 flex flex-wrap gap-2.5">
-                  <Btn onClick={() => navigate("/zo/apply")} variant="primary">
+                  <Btn onClick={() => navigate("/zo/apply")} variant="navy">
                     Fill it in here
                   </Btn>
                   {BLANK_APPLICATION_URL ? (
@@ -530,7 +530,7 @@ export function ZoCollections() {
                       onClick={() =>
                         window.open(BLANK_APPLICATION_URL, "_blank")
                       }
-                      variant="primary"
+                      variant="navy"
                     >
                       Print a blank one
                     </Btn>
@@ -553,7 +553,7 @@ export function ZoCollections() {
                 <div className="mt-3.5 flex flex-wrap gap-2.5">
                   <Btn
                     onClick={() => openForm("/forms/residential-lease.pdf")}
-                    variant="primary"
+                    variant="navy"
                   >
                     Print a blank one
                   </Btn>
@@ -569,7 +569,7 @@ export function ZoCollections() {
                   mark each item Good, Fair or Poor.
                 </p>
                 <div className="mt-3.5 flex flex-wrap gap-2.5">
-                  <Btn onClick={() => navigate("/zo/move-in")} variant="primary">
+                  <Btn onClick={() => navigate("/zo/move-in")} variant="navy">
                     Do it here
                   </Btn>
                   <Btn

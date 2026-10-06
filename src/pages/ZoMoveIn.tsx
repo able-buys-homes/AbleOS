@@ -483,7 +483,7 @@ export function ZoMoveIn() {
             )}
             <div className="mt-4 flex gap-2.5 [&>button]:flex-1">
               <Btn onClick={() => navigate("/zo/collections")}>Back</Btn>
-              <Btn disabled={!pickLot || busy} onClick={() => start(pickLot)} variant="primary">
+              <Btn disabled={!pickLot || busy} onClick={() => start(pickLot)} variant="navy">
                 {busy ? "Starting…" : "Start a new one"}
               </Btn>
             </div>
@@ -650,7 +650,7 @@ export function ZoMoveIn() {
             {signed ? (
               <div className="flex gap-2.5 [&>button]:flex-1">
                 <Btn onClick={() => navigate("/zo/collections")}>Back to Rent</Btn>
-                <Btn onClick={() => window.print()} variant="primary">Print / save PDF</Btn>
+                <Btn onClick={() => window.print()} variant="navy">Print / save PDF</Btn>
               </div>
             ) : (
               <div className="sticky bottom-20 rounded-2xl border border-[#DCE4EE] bg-white p-3 shadow-lg">
@@ -663,7 +663,7 @@ export function ZoMoveIn() {
                   <Btn
                     disabled={busy || rated < allItems.length || needsProof.length > 0}
                     onClick={() => { setStage("sign"); window.scrollTo(0, 0); }}
-                    variant="primary"
+                    variant="navy"
                   >
                     Go to signatures
                   </Btn>
@@ -689,7 +689,7 @@ export function ZoMoveIn() {
             </label>
             <div className="flex gap-2.5 [&>button]:flex-1">
               <Btn onClick={() => setStage("fill")}>Back</Btn>
-              <Btn disabled={busy || !sig1 || !sigZo} onClick={sign} variant="primary">
+              <Btn disabled={busy || !sig1 || !sigZo} onClick={sign} variant="navy">
                 {busy ? "Signing…" : "Sign and finish"}
               </Btn>
             </div>
