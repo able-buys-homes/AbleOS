@@ -234,22 +234,37 @@ export default async function handler(req, res) {
         const email = signInEmail(lot.lot_number);
         const password = temporaryPassword();
 
-        const { data: created, error: createError } =
-            await supabase.auth.admin.createUser({
+        const makeUser = () =>
+            supabase.auth.admin.createUser({
                 email,
                 password,
                 email_confirm: true,
                 user_metadata: { lot_number: lot.lot_number, role: "resident" },
             });
 
-        if (createError) {
+        let { data: created, error: createError } = await makeUser();
+
+        if (createError && /already|registered|exists/i.test(createError.message || "")) {
             // The sign-in address belongs to the lot, so a previous tenant's
-            // account still holds it. Re-using it would hand them this
-            // household's portal - that needs a deliberate hand-over, not a
-            // side effect of this button.
+            // sign-in may still hold it. If that sign-in has no active
+            // account, retire it - renamed to an "ended" address and banned,
+            // so the old tenant can never get in - and free the address for
+            // the new tenant. Their history keeps pointing at the old user.
+            const retired = await retireSignIn(supabase, email);
+            if (retired === "active") {
+                return res.status(409).json({
+                    error: `Lot ${lot.lot_number} already has an active portal account.`,
+                });
+            }
+            if (retired === "retired") {
+                ({ data: created, error: createError } = await makeUser());
+            }
+        }
+
+        if (createError) {
             if (/already|registered|exists/i.test(createError.message || "")) {
                 return res.status(409).json({
-                    error: `Lot ${lot.lot_number} had a portal sign-in before. Ask Raj to hand it over to the new tenant rather than creating a second one.`,
+                    error: `Lot ${lot.lot_number}'s sign-in address is still taken. Tell Dane.`,
                 });
             }
             throw createError;
@@ -296,4 +311,39 @@ export default async function handler(req, res) {
         console.error("resident-accounts failed", err?.message ?? err);
         return res.status(500).json({ error: "Could not create that account" });
     }
+}
+
+/**
+ * Frees a lot's sign-in address held by a sign-in nobody actively uses.
+ * Returns "active" if a live account still uses it (left alone),
+ * "retired" if it was renamed and banned, or "missing" if nothing held it.
+ */
+async function retireSignIn(supabase, email) {
+    let holder = null;
+    for (let page = 1; page <= 20 && !holder; page += 1) {
+        const { data, error } = await supabase.auth.admin.listUsers({ page, perPage: 200 });
+        if (error) throw error;
+        const users = data?.users ?? [];
+        holder = users.find((u) => String(u.email || "").toLowerCase() === email.toLowerCase()) ?? null;
+        if (users.length < 200) break;
+    }
+    if (!holder) return "missing";
+
+    const { data: live, error: liveError } = await supabase
+        .from("resident_accounts")
+        .select("id")
+        .eq("user_id", holder.id)
+        .is("disabled_at", null)
+        .limit(1);
+    if (liveError) throw liveError;
+    if (live?.length) return "active";
+
+    const [name, domain] = email.split("@");
+    const { error: updError } = await supabase.auth.admin.updateUserById(holder.id, {
+        email: `${name}+ended-${Date.now()}@${domain}`,
+        email_confirm: true,
+        ban_duration: "876000h",
+    });
+    if (updError) throw updError;
+    return "retired";
 }
