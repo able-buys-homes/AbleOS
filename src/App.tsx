@@ -21,6 +21,7 @@ import { DanePortalFeedback } from "./pages/DanePortalFeedback";
 import { ZoJobs } from "./pages/ZoJobs";
 import { ZoNotices } from "./pages/ZoNotices";
 import { ZoMap } from "./pages/ZoMap";
+import { ZoMoveIn } from "./pages/ZoMoveIn";
 import { RajApprovals } from "./pages/RajApprovals";
 import { ElleryApplicants } from "./pages/ElleryApplicants";
 import { ElleryProperties } from "./pages/ElleryProperties";  
@@ -107,6 +108,14 @@ export function App() {
           {/* The residency application. Behind the same guard as the rent
               roll, because it collects dates of birth and licence numbers.
               It never sits on an open route. */}
+          <Route
+            path="/zo/move-in"
+            element={
+              <ProtectedRoute cockpit="zo">
+                <ZoMoveIn />
+              </ProtectedRoute>
+            }
+          />
           <Route
             path="/zo/apply"
             element={

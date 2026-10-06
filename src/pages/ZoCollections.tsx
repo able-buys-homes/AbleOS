@@ -569,9 +569,11 @@ export function ZoCollections() {
                   mark each item Good, Fair or Poor.
                 </p>
                 <div className="mt-3.5 flex flex-wrap gap-2.5">
+                  <Btn onClick={() => navigate("/zo/move-in")} variant="primary">
+                    Do it here
+                  </Btn>
                   <Btn
                     onClick={() => openForm("/forms/move-in-checklist.pdf")}
-                    variant="primary"
                   >
                     Print a blank one
                   </Btn>
