@@ -73,7 +73,7 @@ export default async function handler(req, res) {
                 .eq("occupied", true)
                 .not("contract_rent", "is", null),
             supabase
-                .from("rent_ledger")
+                .from("rent_ledger_current")
                 .select("lot_id, charge_type")
                 .eq("period", period)
                 .eq("charge_type", "rent"),

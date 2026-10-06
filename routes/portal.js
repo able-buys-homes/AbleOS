@@ -174,7 +174,7 @@ export default async function handler(req, res) {
             const supabase = getClient();
 
             const { data: order, error: orderError } = await supabase
-                .from("work_orders")
+                .from("work_orders_current")
                 .select("id, lot_id, title, status, opened_by")
                 .eq("id", orderId)
                 .eq("lot_id", lot.id)
@@ -247,8 +247,8 @@ export default async function handler(req, res) {
             }
 
             const [chargesRes, paymentsRes] = await Promise.all([
-                supabase.from("rent_ledger").select("amount").eq("lot_id", lot.id),
-                supabase.from("payments").select("amount").eq("lot_id", lot.id),
+                supabase.from("rent_ledger_current").select("amount").eq("lot_id", lot.id),
+                supabase.from("payments_current").select("amount").eq("lot_id", lot.id),
             ]);
             if (chargesRes.error) throw new Error(chargesRes.error.message);
             if (paymentsRes.error) throw new Error(paymentsRes.error.message);
@@ -397,13 +397,13 @@ export default async function handler(req, res) {
 
             const [paymentRes, reversalRes] = await Promise.all([
                 supabase
-                    .from("payments")
+                    .from("payments_current")
                     .select("id, amount, received_at, method, receipt_number, reverses_id")
                     .eq("id", paymentId)
                     .eq("lot_id", lot.id)
                     .maybeSingle(),
                 supabase
-                    .from("payments")
+                    .from("payments_current")
                     .select("id")
                     .eq("reverses_id", paymentId)
                     .limit(1),
@@ -521,7 +521,7 @@ export default async function handler(req, res) {
             const since = new Date(Date.now() - 10 * 60 * 1000).toISOString();
 
             const { data: recent, error: recentError } = await supabase
-                .from("work_orders")
+                .from("work_orders_current")
                 .select("id")
                 .eq("lot_id", lot.id)
                 .eq("title", title.slice(0, 120))
@@ -862,13 +862,13 @@ export default async function handler(req, res) {
 
         const [chargesRes, paymentsRes, ordersRes, plansRes] = await Promise.all([
             supabase
-                .from("rent_ledger")
+                .from("rent_ledger_current")
                 .select("id, period, charge_type, amount, due_date, created_at")
                 .eq("lot_id", lot.id)
                 .order("due_date", { ascending: false })
                 .limit(60),
             supabase
-                .from("payments")
+                .from("payments_current")
                 .select(
                     "id, amount, received_at, method, receipt_number, note, reverses_id",
                 )
@@ -876,7 +876,7 @@ export default async function handler(req, res) {
                 .order("received_at", { ascending: false })
                 .limit(60),
             supabase
-                .from("work_orders")
+                .from("work_orders_current")
                 .select(
                     "id, title, note, category, priority, status, opened_at, completed_at, fix, receipt_number, location, preferred_window, entry_permission, pets_on_site, opened_photo_path, opened_photo_paths",
                 )
@@ -884,7 +884,7 @@ export default async function handler(req, res) {
                 .order("opened_at", { ascending: false })
                 .limit(40),
             supabase
-                .from("payment_plans")
+                .from("payment_plans_current")
                 .select("id, status, reason, proposed_at, approved_at, frequency")
                 .eq("lot_id", lot.id)
                 .in("status", ["approved", "active"])
@@ -1149,9 +1149,9 @@ async function startRentCheckout(req, res, { lot, account, origin }) {
     // The same two sums the dashboard shows, but with no row limit, so the cap
     // is the real balance rather than the most recent sixty lines of it.
     const [chargesRes, paymentsRes] = await Promise.all([
-        supabase.from("rent_ledger").select("amount").eq("lot_id", lot.id),
+        supabase.from("rent_ledger_current").select("amount").eq("lot_id", lot.id),
         supabase
-            .from("payments")
+            .from("payments_current")
             .select("amount, reverses_id")
             .eq("lot_id", lot.id),
     ]);

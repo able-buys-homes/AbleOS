@@ -98,9 +98,9 @@ export default async function handler(req, res) {
                         )
                         .eq("property", PROPERTY)
                         .is("archived_at", null),
-                    supabase.from("rent_ledger").select("lot_id, amount"),
-                    supabase.from("payments").select("lot_id, amount"),
-                    supabase.from("payment_plans").select("lot_id, status"),
+                    supabase.from("rent_ledger_current").select("lot_id, amount"),
+                    supabase.from("payments_current").select("lot_id, amount"),
+                    supabase.from("payment_plans_current").select("lot_id, status"),
                     // Open work only. A finished job on the card would read as
                     // something still waiting to be done.
                     supabase
@@ -437,8 +437,8 @@ export default async function handler(req, res) {
             // told rather than it going quiet.
             if (lot.home_status === "occupied" && next !== "occupied") {
                 const [chargesRes, paymentsRes] = await Promise.all([
-                    supabase.from("rent_ledger").select("amount").eq("lot_id", lotId),
-                    supabase.from("payments").select("amount").eq("lot_id", lotId),
+                    supabase.from("rent_ledger_current").select("amount").eq("lot_id", lotId),
+                    supabase.from("payments_current").select("amount").eq("lot_id", lotId),
                 ]);
 
                 if (chargesRes.error) throw chargesRes.error;

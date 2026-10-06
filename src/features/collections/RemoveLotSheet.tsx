@@ -134,8 +134,8 @@ export function RemoveLotSheet({
 
           {owed > 0 && (
             <div className="mb-5 rounded-[9px] border-l-4 border-l-[#D97706] bg-[#FFFCF5] px-3.5 py-3 text-[13px] leading-relaxed text-[#92600A]">
-              This lot still owes <b>{money(owed)}</b>. Raj will be told. You cannot move a new
-              resident in until it is settled.
+              This lot still owes <b>{money(owed)}</b>. Raj will be told. It stays on this tenant's
+              record - the next resident starts at $0.
             </div>
           )}
 

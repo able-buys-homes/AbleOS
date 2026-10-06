@@ -84,7 +84,7 @@ export default async function handler(req, res) {
                     )
                     .eq("property", PROPERTY)
                     .not("contract_rent", "is", null),
-                supabase.from("rent_ledger").select("*").eq("period", period),
+                supabase.from("rent_ledger_current").select("*").eq("period", period),
                 // Payments carry a moment, not a period. A resident who pays
                 // on the 29th for a month starting on the 1st is paying early,
                 // not failing to pay - counting only from the 1st made them
@@ -94,7 +94,7 @@ export default async function handler(req, res) {
                 // last month can suppress this month's fee, which is the safer
                 // way to be wrong.
                 supabase
-                    .from("payments")
+                    .from("payments_current")
                     .select("*")
                     .gte("received_at", (() => {
                         const [y, m] = period.split("-").map(Number);
@@ -102,7 +102,7 @@ export default async function handler(req, res) {
                             .toISOString()
                             .slice(0, 10);
                     })()),
-                supabase.from("payment_plans").select("lot_id, status"),
+                supabase.from("payment_plans_current").select("lot_id, status"),
                 supabase.from("eviction_cases").select("lot_id, possession_at"),
             ]);
 

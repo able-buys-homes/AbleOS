@@ -359,7 +359,7 @@ export default async function handler(req, res) {
             if (!lot) return res.status(404).json({ error: "No such lot" });
 
             const { data: existing, error: existingError } = await supabase
-                .from("rent_ledger")
+                .from("rent_ledger_current")
                 .select("id, amount")
                 .eq("lot_id", lotId)
                 .eq("charge_type", "prior_balance")
@@ -429,8 +429,8 @@ export default async function handler(req, res) {
             if (lot.archived_at) return res.status(409).json({ error: "That lot is already off the rent roll" });
 
             const [cRes, pRes] = await Promise.all([
-                supabase.from("rent_ledger").select("amount").eq("lot_id", lotId),
-                supabase.from("payments").select("amount").eq("lot_id", lotId),
+                supabase.from("rent_ledger_current").select("amount").eq("lot_id", lotId),
+                supabase.from("payments_current").select("amount").eq("lot_id", lotId),
             ]);
             if (cRes.error) throw cRes.error;
             if (pRes.error) throw pRes.error;
@@ -455,11 +455,6 @@ export default async function handler(req, res) {
                     if (!Number.isFinite(p) || p < 0 || p > newRent) {
                         return res.status(400).json({ error: "This is an assisted household. Enter the tenant's portion (no more than the rent)." });
                     }
-                }
-                if (owed > 0) {
-                    return res.status(409).json({
-                        error: `Lot ${lot.lot_number} still owes ${owed.toFixed(2)}${lot.tenant_name ? ` from ${lot.tenant_name}` : ""}. Settle that first, so the new resident does not inherit it.`,
-                    });
                 }
             }
 
@@ -489,6 +484,10 @@ export default async function handler(req, res) {
                 rent_due_day: null, move_in_on: null, rent_placeholder: false, rent_note: null,
                 rent_set_by: null, rent_set_at: null, rent_confirmed_by: null, rent_confirmed_at: null,
                 status_set_by: profile.cockpit, status_set_at: now, updated_at: now,
+                // Fresh start: balances, plans, notices and portal history count
+                // only from here, and the next tenant gets their own QuickBooks
+                // customer. Nothing is deleted - the old records stay on file.
+                tenancy_started_at: now, qbo_customer_id: null,
             };
 
             let patch;
@@ -522,13 +521,13 @@ export default async function handler(req, res) {
                 recipient: "raj",
                 type: "lot_removed",
                 title: `Lot ${lot.lot_number} taken off the rent roll`,
-                body: `${profile.cockpit} removed ${lot.tenant_name ?? "the resident"}. The lot is now ${WORD[next]}.${owed > 0 ? ` ${owed.toFixed(2)} was still owed.` : ""}`,
+                body: `${profile.cockpit} removed ${lot.tenant_name ?? "the resident"}. The lot is now ${WORD[next]}.${owed !== 0 ? ` Balance left on their record: $${owed.toFixed(2)}${owed < 0 ? " (credit)" : ""}. The next resident starts at $0.` : ""}`,
                 link: "/raj",
             }).then(() => null, () => null);
 
             return res.status(200).json({
                 ok: true,
-                message: `Lot ${lot.lot_number}: ${lot.tenant_name ?? "resident"} removed. The lot is now ${WORD[next]}.${owed > 0 && next !== "occupied" ? ` ${owed.toFixed(2)} was still owed — Raj has been told.` : ""}`,
+                message: `Lot ${lot.lot_number}: ${lot.tenant_name ?? "resident"} removed. The lot is now ${WORD[next]}.${owed !== 0 ? ` $${owed.toFixed(2)}${owed < 0 ? " credit" : ""} left on their record — Raj has been told.` : ""}`,
             });
         }
 
@@ -558,8 +557,8 @@ export default async function handler(req, res) {
             // not owe, and a plan on a lot that owes nothing is not a plan at
             // all - it is a payment schedule somebody invented.
             const [planCharges, planPayments] = await Promise.all([
-                supabase.from("rent_ledger").select("amount").eq("lot_id", lotId),
-                supabase.from("payments").select("amount").eq("lot_id", lotId),
+                supabase.from("rent_ledger_current").select("amount").eq("lot_id", lotId),
+                supabase.from("payments_current").select("amount").eq("lot_id", lotId),
             ]);
 
             if (planCharges.error) throw planCharges.error;
@@ -688,7 +687,7 @@ export default async function handler(req, res) {
             }
 
             const { data: notice, error: findError } = await supabase
-                .from("notices")
+                .from("notices_current")
                 .select("id")
                 .eq("lot_id", lotId)
                 .is("posted_at", null)
@@ -810,15 +809,26 @@ export default async function handler(req, res) {
         const [lotsRes, chargesRes, paymentsRes, plansRes, noticesRes, casesRes] =
             await Promise.all([
                 supabase.from("lots").select("*").eq("property", PROPERTY).is("archived_at", null),
-                supabase.from("rent_ledger").select("*"),
-                supabase.from("payments").select("*"),
+                supabase.from("rent_ledger_current").select("*"),
+                supabase.from("payments_current").select("*"),
                 supabase
                     .from("payment_plans")
                     .select("*, plan_installments(*)")
                     .order("proposed_at", { ascending: false }),
-                supabase.from("notices").select("*").order("generated_at", { ascending: false }),
+                supabase.from("notices_current").select("*").order("generated_at", { ascending: false }),
                 supabase.from("eviction_cases").select("*"),
             ]);
+
+        // Plans made before the current tenancy belong to the old tenant.
+        // Filtered here rather than through payment_plans_current, because
+        // the instalments are joined in and that link needs the real table.
+        if (Array.isArray(plansRes.data) && Array.isArray(lotsRes.data)) {
+            const start = new Map(lotsRes.data.map((l) => [l.id, l.tenancy_started_at]));
+            plansRes.data = plansRes.data.filter((p) => {
+                const from = start.get(p.lot_id);
+                return !from || new Date(p.created_at) >= new Date(from);
+            });
+        }
 
         for (const r of [lotsRes, chargesRes, paymentsRes, plansRes, noticesRes, casesRes]) {
             if (r.error) throw r.error;
