@@ -416,7 +416,7 @@ const TOOLS = [
     {
         name: "dates_list",
         description:
-            "Every outstanding critical date and every open document, one row each, with what it is, when it is due, which book it belongs to and whether it is overdue. Soonest first.",
+            "Every outstanding critical date, every open document and every scheduled home inspection, one row each, with what it is, when it is due, which book it belongs to and whether it is overdue. Inspections are by lot number only, no names. Soonest first.",
         inputSchema: { type: "object", properties: {} },
     },
 ];
@@ -1092,16 +1092,20 @@ async function workOrderList(supabase, args) {
 
 async function datesList(supabase) {
     const today = todayISO();
-    const [dates, docs] = await Promise.all([
+    const [dates, docs, inspections] = await Promise.all([
         all(supabase, "critical_dates", "label, due_on, kind, portfolio, completed_at",
             (q) => q.is("completed_at", null).order("due_on", { ascending: true })),
         all(supabase, "documents", "doc_type, stage, due_on",
             (q) => q.not("stage", "in", "(executed,filed,cancelled)").order("due_on", { ascending: true })),
+        // Inspections someone has booked. Lot number only - who lives there is not a date.
+        all(supabase, "lots", "lot_number, next_inspection_at",
+            (q) => q.not("next_inspection_at", "is", null).is("archived_at", null).order("next_inspection_at", { ascending: true })),
     ]);
 
     return {
         critical_dates: dates.map((d) => ({ what: d.label, kind: d.kind, book: d.portfolio, due_on: d.due_on, overdue: Boolean(d.due_on && d.due_on < today) })),
         open_documents: docs.map((d) => ({ type: d.doc_type, stage: d.stage, due_on: d.due_on, overdue: Boolean(d.due_on && d.due_on < today) })),
+        scheduled_inspections: inspections.map((l) => ({ lot: l.lot_number, book: "htm", due_on: l.next_inspection_at, overdue: Boolean(l.next_inspection_at && l.next_inspection_at < today) })),
         as_of: today,
     };
 }
