@@ -14,7 +14,7 @@ import crypto from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
 import { requireUser, requireCockpit } from "../lib/apiAuth.js";
 
-const CATEGORIES = new Set(["urgent", "billing", "maintenance", "community"]);
+const CATEGORIES = new Set(["urgent", "billing", "maintenance", "community", "admin"]);
 
 /** Zo runs the park day to day; Dane speaks for billing and the community. */
 const CAN_WRITE = ["dane", "zo"];

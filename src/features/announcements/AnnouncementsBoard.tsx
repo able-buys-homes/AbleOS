@@ -11,7 +11,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { apiFetch } from "../../lib/apiFetch";
 
-export type Category = "urgent" | "billing" | "maintenance" | "community";
+export type Category = "urgent" | "billing" | "maintenance" | "community" | "admin";
 
 type Announcement = {
   id: string;
@@ -32,6 +32,7 @@ const CATEGORY_LABEL: Record<Category, string> = {
   billing: "Billing",
   maintenance: "Maintenance",
   community: "Community",
+  admin: "Admin",
 };
 
 /** Said plainly, so nobody has to guess which one to pick. */
@@ -40,6 +41,7 @@ const CATEGORY_HINT: Record<Category, string> = {
   billing: "Rent, fees, payment dates.",
   maintenance: "Planned work. Usually has a date on it.",
   community: "Events, reminders, news.",
+  admin: "Office notices: hours, policies, lease paperwork.",
 };
 
 const CATEGORY_TONE: Record<Category, string> = {
@@ -47,6 +49,7 @@ const CATEGORY_TONE: Record<Category, string> = {
   billing: "border-[#C9D7EE] bg-[#E8F0FC] text-[#1E4C8A]",
   maintenance: "border-[#E5D3A8] bg-[#FBF3DE] text-[#8A6A16]",
   community: "border-[#B7E2CC] bg-[#E6F5EC] text-[#1B7A4B]",
+  admin: "border-[#CBD2E1] bg-[#EEF0F6] text-[#3B4B6B]",
 };
 
 /** Dates a resident would recognise, in the park's own timezone. */
