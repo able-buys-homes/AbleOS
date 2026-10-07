@@ -51,14 +51,33 @@ function getClient() {
  * Malli can text and call people, so it gets the least it needs.
  * Remove MCP_TOKEN_MALLI in Vercel to cut it off without touching anyone else.
  */
-const MALLI_TOOLS = ["occupancy_status", "rent_status", "lot_roll", "work_order_list", "dates_list"];
+/**
+ * Keys with a short tool list, one variable per holder so each can be
+ * withdrawn on its own (Raj's offboarding: revoke the MCP token). A key that
+ * is not set in Vercel does nothing. Tools that do not exist yet are skipped.
+ * Raj's and Alice's keys (MCP_TOKEN, MCP_TOKEN_ALICE) keep every tool.
+ */
+const KEY_SCOPES = [
+    // Raj's Malli agent: lot-level counts and dates, no names.
+    { env: "MCP_TOKEN_MALLI", holder: "malli", tools: ["occupancy_status", "rent_status", "lot_roll", "work_order_list", "dates_list"] },
+    // Rex, AHTX only: vacant homes, access notes, never codes.
+    { env: "MCP_TOKEN_REX", holder: "rex", tools: ["rex_units"] },
+    // Ellery: her desk, dates and an applicant queue with no names.
+    { env: "MCP_TOKEN_ELLERY", holder: "ellery", tools: ["ellery_desk", "dates_list", "applicant_queue"] },
+    // Manita: read-only owner/ops view. QuickBooks status only, never the connection.
+    { env: "MCP_TOKEN_MANITA", holder: "manita", tools: ["occupancy_status", "lot_roll", "rent_status", "work_order_list", "documents_and_dates", "dates_list", "qbo_sync_status"] },
+];
 
-function isMalli(supplied) {
-    const expected = String(process.env.MCP_TOKEN_MALLI ?? "").trim();
-    if (!expected || typeof supplied !== "string" || !supplied) return false;
+function scopeFor(supplied) {
+    if (typeof supplied !== "string" || !supplied) return null;
     const a = Buffer.from(supplied);
-    const b = Buffer.from(expected);
-    return a.length === b.length && timingSafeEqual(a, b);
+    for (const k of KEY_SCOPES) {
+        const expected = String(process.env[k.env] ?? "").trim();
+        if (!expected) continue;
+        const b = Buffer.from(expected);
+        if (a.length === b.length && timingSafeEqual(a, b)) return k;
+    }
+    return null;
 }
 
 function tokenMatches(supplied) {
@@ -1230,9 +1249,9 @@ export default async function handler(req, res) {
     }
 
     const supplied = suppliedToken(req);
-    const malli = isMalli(supplied);
+    const scope = scopeFor(supplied);
 
-    if (!malli && !tokenMatches(supplied)) {
+    if (!scope && !tokenMatches(supplied)) {
         return res.status(401).json({ error: "Not authorised" });
     }
 
@@ -1261,7 +1280,7 @@ export default async function handler(req, res) {
         if (method === "ping") return res.status(200).json(result(id, {}));
 
         if (method === "tools/list") {
-            const tools = malli ? TOOLS.filter((t) => MALLI_TOOLS.includes(t.name)) : TOOLS;
+            const tools = scope ? TOOLS.filter((t) => scope.tools.includes(t.name)) : TOOLS;
             return res.status(200).json(result(id, { tools }));
         }
 
@@ -1270,7 +1289,7 @@ export default async function handler(req, res) {
             const args = params?.arguments ?? {};
 
             // Asked for by name, not only hidden from the list.
-            if (malli && !MALLI_TOOLS.includes(name)) {
+            if (scope && !scope.tools.includes(name)) {
                 return res.status(200).json(
                     result(id, {
                         content: [{ type: "text", text: "That tool is not available to this key." }],
