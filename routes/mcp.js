@@ -419,9 +419,97 @@ const TOOLS = [
             "Every outstanding critical date, every open document and every scheduled home inspection, one row each, with what it is, when it is due, which book it belongs to and whether it is overdue. Inspections are by lot number only, no names. Soonest first.",
         inputSchema: { type: "object", properties: {} },
     },
+    {
+        name: "qbo_sync_status",
+        description:
+            "Whether QuickBooks is keeping up: when the last item synced, how many payments, rent invoices and application fees are still waiting to post since go-live, and any sync errors. Status only - never the QuickBooks connection or its keys.",
+        inputSchema: { type: "object", properties: {} },
+    },
+    {
+        name: "applicant_queue",
+        description:
+            "Every open rental applicant, one row each, by portfolio and lot: stage (received, fee paid, screening, decided), whether the fee is paid, and how many days they have waited. No names, contact details or screening results.",
+        inputSchema: { type: "object", properties: {} },
+    },
+    {
+        name: "rex_units",
+        description:
+            "AHTX vacant homes, one row per door: property, address, beds, baths, size, asking rent, how to get in, and whether the details are confirmed. Never a lockbox, gate or door code, and no resident names.",
+        inputSchema: { type: "object", properties: {} },
+    },
 ];
 
 /* ---------------- implementations ---------------- */
+
+async function qboSyncStatus(supabase) {
+    const liveFrom = String(process.env.QBO_LIVE_FROM ?? "").slice(0, 10) || null;
+    const since = liveFrom ?? "1970-01-01";
+    const [paid, charges, fees, errored] = await Promise.all([
+        all(supabase, "payments", "qbo_payment_id, qbo_synced_at, created_at", (q) => q.gte("created_at", since)),
+        all(supabase, "rent_ledger", "qbo_txn_id, created_at", (q) => q.gte("created_at", since)),
+        all(supabase, "applicants", "qbo_txn_id, fee_paid_on", (q) => q.not("fee_paid_on", "is", null).gte("fee_paid_on", since)),
+        all(supabase, "payments", "qbo_error, created_at", (q) => q.not("qbo_error", "is", null)),
+    ]);
+    const lastSynced = paid.map((p) => p.qbo_synced_at).filter(Boolean).sort().pop() ?? null;
+    return {
+        live_since: liveFrom,
+        last_payment_synced_at: lastSynced,
+        waiting_to_post: {
+            payments: paid.filter((p) => !p.qbo_payment_id).length,
+            rent_invoices: charges.filter((c) => !c.qbo_txn_id).length,
+            application_fees: fees.filter((a) => !a.qbo_txn_id).length,
+        },
+        posted_since_go_live: {
+            payments: paid.filter((p) => p.qbo_payment_id).length,
+            rent_invoices: charges.filter((c) => c.qbo_txn_id).length,
+            application_fees: fees.filter((a) => a.qbo_txn_id).length,
+        },
+        errors: errored.map((e) => ({ at: e.created_at, error: String(e.qbo_error).slice(0, 200) })),
+        note: "The sync runs hourly, so a few items waiting is normal. Errors are what need someone.",
+    };
+}
+
+async function applicantQueue(supabase) {
+    const today = todayISO();
+    const [apps, lots] = await Promise.all([
+        all(supabase, "applicants", "id, portfolio, lot_id, property_label, arrived_at, fee_paid_on, screening_ordered_on, decision, decision_on"),
+        all(supabase, "lots", "id, lot_number"),
+    ]);
+    const lotNo = new Map(lots.map((l) => [l.id, l.lot_number]));
+    const days = (d) => (d ? Math.max(0, Math.round((Date.parse(today) - Date.parse(String(d).slice(0, 10))) / 86400000)) : null);
+    const rows = apps
+        // Decided more than 30 days ago is history, not queue.
+        .filter((a) => !a.decision || days(a.decision_on) == null || days(a.decision_on) <= 30)
+        .map((a) => ({
+            ref: String(a.id).slice(0, 8),
+            portfolio: a.portfolio,
+            lot: lotNo.get(a.lot_id) ?? a.property_label ?? null,
+            stage: a.decision ? "decided" : a.screening_ordered_on ? "screening" : a.fee_paid_on ? "fee_paid" : "received",
+            decision: a.decision ?? null,
+            fee_paid: Boolean(a.fee_paid_on),
+            days_waiting: days(a.arrived_at),
+        }))
+        .sort((x, y) => (y.days_waiting ?? 0) - (x.days_waiting ?? 0));
+    const count = (st) => rows.filter((r) => r.stage === st).length;
+    return {
+        totals: { received: count("received"), fee_paid: count("fee_paid"), screening: count("screening"), decided_last_30_days: count("decided") },
+        applicants: rows,
+        as_of: today,
+        note: "No names here. Open the cockpit to see who an applicant is.",
+    };
+}
+
+async function rexUnits(supabase) {
+    const units = await all(supabase, "rex_units_v", "property, address, city, state, label, beds, baths, sq_ft, rent_amount, access_note, details_confirmed, notes");
+    return {
+        count: units.length,
+        vacant_homes: units,
+        note: units.length
+            ? "AHTX vacant doors only. Access notes never contain codes - ask the office for those."
+            : "No AHTX vacant homes on file yet. They are added with the AHTX seed.",
+    };
+}
+
 
 async function notionRehabGates() {
     const key = process.env.NOTION_API_KEY;
@@ -1223,6 +1311,9 @@ async function runTool(name, args) {
     if (name === "lot_roll") return lotRoll(supabase);
     if (name === "work_order_list") return workOrderList(supabase, args);
     if (name === "dates_list") return datesList(supabase);
+    if (name === "qbo_sync_status") return qboSyncStatus(supabase);
+    if (name === "applicant_queue") return applicantQueue(supabase);
+    if (name === "rex_units") return rexUnits(supabase);
 
     throw new Error(`Unknown tool: ${name}`);
 }
