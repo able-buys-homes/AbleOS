@@ -33,8 +33,13 @@ export function Login() {
       // Routing is handled by App once the session lands.
     } catch (err) {
       console.error("Sign in failed:", err);
+      const raw = err instanceof Error ? err.message : "";
+      // Some refusals (e.g. a blocked account) come back with no readable
+      // text - just "{}". Never show that; say something a person can act on.
       const message =
-        err instanceof Error ? err.message : "Could not sign you in";
+        /banned/i.test(raw) || !/[a-z]{3}/i.test(raw)
+          ? "This account can't sign in right now. Ask Dane for help."
+          : raw;
       // Supabase returns this verbatim; soften it for the crew.
       setError(
         message.toLowerCase().includes("invalid login")

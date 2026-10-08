@@ -120,7 +120,7 @@ export function MfaGate({ children }: { children: React.ReactNode }) {
               maxLength={6}
               onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
               onKeyDown={(e) => e.key === "Enter" && code.length === 6 && verify()}
-              placeholder="123456"
+              placeholder="– – – – – –"
               value={code}
             />
             <button
