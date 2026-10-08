@@ -1445,3 +1445,6 @@ export default async function handler(req, res) {
         return res.status(200).json(failure(id ?? null, -32603, "Internal error"));
     }
 }
+
+// Manita's desk reads the same tools, so her page and the MCP always agree.
+export { runTool };
