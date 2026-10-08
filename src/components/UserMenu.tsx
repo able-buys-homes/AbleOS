@@ -49,6 +49,13 @@ const COCKPITS = [
     path: "/cornelius",
     initial: "C",
   },
+  {
+    key: "manita",
+    name: "Manita",
+    role: "Owner / operations",
+    path: "/manita",
+    initial: "M",
+  },
 ];
 
 export function UserMenu() {

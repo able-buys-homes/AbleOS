@@ -22,6 +22,7 @@ import { ZoJobs } from "./pages/ZoJobs";
 import { ZoNotices } from "./pages/ZoNotices";
 import { ZoMap } from "./pages/ZoMap";
 import { ZoMoveIn } from "./pages/ZoMoveIn";
+import { ManitaCockpit } from "./pages/ManitaCockpit";
 import { RajApprovals } from "./pages/RajApprovals";
 import { ElleryApplicants } from "./pages/ElleryApplicants";
 import { ElleryProperties } from "./pages/ElleryProperties";  
@@ -216,6 +217,14 @@ export function App() {
             }
           />
 
+          <Route
+            path="/manita"
+            element={
+              <ProtectedRoute cockpit="manita">
+                <ManitaCockpit />
+              </ProtectedRoute>
+            }
+          />
           <Route
             path="/ellery"
             element={
