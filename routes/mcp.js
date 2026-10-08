@@ -834,7 +834,7 @@ async function elleryDesk(supabase) {
         all(supabase, "property_units", "occupied, lease_state, rent_amount"),
         // AHTX block (Raj, v1): per-property readiness. No tenant names, no codes.
         all(supabase, "properties", "id, name, city, state, sale_status, details_confirmed", (q) => q.eq("portfolio", "ahtx")),
-        all(supabase, "property_units", "property_id, occupied, beds, baths, rent_amount, details_confirmed"),
+        all(supabase, "property_units", "property_id, occupied, door_status, beds, baths, rent_amount, details_confirmed"),
         all(supabase, "applicants", "decision", (q) => q.eq("portfolio", "ahtx")),
     ]);
 
@@ -864,7 +864,9 @@ async function elleryDesk(supabase) {
                 if (doors.some((u) => !u.details_confirmed)) missing.push("door details not confirmed");
                 return {
                     name: p.name, city: p.city, state: p.state, sale_status: p.sale_status,
-                    doors: doors.length, vacant: doors.filter((u) => !u.occupied).length,
+                    // By the door status, not "occupied": an unknown door is not a vacant one.
+                    doors: doors.length, vacant: doors.filter((u) => u.door_status === "vacant").length,
+                    status_unknown: doors.filter((u) => u.door_status === "unknown").length,
                     still_missing: missing,
                 };
             }),
