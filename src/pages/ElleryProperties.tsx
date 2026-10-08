@@ -129,7 +129,7 @@ export function ElleryProperties() {
           value={counts ? String(counts.lease_pending) : "..."}
         />
         <Tile
-          label="No lease signed"
+          label="No signed lease on file"
           tone={counts && counts.missing_lease > 0 ? "alarm" : "neutral"}
           value={counts ? String(counts.missing_lease) : "..."}
         />

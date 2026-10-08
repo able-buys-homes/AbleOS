@@ -12,6 +12,8 @@ export type Unit = {
   property_id: string;
   label: string;
   occupied: boolean;
+  /** vacant | leased | rented | unknown - set by the AHTX seed. */
+  door_status?: string | null;
   tenant_name: string | null;
   lease_state: "none" | "draft" | "out_for_signature" | "signed";
   lease_version: string | null;
@@ -72,7 +74,7 @@ export function money(value: number | string | null | undefined) {
 const STATUS: Record<Property["status"], { label: string; className: string }> =
   {
     missing_lease: {
-      label: "No lease signed",
+      label: "No signed lease on file",
       className: "bg-[#FBEDEA] text-[#A83A2A]",
     },
     lease_pending: {
@@ -85,8 +87,15 @@ const STATUS: Record<Property["status"], { label: string; className: string }> =
     vacant: { label: "Empty", className: "bg-[#EEF0F3] text-[#6C7484]" },
   };
 
+/** A property whose every door has an unknown status is not "Empty". */
+function unknownBadge(p: { units?: Unit[] }) {
+  return p.units?.length && p.units.every((u) => u.door_status === "unknown")
+    ? { label: "Status unknown", className: "bg-[#FDF4E0] text-[#92600A]" }
+    : null;
+}
+
 export const LEASE_WORD: Record<Unit["lease_state"], string> = {
-  none: "No lease signed yet",
+  none: "No signed lease on file",
   draft: "Lease is being written",
   out_for_signature: "Waiting for signatures",
   signed: "Lease signed and on file",
@@ -121,6 +130,8 @@ function doorLine(units: Unit[]) {
 
   const lived = units.filter((u) => u.occupied).length;
   const word = units.length === 1 ? "1 home" : `${units.length} homes`;
+  // "Empty" would be a guess. Say we do not know.
+  if (units.every((u) => u.door_status === "unknown")) return `${word}, status unknown`;
 
   if (lived === 0) return `${word}, all empty`;
   if (lived === units.length) {
@@ -136,7 +147,7 @@ export function PropertyCard({
   property: Property;
   onEdit: () => void;
 }) {
-  const pill = STATUS[property.status];
+  const pill = (unknownBadge(property) ?? STATUS[property.status]);
   const single = property.units.length === 1 ? property.units[0] : null;
 
   const context = [
@@ -205,7 +216,7 @@ export function PropertyCard({
                 u.occupied && u.lease_state !== "signed" ? "alarm" : "normal"
               }
             >
-              {u.occupied ? u.tenant_name || "Occupied" : "Empty"}
+              {u.occupied ? u.tenant_name || "Occupied" : u.door_status === "unknown" ? "Status unknown" : "Empty"}
               {" · "}
               {LEASE_WORD[u.lease_state]}
             </Row>
