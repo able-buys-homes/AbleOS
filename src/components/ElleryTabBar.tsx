@@ -9,8 +9,8 @@ import { NavLink } from "react-router-dom";
 import { Building2Icon, FolderIcon, UsersIcon } from "lucide-react";
 
 const TABS = [
-  { to: "/ellery/applicants", label: "Applicants", Icon: UsersIcon },
   { to: "/ellery/properties", label: "Properties", Icon: Building2Icon },
+  { to: "/ellery/applicants", label: "Applicants", Icon: UsersIcon },
   { to: "/ellery", label: "Documents", Icon: FolderIcon },
 ] as const;
 

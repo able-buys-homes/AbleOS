@@ -19,6 +19,8 @@ const COCKPIT_LABELS: Record<string, string> = {
  * there, so the route is left alone and only the landing moves.
  */
 const HOME_PATH: Record<string, string> = {
+  // Ellery starts on Properties (Raj, Oct 2026). Documents is still a tab.
+  ellery: "/ellery/properties",
   zo: "/zo/map",
 };
 

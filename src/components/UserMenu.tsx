@@ -39,7 +39,7 @@ const COCKPITS = [
     key: "ellery",
     name: "Ellery",
     role: "Documents",
-    path: "/ellery",
+    path: "/ellery/properties",
     initial: "E",
   },
   {
