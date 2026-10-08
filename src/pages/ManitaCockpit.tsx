@@ -104,6 +104,11 @@ export function ManitaCockpit() {
   const lots = (desk?.lot_roll?.lots ?? []).filter((l) => l.home !== "common_area" && /^\d+$/.test(l.lot));
   const lived = lots.filter((l) => l.occupied);
   const notPaid = lived.filter((l) => Number(l.owed_today) > 0);
+  const toCollect = notPaid.reduce((a, l) => a + Number(l.owed_today), 0);
+  // Money owed on homes nobody lives in now (moved out, or not on the site plan).
+  // Kept apart so the families listed add up to the number on the tile.
+  const leftOwed = (desk?.lot_roll?.lots ?? []).filter((l) => !l.occupied && Number(l.owed_today) > 0);
+  const leftTotal = leftOwed.reduce((a, l) => a + Number(l.owed_today), 0);
   const rent = desk?.rent_status ?? {};
   const jobs = lots.filter((l) => l.open_jobs > 0);
   const qbo = desk?.qbo_sync_status ?? {};
@@ -143,9 +148,9 @@ export function ManitaCockpit() {
               <Tile big={`${lived.length} of ${lots.length}`} label="homes have a family living in them" />
               <Tile big={money(rent.collected)} label={`rent collected this month, out of ${money(rent.charged)}`} tone="good" />
               <Tile
-                big={money(rent.outstanding)}
+                big={money(toCollect)}
                 label={notPaid.length ? `still to collect from ${notPaid.length} ${notPaid.length === 1 ? "family" : "families"}` : "still to collect"}
-                tone={Number(rent.outstanding) > 0 ? "warn" : "good"}
+                tone={toCollect > 0 ? "warn" : "good"}
               />
               <Tile
                 big={qboOk ? "Up to date" : "Needs a look"}
@@ -164,6 +169,12 @@ export function ManitaCockpit() {
                   tone={Number(l.owed_today) > 0 ? "warn" : "good"}
                 />
               ))}
+              {leftTotal > 0 && (
+                <Quiet>
+                  Also owed by people no longer living here: {money(leftTotal)} (
+                  {leftOwed.map((l) => (/^\d+$/.test(l.lot) ? `Lot ${l.lot}` : l.lot)).join(", ")}).
+                </Quiet>
+              )}
             </Section>
 
             <Section title="The homes">
