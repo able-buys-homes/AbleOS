@@ -827,11 +827,15 @@ async function documentsAndDates(supabase) {
 }
 
 async function elleryDesk(supabase) {
-    const [applicants, docsDates, properties, units] = await Promise.all([
+    const [applicants, docsDates, properties, units, ahtxProps, doorRows, ahtxApplicants] = await Promise.all([
         applicantStatus(supabase),
         documentsAndDates(supabase),
         all(supabase, "properties", "portfolio, sale_status, appraisal_on_file, details_confirmed"),
         all(supabase, "property_units", "occupied, lease_state, rent_amount"),
+        // AHTX block (Raj, v1): per-property readiness. No tenant names, no codes.
+        all(supabase, "properties", "id, name, city, state, sale_status, details_confirmed", (q) => q.eq("portfolio", "ahtx")),
+        all(supabase, "property_units", "property_id, occupied, beds, baths, rent_amount, details_confirmed"),
+        all(supabase, "applicants", "decision", (q) => q.eq("portfolio", "ahtx")),
     ]);
 
     return {
@@ -850,6 +854,23 @@ async function elleryDesk(supabase) {
             rent_not_set: units.filter((u) => u.occupied && !u.rent_amount).length,
         },
         documents_and_dates: docsDates,
+        ahtx: {
+            properties: ahtxProps.map((p) => {
+                const doors = doorRows.filter((u) => u.property_id === p.id);
+                const missing = [];
+                if (!p.details_confirmed) missing.push("property details not confirmed");
+                if (doors.some((u) => u.beds == null || u.baths == null)) missing.push("beds or baths");
+                if (doors.some((u) => !u.rent_amount)) missing.push("rent");
+                if (doors.some((u) => !u.details_confirmed)) missing.push("door details not confirmed");
+                return {
+                    name: p.name, city: p.city, state: p.state, sale_status: p.sale_status,
+                    doors: doors.length, vacant: doors.filter((u) => !u.occupied).length,
+                    still_missing: missing,
+                };
+            }),
+            open_applicants: ahtxApplicants.filter((a) => !a.decision).length,
+            note: ahtxProps.length ? "Rex and Ellery fill in beds, baths and rent; Raj confirms." : "No AHTX homes on file yet - added with the AHTX seed.",
+        },
         as_of: new Date().toISOString(),
     };
 }
