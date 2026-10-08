@@ -500,7 +500,7 @@ async function applicantQueue(supabase) {
 }
 
 async function rexUnits(supabase) {
-    const units = await all(supabase, "rex_units_v", "property, address, city, state, label, beds, baths, sq_ft, rent_amount, access_note, details_confirmed, notes");
+    const units = await all(supabase, "rex_units_v", "property, address, city, state, label, beds, baths, sq_ft, rent_amount, available_on, pets_policy, access_note, details_confirmed, notes");
     return {
         count: units.length,
         vacant_homes: units,

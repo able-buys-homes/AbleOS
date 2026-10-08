@@ -14,6 +14,7 @@ import { MyDealsCard } from "../features/pipeline/MyDealsCard";
 import { DocumentsCard } from "../features/documents/DocumentsCard";
 import { useDeals } from "../features/pipeline/useDeals";
 import { useDocuments } from "../features/documents/useDocuments";
+import { VacantHomesCard } from "../features/ahtx/VacantHomesCard";
 
 const OPEN_DOC_STAGES = [
   "requested",
@@ -111,6 +112,11 @@ export function RexCockpit() {
           tone={kpis.stalled > 0 ? "urgent" : "neutral"}
         />
         <Kpi label="Docs in progress" value={dash(openDocs, docsLoading)} />
+      </section>
+
+      {/* AHTX vacant homes (Raj, v1) - read-only, never a code. */}
+      <section aria-label="AHTX vacant homes" className="pt-8">
+        <VacantHomesCard />
       </section>
 
       <section aria-labelledby="deals-heading" className="pt-8">

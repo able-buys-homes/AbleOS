@@ -10,6 +10,7 @@ import announcements from "../routes/announcements.js";
 import portalFeedback from "../routes/portal-feedback.js";
 import moveIn from "../routes/move-in.js";
 import manitaDesk from "../routes/manita-desk.js";
+import rexUnits from "../routes/rex-units.js";
 import residentAccounts from "../routes/resident-accounts.js";
 import applicants from "../routes/applicants.js";
 import applications from "../routes/applications.js";
@@ -99,6 +100,7 @@ const ROUTES = {
     "portal-feedback": portalFeedback,
     "move-in": moveIn,
     "manita-desk": manitaDesk,
+    "rex-units": rexUnits,
     "resident-accounts": residentAccounts,
     "rehab-stages": rehabStages,
     "reset-rehab": resetRehab,
