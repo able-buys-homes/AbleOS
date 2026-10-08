@@ -149,6 +149,12 @@ function daysAgoISO(days) {
 }
 
 async function all(supabase, table, columns, build) {
+    // Test applicants are hidden everywhere except QuickBooks status, which
+    // must still count real money a test moved.
+    if (table === "applicants" && !String(columns).includes("qbo_txn_id")) {
+        const inner = build;
+        build = (q) => (inner ? inner(q.eq("is_test", false)) : q.eq("is_test", false));
+    }
     let query = supabase.from(table).select(columns).limit(5000);
     if (build) query = build(query);
     const { data, error } = await query;

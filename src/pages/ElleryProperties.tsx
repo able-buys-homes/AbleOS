@@ -1,3 +1,4 @@
+import { ELLERY_READ_ONLY } from "../lib/readOnly";
 // src/pages/ElleryProperties.tsx
 // Everything Able Housing Texas owns, on one screen.
 //
@@ -142,13 +143,16 @@ export function ElleryProperties() {
               }`
             : "Loading…"}
         </p>
-        <button
-          className="rounded-[9px] border border-[#1E3A8A] bg-[#1E3A8A] px-3.5 py-2 text-[14px] font-semibold text-white"
-          onClick={() => setAdding(true)}
-          type="button"
-        >
-          Add a property
-        </button>
+        {/* Raj v1: read-only for Ellery once ELLERY_READ_ONLY is switched on. */}
+        {!ELLERY_READ_ONLY && (
+          <button
+            className="rounded-[9px] border border-[#1E3A8A] bg-[#1E3A8A] px-3.5 py-2 text-[14px] font-semibold text-white"
+            onClick={() => setAdding(true)}
+            type="button"
+          >
+            Add a property
+          </button>
+        )}
       </div>
 
       {problem && (

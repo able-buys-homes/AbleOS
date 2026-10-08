@@ -107,6 +107,8 @@ export default async function handler(req, res) {
                 supabase
                     .from("applicants")
                     .select("*")
+                    // Tests (e.g. the $25 live Stripe test) are not real applicants.
+                    .eq("is_test", false)
                     .order("arrived_at", { ascending: true }),
                 supabase
                     .from("lots")

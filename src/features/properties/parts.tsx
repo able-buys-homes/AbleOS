@@ -1,3 +1,4 @@
+import { ELLERY_READ_ONLY } from "../../lib/readOnly";
 // src/features/properties/parts.tsx
 // The property card and its pieces, in cockpit tokens.
 //
@@ -270,13 +271,16 @@ export function PropertyCard({
           </button>
         )}
 
-        <button
-          className="min-h-[44px] rounded-[9px] border border-[#1E3A8A] bg-[#1E3A8A] px-3.5 py-2.5 text-[15px] font-semibold text-white"
-          onClick={onEdit}
-          type="button"
-        >
-          Change details
-        </button>
+        {/* Raj v1: read-only for Ellery once ELLERY_READ_ONLY is switched on. */}
+        {!ELLERY_READ_ONLY && (
+          <button
+            className="min-h-[44px] rounded-[9px] border border-[#1E3A8A] bg-[#1E3A8A] px-3.5 py-2.5 text-[15px] font-semibold text-white"
+            onClick={onEdit}
+            type="button"
+          >
+            Change details
+          </button>
+        )}
       </div>
     </article>
   );

@@ -1,3 +1,4 @@
+import { ELLERY_READ_ONLY } from "../lib/readOnly";
 // src/pages/ElleryApplicants.tsx
 // Ellery's applicant pipeline. Oldest first, grouped by who is being waited on.
 //
@@ -174,13 +175,16 @@ export function ElleryApplicants() {
         <p className="text-[14px] text-[#6C7484]">
           {applicants ? `${applicants.length} in the pipeline` : "Loading…"}
         </p>
-        <button
-          className="rounded-[9px] border border-[#1E3A8A] bg-[#1E3A8A] px-3.5 py-2 text-[14px] font-semibold text-white"
-          onClick={() => setAdding(true)}
-          type="button"
-        >
-          Log an applicant
-        </button>
+        {/* Raj v1: read-only for Ellery once ELLERY_READ_ONLY is switched on. */}
+        {!ELLERY_READ_ONLY && (
+          <button
+            className="rounded-[9px] border border-[#1E3A8A] bg-[#1E3A8A] px-3.5 py-2 text-[14px] font-semibold text-white"
+            onClick={() => setAdding(true)}
+            type="button"
+          >
+            Log an applicant
+          </button>
+        )}
       </div>
 
       {problem && (
