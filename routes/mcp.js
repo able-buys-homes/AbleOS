@@ -16,10 +16,7 @@ import { timingSafeEqual } from "node:crypto";
 
 const PROTOCOL_VERSION = "2025-06-18";
 
-// Rehab gates still live in Notion, not in the cockpit's own database. When
-// Notion is removed this constant and notionRehabGates() go with it, and the
-// gate counts read from wherever the stages land instead.
-const REHAB_DATABASE_ID = "39f97b1c96b680dd9a77d8d83da4793c";
+// Rehab gates read from Supabase rehab_stages since 10 Oct 2026 (was Notion).
 
 let cachedClient = null;
 
@@ -235,14 +232,12 @@ const SYSTEM_MAP = {
         "Google Drive via a service account - photos and deal documents",
         "Gmail via n8n - inbound intake and outbound notices",
         "Web Push - notifications to phones",
-        "Notion - rehab stages only, and being removed",
     ],
     principles: [
         "The screen never claims something the data cannot support. Rent not confirmed instead of a balance built on a placeholder. Not measured instead of a buy-box verdict with no numbers behind it. Machine-created fees left unverified.",
         "Derive, don't store. Applicant stage, applicant bucket, property status, parts overdue and the buy-box verdict are all computed, so the display and the truth cannot drift apart.",
     ],
     known_gaps: [
-        "Rehab gates live in Notion, which is being removed.",
         "Roughly 200 inbound deal emails in ten days land at president@hometownmeadows.com, which has no intake on it at all. The gate only screens underwriting@, which receives almost nothing.",
         "Eleven occupied lots still carry a placeholder rent rather than a confirmed figure.",
     ],
@@ -517,56 +512,25 @@ async function rexUnits(supabase) {
 }
 
 
-async function notionRehabGates() {
-    const key = process.env.NOTION_API_KEY;
-    if (!key) return null;
-
-    const pages = [];
-    let cursor;
-
-    // Notion pages 100 at a time, so follow the cursor to the end rather than
-    // reporting a count that quietly stops at the first page.
-    do {
-        const res = await fetch(
-            `https://api.notion.com/v1/databases/${REHAB_DATABASE_ID}/query`,
-            {
-                method: "POST",
-                headers: {
-                    authorization: `Bearer ${key}`,
-                    "Notion-Version": "2022-06-28",
-                    "content-type": "application/json",
-                },
-                body: JSON.stringify({ page_size: 100, start_cursor: cursor }),
-                signal: AbortSignal.timeout(15000),
-            },
-        );
-
-        if (!res.ok) throw new Error(`Notion returned ${res.status}`);
-
-        const body = await res.json();
-        pages.push(...(body.results ?? []));
-        cursor = body.has_more ? body.next_cursor : undefined;
-    } while (cursor);
-
-    return pages.map((page) => {
-        const p = page.properties ?? {};
-        return {
-            stage: p["Stage Name"]?.rich_text?.[0]?.plain_text || "",
-            side: p["Side"]?.select?.name || "unset",
-            work_done: p["Work Done"]?.checkbox === true,
-            photo_uploaded: p["Photo Uploaded"]?.checkbox === true,
-            raj_approved: p["Raj Approved"]?.checkbox === true,
-            draw_released: p["Draw Released"]?.checkbox === true,
-        };
-    });
+async function rehabGates(supabase) {
+    const rows = await all(
+        supabase,
+        "rehab_stages",
+        "stage_name, side, work_done, photo_uploaded, raj_approved, draw_released",
+    );
+    return rows.map((r) => ({
+        stage: r.stage_name || "",
+        side: r.side || "unset",
+        work_done: r.work_done === true,
+        photo_uploaded: r.photo_uploaded === true,
+        raj_approved: r.raj_approved === true,
+        draw_released: r.draw_released === true,
+    }));
 }
 
-async function gatesOrReason() {
+async function gatesOrReason(supabase) {
     try {
-        const gates = await notionRehabGates();
-        if (gates === null) {
-            return { available: false, reason: "Notion is not configured" };
-        }
+        const gates = await rehabGates(supabase);
         return {
             available: true,
             awaiting_raj: gates.filter((g) => g.photo_uploaded && !g.raj_approved).length,
@@ -593,7 +557,7 @@ async function rajDesk(supabase) {
         all(supabase, "payment_plans", "status, approved_at"),
         all(supabase, "work_orders", "status, priority, completed_at"),
         all(supabase, "social_queue", "status, reviewed_at, side, stage_name"),
-        gatesOrReason(),
+        gatesOrReason(supabase),
     ]);
 
     const openOrders = orders.filter((o) => !o.decided_at);
@@ -763,7 +727,7 @@ async function zoDesk(supabase) {
         occupancyStatus(supabase),
         workOrderStatus(supabase),
         rentStatus(supabase, {}),
-        gatesOrReason(),
+        gatesOrReason(supabase),
     ]);
 
     return { map: occupancy, jobs, rent, rehab_gates: gates, as_of: new Date().toISOString() };

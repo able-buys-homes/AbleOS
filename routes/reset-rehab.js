@@ -1,21 +1,19 @@
 // api/reset-rehab.js
 // DESTRUCTIVE. Empties every rehab stage Drive folder and clears the matching
-// Notion fields, putting the whole photo/approval flow back to zero.
+// rehab_stages fields (Supabase; was Notion), putting the whole photo/approval flow back to zero.
 // The 40 folders themselves survive - only their contents go.
 //
 // Dane only. Raj reaches it by opening Dane's cockpit, which swaps his
 // effective cockpit server-side.
 
-import { Client } from "@notionhq/client";
 import { createClient } from "@supabase/supabase-js";
 import { JWT } from "google-auth-library";
 import { requireUser, requireCockpit } from "../lib/apiAuth.js";
 import { SIDE_A, SIDE_B } from "./drive-upload-url.js";
 import { sendPush } from "../lib/sendPush.js";
 
-const REHAB_DATABASE_ID = "39f97b1c96b680dd9a77d8d83da4793c";
 
-// 80 API calls at Notion's ~3/sec ceiling needs more than the default 10s.
+// Emptying 40 Drive folders can take longer than the default 10s.
 export const config = { maxDuration: 60 };
 
 /** Runs `worker` over `items` with at most `limit` in flight. */
@@ -103,53 +101,34 @@ export default async function handler(req, res) {
             filesDeleted += await emptyFolder(folderId, token);
         });
 
-        /* ---- Notion ---- */
-        const notion = new Client({ auth: process.env.NOTION_API_KEY });
-
-        const db = await notion.databases.retrieve({
-            database_id: REHAB_DATABASE_ID,
-        });
-        const dataSourceId = db.data_sources[0].id;
-
-        const rows = [];
-        let cursor;
-        do {
-            const page = await notion.dataSources.query({
-                data_source_id: dataSourceId,
-                start_cursor: cursor,
-                page_size: 100,
-            });
-            rows.push(...page.results);
-            cursor = page.has_more ? page.next_cursor : undefined;
-        } while (cursor);
-
-        let rowsReset = 0;
-        // Notion allows roughly 3 requests a second, so keep this pool small.
-        await runPool(rows, 3, async (page) => {
-            await notion.pages.update({
-                page_id: page.id,
-                properties: {
-                    "Photo Uploaded": { checkbox: false },
-                    "Drive Photo Link": { url: null },
-                    "Work Done": { checkbox: false },
-                    "Jeremiah Approved": { checkbox: false },
-                    "Karen Approved": { checkbox: false },
-                    "Raj Approved": { checkbox: false },
-                    "Draw Released": { checkbox: false },
-                    "Notes / Flags": { rich_text: [] },
-                    Status: { select: { name: "Not Started" } },
-                },
-            });
-            rowsReset++;
-        });
-
-        /* ---- Tell everyone it happened ---- */
+        /* ---- Checklist (Supabase rehab_stages) ---- */
         const supabase = createClient(
             process.env.SUPABASE_URL,
             process.env.SUPABASE_SECRET_KEY,
             { auth: { persistSession: false, autoRefreshToken: false } },
         );
 
+        const { data: resetRows, error: resetError } = await supabase
+            .from("rehab_stages")
+            .update({
+                photo_uploaded: false,
+                drive_photo_link: null,
+                work_done: false,
+                jeremiah_approved: false,
+                karen_approved: false,
+                raj_approved: false,
+                draw_released: false,
+                notes: "",
+                status: "Not Started",
+                updated_at: new Date().toISOString(),
+                updated_by: caller.profile.cockpit,
+            })
+            .neq("id", "")
+            .select("id");
+        if (resetError) throw new Error(resetError.message);
+        const rowsReset = resetRows?.length ?? 0;
+
+        /* ---- Tell everyone it happened ---- */
         const recipients = ["colton", "zo", "jeremiah", "karen", "raj"];
         const { error: notifyError } = await supabase.from("notifications").insert(
             recipients.map((recipient) => ({

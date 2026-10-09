@@ -478,7 +478,7 @@ export function ColtonCockpit() {
             <div className="mt-4 rounded-2xl border border-dashed border-[#DCE4EE] bg-[#F8FAFC] px-5 py-4">
               <p className="text-[16px] font-medium leading-snug text-[#8A99AC]">
                 Hidden damage · safety issue · budget overage — iMessage
-                Jeremiah directly. Everything else stays in Notion.
+                Jeremiah directly. Everything else stays in the cockpit.
               </p>
             </div>
           </section>

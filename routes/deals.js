@@ -1,5 +1,6 @@
 // routes/deals.js
-// Deal pipeline. Notion holds the deal identity (name, address, source),
+// Deal pipeline. Legacy Notion deals live in notion_deals_archive (Notion was
+// removed 10 Oct 2026); deal identity (name, address, source),
 // Supabase holds the workflow state (stage, when it moved, who moved it).
 //
 // GET    /api/deals    list deals with their current stage
@@ -8,11 +9,9 @@
 // Every request must carry a valid Supabase session as a Bearer token.
 // The caller's role comes from the profiles table, never from the request body.
 
-import { Client } from "@notionhq/client";
 import { createClient } from "@supabase/supabase-js";
 import { requireUser } from "../lib/apiAuth.js";
 
-const DEALS_DB = "3a397b1c96b680e8af62f3a34a5c6a02";
 
 // Must stay identical to the check constraint on public.deal_stages.
 const STAGES = [
@@ -50,8 +49,6 @@ const ALLOWED_COCKPITS = ["raj", "rex", "ellery"];
 const CAN_MOVE_STAGES = ["raj", "dane"];
 
 let cachedSupabase = null;
-let cachedNotion = null;
-let cachedDataSourceId = null;
 
 function getSupabase() {
     if (cachedSupabase) return cachedSupabase;
@@ -67,21 +64,6 @@ function getSupabase() {
     });
 
     return cachedSupabase;
-}
-
-function getNotion() {
-    if (cachedNotion) return cachedNotion;
-    if (!process.env.NOTION_API_KEY) throw new Error("NOTION_API_KEY is not set");
-    cachedNotion = new Client({ auth: process.env.NOTION_API_KEY });
-    return cachedNotion;
-}
-
-async function getDataSourceId() {
-    if (cachedDataSourceId) return cachedDataSourceId;
-    const notion = getNotion();
-    const db = await notion.databases.retrieve({ database_id: DEALS_DB });
-    cachedDataSourceId = db.data_sources[0].id;
-    return cachedDataSourceId;
 }
 
 function plain(prop) {
@@ -101,21 +83,14 @@ function daysBetween(iso) {
 }
 
 async function fetchNotionDeals() {
-    const notion = getNotion();
-    const dataSourceId = await getDataSourceId();
+    // Copied whole from Notion on 10 Oct 2026 before Notion was removed, so
+    // flipping SHOW_NOTION_DEALS back on still works.
+    const { data, error } = await getSupabase()
+        .from("notion_deals_archive")
+        .select("notion_page_id, properties");
+    if (error) throw new Error(error.message);
 
-    const rows = [];
-    let cursor;
-
-    do {
-        const page = await notion.dataSources.query({
-            data_source_id: dataSourceId,
-            page_size: 100,
-            start_cursor: cursor,
-        });
-        rows.push(...page.results);
-        cursor = page.has_more ? page.next_cursor : undefined;
-    } while (cursor);
+    const rows = (data ?? []).map((r) => ({ id: r.notion_page_id, properties: r.properties }));
 
     return rows
         .map((row) => ({

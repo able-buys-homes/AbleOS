@@ -6,14 +6,13 @@
 // Each approver can only act when the step before them is complete. A decline
 // sends the stage straight back to the crew lead with a required note.
 
-import { Client } from "@notionhq/client";
 import { createClient } from "@supabase/supabase-js";
 import { JWT } from "google-auth-library";
 import { requireUser, requireCockpit } from "../lib/apiAuth.js";
 import { sendPush } from "../lib/sendPush.js";
 import { getFolderId } from "./drive-upload-url.js";
 
-const REHAB_DATABASE_ID = "39f97b1c96b680dd9a77d8d83da4793c";
+// Stages live in Supabase rehab_stages since 10 Oct 2026 (was Notion).
 
 // Zo covers both sides since Colton left on 3 Sep 2026. The reporting line did
 // not change - Colton always answered to Zo on HTM work - only the cockpit
@@ -32,10 +31,10 @@ const CREW_LEAD = { "Side A": "zo", "Side B": "zo" };
 const DIRECT_TO_RAJ = new Set(["Before Teardown Photos"]);
 
 // Rewired 1 Sep 2026. Jeremiah and Karen are gone, so the chain is one gate:
-// the crew uploads, Raj signs off. Their Notion checkbox fields are left in
+// the crew uploads, Raj signs off. Their approval columns are left in
 // place - clearing them would rewrite the history of stages they did approve.
 const CHAIN = {
-    raj: { field: "Raj Approved", next: null },
+    raj: { column: "raj_approved", next: null },
 };
 
 let cachedSupabase = null;
@@ -90,16 +89,15 @@ async function purgeStageFolder(side, stageName) {
     return files.length;
 }
 
-function readStage(page) {
-    const props = page.properties;
+function readStage(row) {
     return {
-        stageName: props["Stage Name"]?.rich_text?.[0]?.plain_text || "",
-        side: props["Side"]?.select?.name || "",
-        phase: props["Phase"]?.select?.name || "",
-        photoUploaded: props["Photo Uploaded"]?.checkbox || false,
-        jeremiahApproved: props["Jeremiah Approved"]?.checkbox || false,
-        karenApproved: props["Karen Approved"]?.checkbox || false,
-        rajApproved: props["Raj Approved"]?.checkbox || false,
+        stageName: row.stage_name || "",
+        side: row.side || "",
+        phase: row.phase || "",
+        photoUploaded: row.photo_uploaded || false,
+        jeremiahApproved: row.jeremiah_approved || false,
+        karenApproved: row.karen_approved || false,
+        rajApproved: row.raj_approved || false,
     };
 }
 
@@ -167,10 +165,14 @@ export default async function handler(req, res) {
     }
 
     try {
-        const notion = new Client({ auth: process.env.NOTION_API_KEY });
-
-        const page = await notion.pages.retrieve({ page_id: notionPageId });
-        const stage = readStage(page);
+        const { data: row, error: readError } = await getSupabase()
+            .from("rehab_stages")
+            .select("*")
+            .eq("id", notionPageId)
+            .maybeSingle();
+        if (readError) throw new Error(readError.message);
+        if (!row) return res.status(404).json({ error: "Stage not found" });
+        const stage = readStage(row);
 
         const blocked = canAct(profile.cockpit, stage);
         if (blocked) return res.status(409).json({ error: blocked });
@@ -191,26 +193,21 @@ export default async function handler(req, res) {
                 console.error("Could not clear the stage folder:", err);
             }
 
-            await notion.pages.update({
-                page_id: notionPageId,
-                properties: {
-                    "Photo Uploaded": { checkbox: false },
-                    "Drive Photo Link": { url: null },
-                    "Jeremiah Approved": { checkbox: false },
-                    "Karen Approved": { checkbox: false },
-                    "Raj Approved": { checkbox: false },
-                    Status: { select: { name: "Blocked" } },
-                    "Notes / Flags": {
-                        rich_text: [
-                            {
-                                text: {
-                                    content: `${stamp} - Declined by ${profile.full_name}: ${trimmedNote}`,
-                                },
-                            },
-                        ],
-                    },
-                },
-            });
+            const { error: declineError } = await supabase
+                .from("rehab_stages")
+                .update({
+                    photo_uploaded: false,
+                    drive_photo_link: null,
+                    jeremiah_approved: false,
+                    karen_approved: false,
+                    raj_approved: false,
+                    status: "Blocked",
+                    notes: `${stamp} - Declined by ${profile.full_name}: ${trimmedNote}`,
+                    updated_at: new Date().toISOString(),
+                    updated_by: profile.cockpit,
+                })
+                .eq("id", notionPageId);
+            if (declineError) throw new Error(declineError.message);
 
             await clearGateNotice(supabase, profile.cockpit, notionPageId);
 
@@ -252,11 +249,17 @@ export default async function handler(req, res) {
 
         /* ---- APPROVE ---- */
         const step = CHAIN[profile.cockpit];
-        const properties = { [step.field]: { checkbox: true } };
-        if (profile.cockpit === "raj") {
-            properties.Status = { select: { name: "Done" } };
-        }
-        await notion.pages.update({ page_id: notionPageId, properties });
+        const update = {
+            [step.column]: true,
+            updated_at: new Date().toISOString(),
+            updated_by: profile.cockpit,
+        };
+        if (profile.cockpit === "raj") update.status = "Done";
+        const { error: approveError } = await supabase
+            .from("rehab_stages")
+            .update(update)
+            .eq("id", notionPageId);
+        if (approveError) throw new Error(approveError.message);
 
         // Raj is the last gate, so his approval is the earliest point these
         // photos could legitimately be advertised. This only makes the stage

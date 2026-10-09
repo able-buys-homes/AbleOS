@@ -125,7 +125,7 @@ export function ResetRehabButton() {
               <ul className="mt-4 space-y-1.5">
                 {[
                   "Every photo in all 40 Drive folders is permanently deleted",
-                  "All Drive links are removed from Notion",
+                  "All Drive links are removed from the checklist",
                   "Jeremiah, Karen and Raj approvals are unchecked",
                   "Every stage goes back to Not Started",
                 ].map((line) => (
