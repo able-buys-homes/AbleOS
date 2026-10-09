@@ -54,6 +54,96 @@ export default async function handler(req, res) {
     const { profile } = caller;
     const notion = new Client({ auth: process.env.NOTION_API_KEY });
 
+    /* ---- TEMPORARY: one-time copy of Notion into Supabase (10 Oct 2026) ----
+     * POST /api/rehab-stages?copy=1   Dane or Raj only. Safe to run twice.
+     * Removed again in the switch-over commit. */
+    if (req.method === "POST" && req.query?.copy === "1") {
+        try {
+            requireCockpit(profile, ["dane", "raj"]);
+        } catch (err) {
+            return res.status(err?.status || 403).json({ error: err?.message || "Not authorised" });
+        }
+        if (!process.env.NOTION_API_KEY) {
+            return res.status(500).json({ error: "NOTION_API_KEY is not set" });
+        }
+
+        async function readAll(databaseId) {
+            const db = await notion.databases.retrieve({ database_id: databaseId });
+            const dataSourceId = db.data_sources[0].id;
+            const out = [];
+            let cursor;
+            do {
+                const page = await notion.dataSources.query({
+                    data_source_id: dataSourceId,
+                    start_cursor: cursor,
+                    page_size: 100,
+                });
+                out.push(...page.results);
+                cursor = page.has_more ? page.next_cursor : undefined;
+            } while (cursor);
+            return out;
+        }
+
+        try {
+            const supabase = getSupabase();
+            const pages = await readAll(REHAB_DATABASE_ID);
+            const rows = pages.map((page) => {
+                const p = page.properties;
+                return {
+                    id: page.id,
+                    stage_name: p["Stage Name"]?.rich_text?.map((t) => t.plain_text).join("") || "",
+                    side: p["Side"]?.select?.name || "",
+                    phase: p["Phase"]?.select?.name || "",
+                    status: p["Status"]?.select?.name || "Not Started",
+                    work_done: p["Work Done"]?.checkbox || false,
+                    photo_uploaded: p["Photo Uploaded"]?.checkbox || false,
+                    drive_photo_link: p["Drive Photo Link"]?.url || null,
+                    jeremiah_approved: p["Jeremiah Approved"]?.checkbox || false,
+                    karen_approved: p["Karen Approved"]?.checkbox || false,
+                    raj_approved: p["Raj Approved"]?.checkbox || false,
+                    draw_released: p["Draw Released"]?.checkbox || false,
+                    notes: p["Notes / Flags"]?.rich_text?.map((t) => t.plain_text).join("") || "",
+                    updated_at: page.last_edited_time || new Date().toISOString(),
+                    updated_by: "notion-copy",
+                };
+            });
+
+            const { error: stageError } = await supabase
+                .from("rehab_stages")
+                .upsert(rows, { onConflict: "id" });
+            if (stageError) throw new Error("rehab_stages: " + stageError.message);
+
+            let dealsCopied = 0;
+            let dealsError = null;
+            try {
+                const deals = await readAll("3a397b1c96b680e8af62f3a34a5c6a02");
+                const { error } = await supabase.from("notion_deals_archive").upsert(
+                    deals.map((d) => ({ notion_page_id: d.id, properties: d.properties })),
+                    { onConflict: "notion_page_id" },
+                );
+                if (error) throw new Error(error.message);
+                dealsCopied = deals.length;
+            } catch (err) {
+                dealsError = err?.message || String(err);
+            }
+
+            const count = (f) => rows.filter(f).length;
+            return res.status(200).json({
+                stagesCopied: rows.length,
+                sideA: count((r) => r.side.includes("A")),
+                sideB: count((r) => r.side.includes("B")),
+                photoUploaded: count((r) => r.photo_uploaded),
+                rajApproved: count((r) => r.raj_approved),
+                withNotes: count((r) => r.notes),
+                dealsCopied,
+                dealsError,
+            });
+        } catch (error) {
+            console.error("notion copy failed:", error);
+            return res.status(500).json({ error: error?.message || "Copy failed" });
+        }
+    }
+
     /* ---- SAVE a photo link ---- */
     if (req.method === "POST") {
         try {
