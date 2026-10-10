@@ -13,6 +13,7 @@
 
 import { createClient } from "@supabase/supabase-js";
 import { timingSafeEqual } from "node:crypto";
+import { LATENESS_PAUSED } from "../lib/rentRules.js";
 
 const PROTOCOL_VERSION = "2025-06-18";
 
@@ -670,38 +671,43 @@ async function rentStatus(supabase, args) {
     nextMonth.setUTCMonth(nextMonth.getUTCMonth() + 1);
     const monthEnd = nextMonth.toISOString().slice(0, 10);
 
-    const charges = await all(
+    // Only lots still on the Hometown Meadows roll, and only the current
+    // tenancy (the *_current views restart at each move-out), so a removed
+    // or hidden lot - abandoned, or not part of the park - stops counting.
+    // Fixed 10 Oct 2026 (T-04): this used to read the raw tables.
+    const lots = await all(
         supabase,
-        "rent_ledger",
-        "lot_id, period, charge_type, amount, due_date, verified_at",
-        (q) => q.gte("period", monthStart).lt("period", monthEnd),
+        "lots",
+        "id, lot_number, occupied, rent_placeholder",
+        (q) => q.eq("property", "Hometown Meadows MHP").is("archived_at", null),
     );
-
-    // Payments carry a moment, not a period, so bound them at both ends -
-    // otherwise next month's payments count towards this one.
-    const payments = await all(
-        supabase,
-        "payments",
-        "lot_id, amount, received_at, reverses_id",
-        (q) => q.gte("received_at", monthStart).lt("received_at", monthEnd),
-    );
-
-    const live = payments.filter((p) => !p.reverses_id);
-
-    const lots = await all(supabase, "lots", "lot_number, occupied, rent_placeholder");
+    const onRoll = new Set(lots.map((l) => l.id));
     const occupied = lots.filter((l) => l.occupied);
 
-    // Five days of grace, then it is late - measured from each resident's own
-    // due date, not a date shared across the park.
+    const allCharges = (await all(supabase, "rent_ledger_current", "*")).filter((c) => onRoll.has(c.lot_id));
+    const allPayments = (await all(supabase, "payments_current", "*")).filter((p) => onRoll.has(p.lot_id));
+
+    // period is a date column; payments carry a moment, so bound both ends.
+    const charges = allCharges.filter((c) => c.period >= monthStart && c.period < monthEnd);
+    const live = allPayments.filter(
+        (p) => !p.reverses_id && p.received_at >= monthStart && p.received_at < monthEnd,
+    );
+
+    // Past grace = a balance still owing on charges whose five days of grace
+    // (from each resident's own due date) have run out. Paid lots are not late,
+    // and older balances added with "Add overdue" count too.
+    const graceEnded = (c) => {
+        if (!c.due_date) return false;
+        const last = new Date(`${c.due_date}T00:00:00Z`);
+        last.setUTCDate(last.getUTCDate() + 5);
+        return today > last.toISOString().slice(0, 10);
+    };
     const lateLots = new Set(
-        charges
-            .filter((c) => {
-                if (!c.due_date) return false;
-                const last = new Date(`${c.due_date}T00:00:00Z`);
-                last.setUTCDate(last.getUTCDate() + 5);
-                return today > last.toISOString().slice(0, 10);
-            })
-            .map((c) => c.lot_id),
+        [...onRoll].filter((id) => {
+            const due = sum(allCharges.filter((c) => c.lot_id === id && graceEnded(c)), "amount");
+            const paid = sum(allPayments.filter((p) => p.lot_id === id), "amount");
+            return Math.round((due - paid) * 100) / 100 > 0;
+        }),
     );
 
     const charged = sum(charges, "amount");
@@ -718,6 +724,8 @@ async function rentStatus(supabase, args) {
         occupied_lots: occupied.length,
         lots_without_confirmed_rent: occupied.filter((l) => l.rent_placeholder).length,
         lots_past_grace: lateLots.size,
+        collection_rate_pct: charged > 0 ? Math.round((collected / charged) * 1000) / 10 : null,
+        late_fees_paused: LATENESS_PAUSED,
         as_of: new Date().toISOString(),
     };
 }
