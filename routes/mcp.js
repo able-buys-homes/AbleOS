@@ -1335,9 +1335,39 @@ export default async function handler(req, res) {
         "Access-Control-Allow-Headers",
         "content-type, authorization, mcp-protocol-version",
     );
-    res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
 
     if (req.method === "OPTIONS") return res.status(204).end();
+
+    // GET /api/mcp?tool=<name> - a plain read, added 11 Oct 2026 (T-23) for
+    // clients that treat every POST as a write: Malli asked for approval on
+    // each call. Same keys, same per-key tool limits, no arguments, and
+    // nothing can change. GET /api/mcp with no tool lists what the key may read.
+    if (req.method === "GET") {
+        const supplied = suppliedToken(req);
+        const scope = scopeFor(supplied);
+        if (!scope && !tokenMatches(supplied)) {
+            return res.status(401).json({ error: "Not authorised" });
+        }
+        res.setHeader("Cache-Control", "no-store");
+
+        const allowed = scope ? TOOLS.filter((t) => scope.tools.includes(t.name)) : TOOLS;
+        const name = String(req.query?.tool ?? "");
+        if (!name) {
+            return res.status(200).json({ tools: allowed.map((t) => ({ name: t.name, description: t.description })) });
+        }
+        if (!TOOLS.some((t) => t.name === name)) {
+            return res.status(404).json({ error: "No such tool" });
+        }
+        if (!allowed.some((t) => t.name === name)) {
+            return res.status(403).json({ error: "That tool is not available to this key." });
+        }
+        try {
+            return res.status(200).json({ tool: name, data: await runTool(name, {}) });
+        } catch (toolError) {
+            return res.status(200).json({ tool: name, error: `That failed: ${toolError.message}` });
+        }
+    }
 
     if (req.method !== "POST") {
         res.setHeader("Allow", "POST");

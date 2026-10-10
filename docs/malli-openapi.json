@@ -1,0 +1,41 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Able OS Cockpit",
+    "version": "1.2.0",
+    "description": "Read-only Hometown Meadows data by lot number, for Raj's desk pages. Every call is a plain GET read - nothing can be changed through this API. Tools this key may read: occupancy_status (lots by status, occupancy %, inspections), rent_status (this month: charged, collected, collection %, lots past grace, whether late fees are paused), lot_roll (per lot number: status, rent, owed, last paid, open jobs, next inspection), work_order_list (open jobs by lot), dates_list (critical dates, open documents, scheduled inspections). Each answer is {tool, data} and data carries an as_of time. No names, phones, emails, codes or screening results are ever returned."
+  },
+  "servers": [{ "url": "https://cockpit.ablebuyshomes.com" }],
+  "security": [{ "bearerAuth": [] }],
+  "paths": {
+    "/api/mcp": {
+      "get": {
+        "operationId": "read_tool",
+        "summary": "Read one Able OS cockpit tool (read-only)",
+        "description": "GET /api/mcp?tool=rent_status returns {\"tool\":\"rent_status\",\"data\":{...}}. Without ?tool it lists the tools this key may read. A tool this key may not read answers 403.",
+        "parameters": [
+          {
+            "name": "tool",
+            "in": "query",
+            "required": false,
+            "description": "Which tool to read. Leave empty to list them.",
+            "schema": {
+              "type": "string",
+              "enum": ["occupancy_status", "rent_status", "lot_roll", "work_order_list", "dates_list"]
+            }
+          }
+        ],
+        "responses": {
+          "200": { "description": "{tool, data} - data is the tool's answer, with an as_of time." },
+          "401": { "description": "Wrong or missing key." },
+          "403": { "description": "That tool is not available to this key." }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": { "type": "http", "scheme": "bearer" }
+    }
+  }
+}
