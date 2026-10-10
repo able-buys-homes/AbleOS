@@ -1,5 +1,8 @@
 // routes/late-fees.js
 // Charges the $75 late fee, once per lot per month, after the grace period.
+// Checks this month AND last month (Dev #12, 11 Oct 2026): a resident due on
+// the 28th has a grace period that ends in the next month and used to be
+// skipped. The rules themselves live in lib/lateFeeDecision.js.
 //
 // Run by Vercel Cron, not by a person and not by a screen. A charge that
 // appears because someone opened a page is a charge nobody can account for.
@@ -21,13 +24,11 @@ import { createClient } from "@supabase/supabase-js";
 import { notifyResident } from "../lib/notifyResident.js";
 import {
     LATE_FEE,
+    LATENESS_PAUSED,
     currentPeriod,
-    dueDateFor,
-    isLateOn,
-    lastDayToPay,
     parkToday,
-    parkTodayISO,
 } from "../lib/rentRules.js";
+import { decideLateFee, previousPeriod } from "../lib/lateFeeDecision.js";
 
 const PROPERTY = "Hometown Meadows MHP";
 
@@ -75,6 +76,12 @@ export default async function handler(req, res) {
         // No park-wide gate any more. Every tenancy has its own due day, so
         // this runs every day and decides lot by lot.
 
+        const prev = previousPeriod(period);
+        const [py, pm] = prev.split("-").map(Number);
+        // Payments from a week before last month's 1st, so early payers for
+        // either month are seen. lateFeeDecision narrows it per month.
+        const paymentsFrom = new Date(Date.UTC(py, pm - 1, 1 - 7)).toISOString().slice(0, 10);
+
         const [lotsRes, chargesRes, paymentsRes, plansRes, casesRes] =
             await Promise.all([
                 supabase
@@ -84,24 +91,10 @@ export default async function handler(req, res) {
                     )
                     .eq("property", PROPERTY)
                     .not("contract_rent", "is", null),
-                supabase.from("rent_ledger_current").select("*").eq("period", period),
-                // Payments carry a moment, not a period. A resident who pays
-                // on the 29th for a month starting on the 1st is paying early,
-                // not failing to pay - counting only from the 1st made them
-                // look unpaid and earned them a $75 fee for being punctual.
-                // The window opens a week before the period so an early
-                // payment still counts. The cost is that a payment made late
-                // last month can suppress this month's fee, which is the safer
-                // way to be wrong.
-                supabase
-                    .from("payments_current")
-                    .select("*")
-                    .gte("received_at", (() => {
-                        const [y, m] = period.split("-").map(Number);
-                        return new Date(Date.UTC(y, m - 1, 1 - 7))
-                            .toISOString()
-                            .slice(0, 10);
-                    })()),
+                // Current tenancy only: a lot that changed hands never charges
+                // the new resident for the old one's month.
+                supabase.from("rent_ledger_current").select("*").in("period", [prev, period]),
+                supabase.from("payments_current").select("*").gte("received_at", paymentsFrom),
                 supabase.from("payment_plans_current").select("lot_id, status"),
                 supabase.from("eviction_cases").select("lot_id, possession_at"),
             ]);
@@ -138,110 +131,62 @@ export default async function handler(req, res) {
                 continue;
             }
 
-            // A placeholder is a figure nobody has confirmed with the resident.
-            // Charging $75 for being late on it would be charging them for our
-            // own missing paperwork.
-            if (lot.rent_placeholder) {
-                passed.push({
-                    lot: lot.lot_number,
-                    why: "rent is a placeholder",
+            const lotCharges = charges.filter((c) => c.lot_id === lot.id);
+            const lotPayments = payments.filter((p) => p.lot_id === lot.id);
+
+            // Last month first, so its payments are judged before this month's.
+            for (const p of [prev, period]) {
+                const d = decideLateFee({
+                    lot,
+                    period: p,
+                    currentPeriod: period,
+                    today,
+                    charges: lotCharges,
+                    payments: lotPayments,
+                    paused: LATENESS_PAUSED,
                 });
-                continue;
-            }
 
-            const dueThisMonth = dueDateFor(lot.rent_due_day, period);
+                if (!d.charge) {
+                    passed.push({ lot: lot.lot_number, period: p, why: d.why });
+                    continue;
+                }
 
-            if (!dueThisMonth) {
-                passed.push({ lot: lot.lot_number, why: "no due day on file" });
-                continue;
-            }
-
-            if (!isLateOn(dueThisMonth)) {
-                passed.push({
-                    lot: lot.lot_number,
-                    why: `still inside the grace period, due ${dueThisMonth}`,
+                // verified_at is left null on purpose. Raj verifies before a
+                // notice can rest on this.
+                const { error } = await supabase.from("rent_ledger").insert({
+                    lot_id: lot.id,
+                    period: p,
+                    charge_type: "late_fee",
+                    amount: LATE_FEE,
+                    due_date: today,
+                    source: "manual",
                 });
-                continue;
-            }
 
-            const rentDue = charges
-                .filter((c) => c.lot_id === lot.id && c.charge_type === "rent")
-                .reduce((sum, c) => sum + Number(c.amount), 0);
+                // rent_ledger_one_late_fee_per_period refuses a second fee for
+                // the same lot and month. If two runs overlap, the loser is
+                // not an error and nobody is told twice.
+                if (error && error.code !== "23505") throw error;
+                if (error) {
+                    passed.push({ lot: lot.lot_number, period: p, why: "fee already applied" });
+                    continue;
+                }
 
-            if (rentDue <= 0) {
-                passed.push({ lot: lot.lot_number, why: "nothing charged" });
-                continue;
-            }
-
-            // A resident cannot be late for a bill that did not exist. If the
-            // charge was entered after its own grace period had already run
-            // out, they were never given their five days, so no fee applies
-            // this month. From next month it behaves normally.
-            const firstRentCharge = charges
-                .filter((c) => c.lot_id === lot.id && c.charge_type === "rent")
-                .sort((a, b) =>
-                    String(a.created_at).localeCompare(String(b.created_at)),
-                )[0];
-
-            if (
-                firstRentCharge &&
-                parkTodayISO(new Date(firstRentCharge.created_at)) >
-                    (lastDayToPay(firstRentCharge.due_date ?? dueThisMonth) ??
-                        "0000-01-01")
-            ) {
-                passed.push({
-                    lot: lot.lot_number,
-                    why: "rent recorded after its grace period had passed",
-                });
-                continue;
-            }
-
-            const alreadyFeed = charges.some(
-                (c) => c.lot_id === lot.id && c.charge_type === "late_fee",
-            );
-            if (alreadyFeed) {
-                passed.push({ lot: lot.lot_number, why: "fee already applied" });
-                continue;
-            }
-
-            const paid = payments
-                .filter((p) => p.lot_id === lot.id)
-                .reduce((sum, p) => sum + Number(p.amount), 0);
-
-            if (paid >= rentDue) {
-                passed.push({ lot: lot.lot_number, why: "paid" });
-                continue;
-            }
-
-            // verified_at is left null on purpose. Raj verifies before a notice
-            // can rest on this.
-            const { error } = await supabase.from("rent_ledger").insert({
-                lot_id: lot.id,
-                period,
-                charge_type: "late_fee",
-                amount: LATE_FEE,
-                due_date: today,
-                source: "manual",
-            });
-
-            // The unique index refuses a second fee for the month. If two runs
-            // overlap, the loser is not an error.
-            if (error && error.code !== "23505") throw error;
-
-            if (!error) {
                 await notifyResident(supabase, lot.id, {
                     type: "late_fee",
                     title: `A $${LATE_FEE} late fee was added`,
-                    body: "This month's rent was not paid by the last day to pay.",
+                    body: p === period
+                        ? "This month's rent was not paid by the last day to pay."
+                        : "Last month's rent was not paid by the last day to pay.",
                     link: "/payments",
                 });
-            }
 
-            charged.push({
-                lot: lot.lot_number,
-                tenant: lot.tenant_name,
-                short: Math.round((rentDue - paid) * 100) / 100,
-            });
+                charged.push({
+                    lot: lot.lot_number,
+                    period: p,
+                    tenant: lot.tenant_name,
+                    short: d.short,
+                });
+            }
         }
 
         if (charged.length > 0) {
