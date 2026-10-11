@@ -57,7 +57,11 @@ function getClient() {
  */
 const KEY_SCOPES = [
     // Raj's Malli agent: lot-level counts and dates, no names.
-    { env: "MCP_TOKEN_MALLI", holder: "malli", tools: ["occupancy_status", "rent_status", "lot_roll", "work_order_list", "dates_list"] },
+    // Widened 11 Oct 2026 (Dev #26, Raj approved): the read tools Raj's desk
+    // pages need. Each was audited first - no names, phones, emails, codes,
+    // screening results or QuickBooks connection fields. raj_desk,
+    // deal_status, project_log and open_work stay refused.
+    { env: "MCP_TOKEN_MALLI", holder: "malli", tools: ["occupancy_status", "rent_status", "lot_roll", "work_order_list", "dates_list", "work_order_status", "documents_and_dates", "applicant_queue", "ellery_desk", "rex_units", "qbo_sync_status"] },
     // Rex, AHTX only: vacant homes, access notes, never codes.
     { env: "MCP_TOKEN_REX", holder: "rex", tools: ["rex_units"] },
     // Ellery: her desk, dates and an applicant queue with no names.
