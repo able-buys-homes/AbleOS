@@ -13,6 +13,7 @@ import manitaDesk from "../routes/manita-desk.js";
 import rexUnits from "../routes/rex-units.js";
 import elleryDates from "../routes/ellery-dates.js";
 import deposits from "../routes/deposits.js";
+import depositAlerts from "../routes/deposit-alerts.js";
 import residentAccounts from "../routes/resident-accounts.js";
 import applicants from "../routes/applicants.js";
 import applications from "../routes/applications.js";
@@ -105,6 +106,7 @@ const ROUTES = {
     "rex-units": rexUnits,
     "ellery-dates": elleryDates,
     deposits,
+    "deposit-alerts": depositAlerts,
     "resident-accounts": residentAccounts,
     "rehab-stages": rehabStages,
     "reset-rehab": resetRehab,

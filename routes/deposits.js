@@ -89,6 +89,10 @@ async function buildDeposit(supabase, input, by, source) {
 
     let lot = null;
     let unit = null;
+    // A bad id must be a polite refusal, not a database error.
+    const UUID = /^[0-9a-f-]{36}$/i;
+    if (portfolio === "htm" && !UUID.test(String(input.lot_id || ""))) return { error: "Pick a lot on the rent roll" };
+    if (portfolio === "ahtx" && !UUID.test(String(input.unit_id || ""))) return { error: "Pick an AHTX door" };
     if (portfolio === "htm") {
         const { data, error } = await supabase
             .from("lots").select("id, lot_number, contract_rent, tenancy_started_at, archived_at")
@@ -171,16 +175,33 @@ export default async function handler(req, res) {
             if (error) throw error;
 
             const ids = (data ?? []).map((d) => d.id);
-            const [mailRes, dedRes, lotRes, unitRes] = await Promise.all([
+            const [mailRes, dedRes, lotRes, unitRes, propRes] = await Promise.all([
                 ids.length ? supabase.from("deposit_mail_log").select("*").in("deposit_id", ids) : { data: [] },
                 ids.length ? supabase.from("deposit_deductions").select("*").in("deposit_id", ids) : { data: [] },
-                supabase.from("lots").select("id, lot_number"),
-                supabase.from("property_units").select("*"),
+                supabase.from("lots").select("id, lot_number, contract_rent, archived_at"),
+                supabase.from("property_units").select("id, property_id, label, rent_amount"),
+                supabase.from("properties").select("id, name, portfolio"),
             ]);
-            for (const r of [mailRes, dedRes, lotRes, unitRes]) if (r.error) throw r.error;
+            for (const r of [mailRes, dedRes, lotRes, unitRes, propRes]) if (r.error) throw r.error;
 
             const lotNo = new Map((lotRes.data ?? []).map((l) => [l.id, l.lot_number]));
-            const unitName = new Map((unitRes.data ?? []).map((u) => [u.id, u.label || u.unit_label || u.name || "Door"]));
+            const propName = new Map((propRes.data ?? []).map((p) => [p.id, p.name]));
+            const ahtxProps = new Set((propRes.data ?? []).filter((p) => p.portfolio === "ahtx").map((p) => p.id));
+            const nameOf = (u) => [propName.get(u.property_id), u.label && u.label !== "Whole home" ? u.label : null].filter(Boolean).join(" · ") || "AHTX door";
+            const unitName = new Map((unitRes.data ?? []).map((u) => [u.id, nameOf(u)]));
+
+            // Pick lists for "Take a deposit" - only what this person may record.
+            const options = {
+                lots: mine.includes("htm")
+                    ? (lotRes.data ?? []).filter((l) => !l.archived_at)
+                        .sort((a, b) => (Number(a.lot_number) || 0) - (Number(b.lot_number) || 0))
+                        .map((l) => ({ id: l.id, lot_number: l.lot_number, contract_rent: l.contract_rent }))
+                    : [],
+                units: mine.includes("ahtx")
+                    ? (unitRes.data ?? []).filter((u) => ahtxProps.has(u.property_id))
+                        .map((u) => ({ id: u.id, name: nameOf(u), rent_amount: u.rent_amount }))
+                    : [],
+            };
             const today = todayCentral();
 
             const deposits = (data ?? []).map((d) => {
@@ -195,7 +216,7 @@ export default async function handler(req, res) {
                     clock: depositClock({ ...d, mail }, today),
                 };
             });
-            return res.status(200).json({ today, deposits });
+            return res.status(200).json({ today, deposits, options });
         }
 
         if (req.method !== "POST") {

@@ -580,6 +580,21 @@ export function ZoCollections() {
                 </div>
               </div>
 
+              <div className="p-4">
+                <div className="text-[16px] font-bold tracking-[-0.01em]">
+                  Deposits
+                </div>
+                <p className="mt-1 text-[13.5px] text-[#6C7484]">
+                  Record a security deposit, then the move-out, deductions and
+                  the mailed notice. The refund deadline is kept for you.
+                </p>
+                <div className="mt-3.5 flex flex-wrap gap-2.5">
+                  <Btn onClick={() => navigate("/zo/deposits")} variant="navy">
+                    Open deposits
+                  </Btn>
+                </div>
+              </div>
+
               {/* What he has already taken, under the button that takes them.
                   The form used to be a one-way door. */}
               <ApplicationsCard />

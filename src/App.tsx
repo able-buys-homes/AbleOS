@@ -22,6 +22,7 @@ import { ZoJobs } from "./pages/ZoJobs";
 import { ZoNotices } from "./pages/ZoNotices";
 import { ZoMap } from "./pages/ZoMap";
 import { ZoMoveIn } from "./pages/ZoMoveIn";
+import { Deposits } from "./pages/Deposits";
 import { ManitaCockpit } from "./pages/ManitaCockpit";
 import { MfaGate } from "./components/MfaGate";
 import { RajApprovals } from "./pages/RajApprovals";
@@ -81,6 +82,14 @@ export function App() {
             }
           />
           <Route
+            path="/ellery/deposits"
+            element={
+              <ProtectedRoute cockpit="ellery">
+                <Deposits portfolio="ahtx" />
+              </ProtectedRoute>
+            }
+          />
+          <Route
             path="/ellery/properties"
             element={
               <ProtectedRoute cockpit="ellery">
@@ -110,6 +119,23 @@ export function App() {
           {/* The residency application. Behind the same guard as the rent
               roll, because it collects dates of birth and licence numbers.
               It never sits on an open route. */}
+          {/* Security deposits (T-25). Zo = HTM, Ellery = AHTX, Raj = both. */}
+          <Route
+            path="/zo/deposits"
+            element={
+              <ProtectedRoute cockpit="zo">
+                <Deposits portfolio="htm" />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/raj/deposits"
+            element={
+              <ProtectedRoute cockpit="raj">
+                <Deposits portfolio="all" />
+              </ProtectedRoute>
+            }
+          />
           <Route
             path="/zo/move-in"
             element={

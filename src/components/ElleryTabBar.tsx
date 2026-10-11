@@ -6,12 +6,13 @@
 // learn.
 
 import { NavLink } from "react-router-dom";
-import { Building2Icon, FolderIcon, UsersIcon } from "lucide-react";
+import { Building2Icon, FolderIcon, UsersIcon, WalletIcon } from "lucide-react";
 
 const TABS = [
   { to: "/ellery/properties", label: "Properties", Icon: Building2Icon },
   { to: "/ellery/applicants", label: "Applicants", Icon: UsersIcon },
   { to: "/ellery", label: "Documents", Icon: FolderIcon },
+  { to: "/ellery/deposits", label: "Deposits", Icon: WalletIcon },
 ] as const;
 
 export function ElleryTabBar() {
