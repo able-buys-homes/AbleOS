@@ -152,6 +152,8 @@ type Inspection = {
   last_tenant: string | null;
   went_empty_approx: string | null;
   notes: string | null;
+  // Dev #54b: Zo's list. Older inspections have [] and use notes.
+  fix_items?: { text: string; cost: number | null }[] | null;
   est_cost_to_ready: string | number | null;
   days_to_ready: number | null;
   appliances: Record<string, boolean | string>;
@@ -669,7 +671,25 @@ export function UnitInspectionsCard({
                       </dl>
                     </div>
 
-                    {active.notes && (
+                    {(active.fix_items?.length ?? 0) > 0 && (
+                      <div className="rounded-2xl border border-[#DCE4EE] bg-white p-4">
+                        <p className="text-[14px] font-semibold uppercase tracking-wide text-[#7A8AA3]">
+                          Work needed
+                        </p>
+                        <ul className="mt-2 space-y-1.5">
+                          {active.fix_items!.map((it, i) => (
+                            <li className="flex justify-between gap-4 text-[16px]" key={i}>
+                              <span className="text-[#3A4A62]">{i + 1}. {it.text}</span>
+                              <span className="shrink-0 font-medium text-[#0F1E33]">
+                                {it.cost === null ? "-" : money(it.cost) ?? "$0"}
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {!(active.fix_items?.length) && active.notes && (
                       <div className="rounded-2xl border border-[#DCE4EE] bg-white p-4">
                         <p className="text-[14px] font-semibold uppercase tracking-wide text-[#7A8AA3]">
                           Work needed

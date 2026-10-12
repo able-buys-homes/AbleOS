@@ -77,6 +77,24 @@ function money(value) {
 }
 
 /**
+ * Dev #54b: Zo's "what needs fixing" list - [{ text, cost }]. Up to 50 items,
+ * 300 characters each; cost is optional and never negative.
+ */
+function fixItems(value) {
+    if (!Array.isArray(value)) return [];
+    return value
+        .slice(0, 50)
+        .map((it) => {
+            const cost = it?.cost === null || it?.cost === "" ? null : money(it?.cost);
+            return {
+                text: clean(it?.text, 300),
+                cost: cost === null ? null : Math.round(cost * 100) / 100,
+            };
+        })
+        .filter((it) => it.text);
+}
+
+/**
  * Checkbox groups are booleans, but a couple of fields riding along with them
  * are short free text - the water heater fuel and the A/C unit count. Keep
  * strings as strings; coerce everything else to a boolean.
@@ -313,6 +331,15 @@ export default async function handler(req, res) {
                 ? new Date(req.body.inspected_at)
                 : new Date();
 
+            // The list is the record. notes and est_cost_to_ready are written
+            // from it so Raj's card, the CSV and the MCP tools keep working.
+            const items = fixItems(req.body?.fix_items);
+            const priced = items.filter((it) => it.cost !== null);
+            const itemNotes = items
+                .map((it) => `- ${it.text}${it.cost !== null ? ` ($${it.cost})` : ""}`)
+                .join("\n")
+                .slice(0, 4000);
+
             const { data, error } = await supabase
                 .from("unit_inspections")
                 .insert({
@@ -336,8 +363,11 @@ export default async function handler(req, res) {
                     last_tenant: clean(req.body?.last_tenant, 120),
                     went_empty_approx: clean(req.body?.went_empty_approx, 120),
                     keys: flags(req.body?.keys),
-                    notes: clean(req.body?.notes, 4000),
-                    est_cost_to_ready: money(req.body?.est_cost_to_ready),
+                    notes: clean(req.body?.notes, 4000) || itemNotes || null,
+                    est_cost_to_ready: priced.length
+                        ? Math.round(priced.reduce((s, it) => s + it.cost, 0) * 100) / 100
+                        : money(req.body?.est_cost_to_ready),
+                    fix_items: items,
                     days_to_ready: whole(req.body?.days_to_ready),
                 })
                 .select("*")

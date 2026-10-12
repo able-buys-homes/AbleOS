@@ -9,11 +9,9 @@
 import React from "react";
 import { Link } from "react-router-dom";
 import {
-  CameraIcon,
-  CheckIcon,
   LoaderIcon,
+  PlusIcon,
   RotateCcwIcon,
-  TriangleAlertIcon,
   XIcon,
 } from "lucide-react";
 import { MobileScreenShell } from "../components/MobileScreenShell";
@@ -57,6 +55,23 @@ const STATUS_WORD: Record<string, string> = {
 
 type Flags = Record<string, boolean>;
 
+// Dev #54b (13 Oct 2026): "What needs fixing" is a list. Zo types one thing
+// and its cost, taps Add, repeats, then files. Bedrooms, bathrooms, the
+// occupancy question, ready-by date and photos were taken off the form.
+type FixItem = { text: string; cost: number | null };
+
+/** "$1,200.50" / "1200" -> 1200.5. Blank -> null. Anything else -> NaN. */
+function toCost(raw: string): number | null {
+  const s = raw.replace(/[$,\s]/g, "");
+  if (!s) return null;
+  const n = Number(s);
+  return Number.isFinite(n) && n >= 0 ? Math.round(n * 100) / 100 : NaN;
+}
+
+function usd(n: number) {
+  return `$${n.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+}
+
 type Draft = {
   unit_number: string;
   inspected_at: string;
@@ -79,6 +94,7 @@ type Draft = {
   est_cost_to_ready: string;
   days_to_ready: string;
   ready_by: string;
+  fix_items: FixItem[];
 };
 
 function today() {
@@ -110,6 +126,7 @@ function emptyDraft(): Draft {
     est_cost_to_ready: "",
     days_to_ready: "",
     ready_by: "",
+    fix_items: [],
   };
 }
 
@@ -231,7 +248,11 @@ export function ZoInspect() {
   const [draft, setDraft] = React.useState<Draft>(() => {
     try {
       const saved = localStorage.getItem(DRAFT_KEY);
-      return saved ? { ...emptyDraft(), ...JSON.parse(saved) } : emptyDraft();
+      if (!saved) return emptyDraft();
+      const d: Draft = { ...emptyDraft(), ...JSON.parse(saved) };
+      if (!Array.isArray(d.fix_items)) d.fix_items = [];
+      if (!d.unit_number) d.inspected_at = today();
+      return d;
     } catch {
       return emptyDraft();
     }
@@ -242,8 +263,9 @@ export function ZoInspect() {
   const [problem, setProblem] = React.useState("");
   const [filedId, setFiledId] = React.useState<string | null>(null);
 
-  const conditionInput = React.useRef<HTMLInputElement>(null);
-  const marketingInput = React.useRef<HTMLInputElement>(null);
+  const [newText, setNewText] = React.useState("");
+  const [newCost, setNewCost] = React.useState("");
+  const newTextInput = React.useRef<HTMLInputElement>(null);
 
   // Saved on every keystroke. If he backgrounds the app or loses signal
   // mid-unit, the walk is not lost.
@@ -259,20 +281,32 @@ export function ZoInspect() {
     setDraft((d) => ({ ...d, [key]: value }));
   }
 
-  function addPhotos(
-    files: FileList | null,
-    photoSet: "condition" | "marketing",
-  ) {
-    if (!files?.length) return;
-    setQueue((q) => [
-      ...q,
-      ...Array.from(files).map((file) => ({
-        id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-        file,
-        set: photoSet,
-        state: "waiting" as const,
-      })),
-    ]);
+  function addItem() {
+    const text = newText.trim();
+    if (!text) {
+      setProblem("Type what needs fixing first.");
+      return;
+    }
+    const cost = toCost(newCost);
+    if (Number.isNaN(cost)) {
+      setProblem("Cost must be a number, like 150.");
+      return;
+    }
+    setProblem("");
+    setDraft((d) => ({
+      ...d,
+      fix_items: [...d.fix_items, { text: text.slice(0, 300), cost }],
+    }));
+    setNewText("");
+    setNewCost("");
+    newTextInput.current?.focus();
+  }
+
+  function removeItem(index: number) {
+    setDraft((d) => ({
+      ...d,
+      fix_items: d.fix_items.filter((_, i) => i !== index),
+    }));
   }
 
   async function uploadOne(inspectionId: string, item: Queued) {
@@ -353,16 +387,23 @@ export function ZoInspect() {
       return;
     }
 
-    if (draft.status !== "rent_ready" && draft.notes.trim().length < 3) {
-      setProblem("Write what needs fixing.");
-      window.scrollTo({ top: 0, behavior: "smooth" });
-      return;
+    const items = [...draft.fix_items];
+    if (newText.trim()) {
+      const cost = toCost(newCost);
+      if (Number.isNaN(cost)) {
+        setProblem("Cost must be a number, like 150.");
+        return;
+      }
+      items.push({ text: newText.trim().slice(0, 300), cost });
+      setDraft((d) => ({ ...d, fix_items: items }));
+      setNewText("");
+      setNewCost("");
     }
 
-    // "Ready to rent by" is stored as days from the inspection date.
-    const readyDays = draft.ready_by
-      ? Math.max(0, Math.round((new Date(draft.ready_by + "T12:00:00").getTime() - new Date(draft.inspected_at + "T12:00:00").getTime()) / 86400000))
-      : null;
+    if (draft.status !== "rent_ready" && items.length === 0) {
+      setProblem("Add at least one thing that needs fixing.");
+      return;
+    }
 
     setSaving(true);
     setProblem("");
@@ -374,25 +415,7 @@ export function ZoInspect() {
           unit_number: draft.unit_number,
           inspected_at: draft.inspected_at,
           status: draft.status,
-          beds: draft.beds,
-          baths_full: draft.baths_full,
-          baths_half: draft.baths_half,
-          approx_sqft: draft.approx_sqft,
-          home_width: draft.home_width,
-          appliances: {
-            ...draft.appliances,
-            water_heater_fuel: draft.water_heater_fuel,
-            ac_units: draft.ac_units,
-          },
-          systems: draft.systems,
-          condition: draft.condition,
-          occupancy_flags: draft.occupancy_flags,
-          keys: draft.keys,
-          last_tenant: draft.last_tenant,
-          went_empty_approx: draft.went_empty_approx,
-          notes: draft.notes,
-          est_cost_to_ready: draft.est_cost_to_ready,
-          days_to_ready: readyDays,
+          fix_items: items,
         }),
       });
 
@@ -414,6 +437,8 @@ export function ZoInspect() {
 
   function startNextUnit() {
     setDraft(emptyDraft());
+    setNewText("");
+    setNewCost("");
     setQueue([]);
     setFiledId(null);
     setProblem("");
@@ -425,8 +450,7 @@ export function ZoInspect() {
     window.scrollTo({ top: 0 });
   }
 
-  const occupied = Object.values(draft.occupancy_flags).some(Boolean);
-  const pendingPhotos = queue.filter((p) => p.state !== "done").length;
+  const totalCost = draft.fix_items.reduce((sum, it) => sum + (it.cost ?? 0), 0);
   const failedPhotos = queue.filter((p) => p.state === "failed").length;
   const doneCount = queue.filter((p) => p.state === "done").length;
   const uploadsRunning = queue.some(
@@ -575,180 +599,85 @@ export function ZoInspect() {
               </select>
             </label>
 
-            <div className="grid grid-cols-2 gap-3">
-              <Field
-                label="Bedrooms"
-                mode="numeric"
-                onChange={(v) => set("beds", v)}
-                value={draft.beds}
-              />
-              <Field
-                label="Bathrooms"
-                mode="numeric"
-                onChange={(v) => set("baths_full", v)}
-                value={draft.baths_full}
-              />
-            </div>
-
-            <label className="flex flex-col">
-              <span className="mb-1 text-[13px] font-bold uppercase tracking-[0.07em] text-[#7A8AA3]">
-                Anyone still living there?
-              </span>
-              <select
-                className="w-full rounded-xl border border-[#DCE4EE] bg-white px-3 py-3 text-[17px] text-[#0F1E33] focus:border-[#418BFF] focus:outline-none"
-                onChange={(e) => set("occupancy_flags", e.target.value === "yes" ? { belongings: true } : {})}
-                value={occupied ? "yes" : "no"}
-              >
-                <option value="no">No - it is empty</option>
-                <option value="yes">Yes - belongings, food or mail inside</option>
-              </select>
-            </label>
-            {occupied && (
-              <p className="flex items-start gap-2 rounded-xl border-l-4 border-[#D95717] bg-[#FFE9DC] px-3 py-2.5 text-[15px] font-medium leading-snug text-[#8A3A10]">
-                <TriangleAlertIcon className="mt-0.5 shrink-0" size={16} strokeWidth={2.5} />
-                Take a picture, leave everything where it is, and text Raj before anyone else goes in.
-              </p>
-            )}
           </div>
         </Section>
 
         <Section title="What needs fixing?">
           <div className="space-y-3 p-4">
-            <textarea
-              className="w-full rounded-xl border border-[#DCE4EE] px-3 py-3 text-[17px] text-[#0F1E33] placeholder:text-[#A3B0C0] focus:border-[#418BFF] focus:outline-none"
-              onChange={(e) => set("notes", e.target.value)}
-              placeholder={draft.status === "rent_ready" ? "Anything worth noting (optional)" : "e.g. No hot water, back door won't lock, soft floor in the kitchen"}
-              rows={4}
-              value={draft.notes}
-            />
-            <div className="grid grid-cols-2 gap-3">
-              <Field
-                label="Cost to fix $"
-                mode="decimal"
-                onChange={(v) => set("est_cost_to_ready", v)}
-                value={draft.est_cost_to_ready}
-              />
-              <Field
-                label="Ready to rent by"
-                min={draft.inspected_at}
-                onChange={(v) => set("ready_by", v)}
-                type="date"
-                value={draft.ready_by}
-              />
-            </div>
-            <p className="text-[15px] text-[#8291A5]">
-              Filed as {profile?.full_name ?? "you"}.
-            </p>
-          </div>
-        </Section>
-
-        {/* Two sets, two buttons, two colours. Not a dropdown he can miss. */}
-        <Section title="Photos — two separate sets">
-          <div className="space-y-4 p-4">
-            <div className="rounded-2xl border-2 border-[#1E3A8A] p-4">
-              <p className="text-[14px] font-bold uppercase tracking-wide text-[#1E3A8A]">
-                Set 1 — Condition. Every unit.
-              </p>
-              <input
-                accept="image/*"
-                className="hidden"
-                multiple
-                onChange={(e) => addPhotos(e.target.files, "condition")}
-                ref={conditionInput}
-                type="file"
-              />
-              <button
-                className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-[#1E3A8A] px-4 py-4 text-[17px] font-semibold text-white"
-                onClick={() => conditionInput.current?.click()}
-                type="button"
-              >
-                <CameraIcon size={18} strokeWidth={2.5} />
-                Add condition photos
-              </button>
-            </div>
-
-            <div className="rounded-2xl border-2 border-[#16A34A] bg-[#F1FCF8] p-4">
-              <p className="text-[14px] font-bold uppercase tracking-wide text-[#0F5C2C]">
-                Set 2 — Marketing. Rent ready only.
-              </p>
-              <p className="mt-1 text-[15px] text-[#3A4A62]">
-                These get posted publicly.
-              </p>
-              <input
-                accept="image/*"
-                className="hidden"
-                multiple
-                onChange={(e) => addPhotos(e.target.files, "marketing")}
-                ref={marketingInput}
-                type="file"
-              />
-              <button
-                className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-[#16A34A] px-4 py-4 text-[17px] font-semibold text-white"
-                onClick={() => marketingInput.current?.click()}
-                type="button"
-              >
-                <CameraIcon size={18} strokeWidth={2.5} />
-                Add marketing photos
-              </button>
-            </div>
-
-            {queue.length > 0 && (
-              <ul className="space-y-1.5">
-                {queue.map((p) => (
+            {draft.fix_items.length > 0 && (
+              <ul className="space-y-2">
+                {draft.fix_items.map((it, i) => (
                   <li
-                    className="flex items-center gap-2.5 rounded-xl border border-[#DCE4EE] px-3 py-2.5"
-                    key={p.id}
+                    className="flex items-start gap-3 rounded-xl border border-[#DCE4EE] bg-[#F8FAFC] px-3 py-2.5"
+                    key={`${i}-${it.text}`}
                   >
-                    <span
-                      className={`shrink-0 rounded-full px-2 py-0.5 text-[12px] font-bold uppercase ${
-                        p.set === "marketing"
-                          ? "bg-[#16A34A] text-white"
-                          : "bg-[#1E3A8A] text-white"
-                      }`}
+                    <span className="shrink-0 text-[15px] font-bold text-[#7A8AA3]">{i + 1}.</span>
+                    <span className="min-w-0 flex-1 break-words text-[16px] text-[#0F1E33]">{it.text}</span>
+                    <span className="shrink-0 text-[16px] font-semibold text-[#0F1E33]">
+                      {it.cost === null ? "-" : usd(it.cost)}
+                    </span>
+                    <button
+                      aria-label={`Remove ${it.text}`}
+                      className="shrink-0 pt-0.5 text-[#A3B0C0] hover:text-[#DC2626]"
+                      onClick={() => removeItem(i)}
+                      type="button"
                     >
-                      {p.set}
-                    </span>
-                    <span className="min-w-0 flex-1 truncate text-[15px] text-[#1A1A2E]">
-                      {p.file.name}
-                    </span>
-                    {p.state === "uploading" && (
-                      <LoaderIcon
-                        className="animate-spin shrink-0 text-[#418BFF]"
-                        size={16}
-                      />
-                    )}
-                    {p.state === "done" && (
-                      <CheckIcon
-                        className="shrink-0 text-[#16A34A]"
-                        size={16}
-                        strokeWidth={3}
-                      />
-                    )}
-                    {p.state === "failed" && (
-                      <span className="shrink-0 text-[13px] font-semibold text-[#DC2626]">
-                        failed
-                      </span>
-                    )}
-                    {p.state === "waiting" && (
-                      <button
-                        aria-label="Remove"
-                        className="shrink-0 text-[#A3B0C0]"
-                        onClick={() =>
-                          setQueue((q) => q.filter((x) => x.id !== p.id))
-                        }
-                        type="button"
-                      >
-                        <XIcon size={16} />
-                      </button>
-                    )}
+                      <XIcon size={18} />
+                    </button>
                   </li>
                 ))}
               </ul>
             )}
 
-            <p className="text-[14px] text-[#8291A5]">
-              Photos upload after you file. A photo is not required — if you
-              can&apos;t get a usable shot, still file the record.
+            <label className="flex flex-col">
+              <span className="mb-1 text-[13px] font-bold uppercase tracking-[0.07em] text-[#7A8AA3]">
+                What&apos;s wrong
+              </span>
+              <input
+                className="w-full rounded-xl border border-[#DCE4EE] bg-white px-3 py-3 text-[17px] text-[#0F1E33] placeholder:text-[#A3B0C0] focus:border-[#418BFF] focus:outline-none"
+                maxLength={300}
+                onChange={(e) => setNewText(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    addItem();
+                  }
+                }}
+                placeholder="e.g. Back door won't lock"
+                ref={newTextInput}
+                value={newText}
+              />
+            </label>
+            <div className="flex items-end gap-3">
+              <div className="min-w-0 flex-1">
+                <Field
+                  label="Cost to fix $"
+                  mode="decimal"
+                  onChange={setNewCost}
+                  placeholder="e.g. 150"
+                  value={newCost}
+                />
+              </div>
+              <button
+                className="flex shrink-0 items-center gap-1.5 rounded-xl bg-[#1E3A8A] px-5 py-3 text-[17px] font-semibold text-white"
+                onClick={addItem}
+                type="button"
+              >
+                <PlusIcon size={18} strokeWidth={2.5} />
+                Add
+              </button>
+            </div>
+
+            {draft.fix_items.length > 0 && (
+              <p className="flex justify-between rounded-xl bg-[#EEF4FF] px-3 py-2.5 text-[16px] font-semibold text-[#1E3A8A]">
+                <span>
+                  {draft.fix_items.length} item{draft.fix_items.length === 1 ? "" : "s"}
+                </span>
+                <span>Total {usd(totalCost)}</span>
+              </p>
+            )}
+            <p className="text-[15px] text-[#8291A5]">
+              Filed as {profile?.full_name ?? "you"}.
             </p>
           </div>
         </Section>
@@ -768,7 +697,7 @@ export function ZoInspect() {
             </p>
             <p className="text-[13px] text-[#8291A5]">
               {draft.status ? STATUS_WORD[draft.status] : "No status yet"}
-              {pendingPhotos > 0 ? ` · ${pendingPhotos} photos queued` : ""}
+              {draft.fix_items.length > 0 ? ` · ${draft.fix_items.length} to fix · ${usd(totalCost)}` : ""}
             </p>
           </div>
           <button
