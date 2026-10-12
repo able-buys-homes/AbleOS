@@ -216,8 +216,18 @@ function when(iso: string) {
   });
 }
 
+/**
+ * Dev #54: inspections filed with the short form carry no checklists. An
+ * empty checklist is "not asked", not "16 things failed" - so it shows no
+ * problem count and no tick lists, only what Zo wrote.
+ */
+function hasChecklist(row: Inspection) {
+  return Object.keys(row.systems ?? {}).length + Object.keys(row.condition ?? {}).length > 0;
+}
+
 /** Unticked systems and condition items are the problems. */
 function problems(row: Inspection) {
+  if (!hasChecklist(row)) return 0;
   const count = (group: Record<string, boolean | string>, expected: number) => {
     const ticked = Object.entries(group).filter(
       ([, v]) => typeof v === "boolean" && v,
@@ -670,6 +680,7 @@ export function UnitInspectionsCard({
                       </div>
                     )}
 
+                    {hasChecklist(active) && (<>
                     <ChecklistBlock
                       extras={[
                         ["Water heater", active.appliances?.water_heater_fuel],
@@ -696,6 +707,7 @@ export function UnitInspectionsCard({
                       items={KEY_LABELS}
                       title="Keys"
                     />
+                    </>)}
 
                     {/* Sets stay visually apart here too. */}
                     {(["condition", "marketing"] as const).map((set) => {

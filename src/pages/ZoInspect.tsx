@@ -44,51 +44,16 @@ const STATUSES = [
   },
 ] as const;
 
-const APPLIANCES = [
-  ["stove", "Stove / range"],
-  ["refrigerator", "Refrigerator"],
-  ["dishwasher", "Dishwasher"],
-  ["washer_dryer_hookups", "Washer / dryer hookups"],
-  ["water_heater", "Water heater"],
-  ["hvac", "HVAC or Mini Split A/C units"],
-] as const;
-
-const SYSTEMS = [
-  ["power_on", "Power is on at the panel", ""],
-  ["water_on", "Water is on — run every faucet", ""],
-  ["hot_water", "Hot water works", ""],
-  ["toilets", "Every toilet flushes and refills", ""],
-  ["heat", "Heat runs", ""],
-  ["ac", "Air conditioning runs", ""],
-  ["no_leaks", "No leaks under sinks or at the water heater", ""],
-  ["smoke_detectors", "Smoke detectors are there and beep when tested", ""],
-] as const;
-
-const CONDITION = [
-  ["floors", "Floors are solid", "No soft spots or holes"],
-  ["walls", "Walls and ceilings are clean", "No water stains or holes"],
-  ["windows", "Every window is there, opens, and locks", ""],
-  ["doors", "Every door is there, latches, and locks", ""],
-  ["roof", "No roof leaks", "Stains on the ceiling mean a leak"],
-  ["skirting", "Skirting is intact all the way around", ""],
-  ["steps", "Steps and handrails are solid at both doors", ""],
-  ["smell", "No smell of mold, smoke, or animals", ""],
-] as const;
-
-// These keys must match the generated occupancy_flagged column in the database.
-const OCCUPANCY = [
-  ["belongings", "Belongings left behind"],
-  ["food", "Food in the fridge or cabinets"],
-  ["power_on", "Power still on or meter running"],
-  ["water_on", "Water still on"],
-  ["mail", "Mail or paperwork left inside"],
-] as const;
-
-const KEYS = [
-  ["have_key", "I have a key to this unit"],
-  ["no_key", "No key — needs a re-key"],
-  ["changed_locks", "I changed the locks today"],
-] as const;
+// Dev #54 (12 Oct 2026): the checklists (appliances, systems, condition,
+// occupancy signs, keys) were replaced by a short form - Zo found them
+// overwhelming. Old inspections keep what they recorded. "Anyone living
+// there?" still sets occupancy_flags.belongings, a key the database's
+// occupancy_flagged column reads, so Raj's flag keeps working.
+const STATUS_WORD: Record<string, string> = {
+  rent_ready: "Rent ready",
+  needs_work: "Needs work",
+  not_habitable: "Not habitable",
+};
 
 type Flags = Record<string, boolean>;
 
@@ -113,6 +78,7 @@ type Draft = {
   notes: string;
   est_cost_to_ready: string;
   days_to_ready: string;
+  ready_by: string;
 };
 
 function today() {
@@ -143,6 +109,7 @@ function emptyDraft(): Draft {
     notes: "",
     est_cost_to_ready: "",
     days_to_ready: "",
+    ready_by: "",
   };
 }
 
@@ -205,46 +172,6 @@ function Section({
       </h2>
       <div className="divide-y divide-[#F1F5F9]">{children}</div>
     </section>
-  );
-}
-
-function Check({
-  on,
-  label,
-  hint,
-  onClick,
-}: {
-  on: boolean;
-  label: string;
-  hint?: string;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      className="flex w-full items-start gap-3 px-4 py-3.5 text-left active:bg-[#F8FAFC]"
-      onClick={onClick}
-      type="button"
-    >
-      <span
-        className={`mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-md border-2 transition-colors ${
-          on
-            ? "border-[#16A34A] bg-[#16A34A] text-white"
-            : "border-[#CBD5E1] bg-white"
-        }`}
-      >
-        {on && <CheckIcon size={15} strokeWidth={3} />}
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="block text-[17px] leading-snug text-[#1A1A2E]">
-          {label}
-        </span>
-        {hint ? (
-          <span className="mt-0.5 block text-[14px] text-[#8291A5]">
-            {hint}
-          </span>
-        ) : null}
-      </span>
-    </button>
   );
 }
 
@@ -330,24 +257,6 @@ export function ZoInspect() {
 
   function set<K extends keyof Draft>(key: K, value: Draft[K]) {
     setDraft((d) => ({ ...d, [key]: value }));
-  }
-
-  function toggle(group: keyof Draft, key: string) {
-    setDraft((d) => {
-      const current = d[group] as Flags;
-      return { ...d, [group]: { ...current, [key]: !current[key] } };
-    });
-  }
-
-  /**
-   * Keys are mutually exclusive - having a key and needing a re-key cannot
-   * both be true. Picking one clears the rest.
-   */
-  function pickOne(group: keyof Draft, key: string) {
-    setDraft((d) => ({
-      ...d,
-      [group]: (d[group] as Flags)?.[key] ? {} : { [key]: true },
-    }));
   }
 
   function addPhotos(
@@ -444,6 +353,17 @@ export function ZoInspect() {
       return;
     }
 
+    if (draft.status !== "rent_ready" && draft.notes.trim().length < 3) {
+      setProblem("Write what needs fixing.");
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
+
+    // "Ready to rent by" is stored as days from the inspection date.
+    const readyDays = draft.ready_by
+      ? Math.max(0, Math.round((new Date(draft.ready_by + "T12:00:00").getTime() - new Date(draft.inspected_at + "T12:00:00").getTime()) / 86400000))
+      : null;
+
     setSaving(true);
     setProblem("");
 
@@ -472,7 +392,7 @@ export function ZoInspect() {
           went_empty_approx: draft.went_empty_approx,
           notes: draft.notes,
           est_cost_to_ready: draft.est_cost_to_ready,
-          days_to_ready: draft.days_to_ready,
+          days_to_ready: readyDays,
         }),
       });
 
@@ -504,12 +424,6 @@ export function ZoInspect() {
     }
     window.scrollTo({ top: 0 });
   }
-
-  const checkedCount =
-    Object.values(draft.appliances).filter(Boolean).length +
-    Object.values(draft.systems).filter(Boolean).length +
-    Object.values(draft.condition).filter(Boolean).length +
-    Object.values(draft.keys).filter(Boolean).length;
 
   const occupied = Object.values(draft.occupancy_flags).some(Boolean);
   const pendingPhotos = queue.filter((p) => p.state !== "done").length;
@@ -604,7 +518,7 @@ export function ZoInspect() {
         <>
           <ZoScreenHeader
             eyebrow="Hometown Meadows MHP"
-            subtitle="Walk the home, tick what is there, photograph what is not."
+            subtitle="A few quick answers. Write what needs fixing in your own words."
             title="Unit Inspection"
           />
         </>
@@ -643,40 +557,25 @@ export function ZoInspect() {
           </div>
         </section>
 
-        <Section title="Status — pick one">
-          {STATUSES.map((s) => (
-            <button
-              className="flex w-full items-start gap-3 px-4 py-4 text-left active:bg-[#F8FAFC]"
-              key={s.key}
-              onClick={() => set("status", s.key)}
-              type="button"
-            >
-              <span
-                className={`mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-full border-2 ${
-                  draft.status === s.key
-                    ? "border-[#1E3A8A] bg-[#1E3A8A]"
-                    : "border-[#CBD5E1] bg-white"
-                }`}
-              >
-                {draft.status === s.key && (
-                  <span className="h-2 w-2 rounded-full bg-white" />
-                )}
-              </span>
-              <span>
-                <span className="block text-[17px] font-bold text-[#1A1A2E]">
-                  {s.label}
-                </span>
-                <span className="mt-0.5 block text-[15px] text-[#8291A5]">
-                  {s.hint}
-                </span>
-              </span>
-            </button>
-          ))}
-        </Section>
-
-        <Section title="Unit specs — walk it, don't guess">
+        <Section title="The unit">
           <div className="space-y-3 p-4">
-            <div className="grid grid-cols-3 gap-2">
+            <label className="flex flex-col">
+              <span className="mb-1 text-[13px] font-bold uppercase tracking-[0.07em] text-[#7A8AA3]">Status</span>
+              <select
+                className="w-full rounded-xl border border-[#DCE4EE] bg-white px-3 py-3 text-[17px] text-[#0F1E33] focus:border-[#418BFF] focus:outline-none"
+                onChange={(e) => set("status", e.target.value)}
+                value={draft.status}
+              >
+                <option value="">Pick one</option>
+                {STATUSES.map((st) => (
+                  <option key={st.key} value={st.key}>
+                    {STATUS_WORD[st.key]} - {st.hint}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <div className="grid grid-cols-2 gap-3">
               <Field
                 label="Bedrooms"
                 mode="numeric"
@@ -684,135 +583,63 @@ export function ZoInspect() {
                 value={draft.beds}
               />
               <Field
-                label="Full baths"
+                label="Bathrooms"
                 mode="numeric"
                 onChange={(v) => set("baths_full", v)}
                 value={draft.baths_full}
               />
-              <Field
-                label="Half baths"
-                mode="numeric"
-                onChange={(v) => set("baths_half", v)}
-                value={draft.baths_half}
-              />
             </div>
+
+            <label className="flex flex-col">
+              <span className="mb-1 text-[13px] font-bold uppercase tracking-[0.07em] text-[#7A8AA3]">
+                Anyone still living there?
+              </span>
+              <select
+                className="w-full rounded-xl border border-[#DCE4EE] bg-white px-3 py-3 text-[17px] text-[#0F1E33] focus:border-[#418BFF] focus:outline-none"
+                onChange={(e) => set("occupancy_flags", e.target.value === "yes" ? { belongings: true } : {})}
+                value={occupied ? "yes" : "no"}
+              >
+                <option value="no">No - it is empty</option>
+                <option value="yes">Yes - belongings, food or mail inside</option>
+              </select>
+            </label>
+            {occupied && (
+              <p className="flex items-start gap-2 rounded-xl border-l-4 border-[#D95717] bg-[#FFE9DC] px-3 py-2.5 text-[15px] font-medium leading-snug text-[#8A3A10]">
+                <TriangleAlertIcon className="mt-0.5 shrink-0" size={16} strokeWidth={2.5} />
+                Take a picture, leave everything where it is, and text Raj before anyone else goes in.
+              </p>
+            )}
+          </div>
+        </Section>
+
+        <Section title="What needs fixing?">
+          <div className="space-y-3 p-4">
+            <textarea
+              className="w-full rounded-xl border border-[#DCE4EE] px-3 py-3 text-[17px] text-[#0F1E33] placeholder:text-[#A3B0C0] focus:border-[#418BFF] focus:outline-none"
+              onChange={(e) => set("notes", e.target.value)}
+              placeholder={draft.status === "rent_ready" ? "Anything worth noting (optional)" : "e.g. No hot water, back door won't lock, soft floor in the kitchen"}
+              rows={4}
+              value={draft.notes}
+            />
             <div className="grid grid-cols-2 gap-3">
               <Field
-                label="Approx. sq ft"
-                mode="numeric"
-                onChange={(v) => set("approx_sqft", v)}
-                value={draft.approx_sqft}
+                label="Cost to fix $"
+                mode="decimal"
+                onChange={(v) => set("est_cost_to_ready", v)}
+                value={draft.est_cost_to_ready}
               />
               <Field
-                label="Single or double wide"
-                onChange={(v) => set("home_width", v)}
-                value={draft.home_width}
+                label="Ready to rent by"
+                min={draft.inspected_at}
+                onChange={(v) => set("ready_by", v)}
+                type="date"
+                value={draft.ready_by}
               />
             </div>
-          </div>
-        </Section>
-
-        <Section title="Appliances that stay">
-          {APPLIANCES.map(([key, label]) => (
-            <Check
-              key={key}
-              label={label}
-              on={Boolean(draft.appliances[key])}
-              onClick={() => toggle("appliances", key)}
-            />
-          ))}
-          <div className="grid grid-cols-2 gap-3 p-4">
-            <Field
-              label="Water heater — gas or electric"
-              onChange={(v) => set("water_heater_fuel", v)}
-              value={draft.water_heater_fuel}
-            />
-            <Field
-              label="How many A/C units"
-              mode="numeric"
-              onChange={(v) => set("ac_units", v)}
-              value={draft.ac_units}
-            />
-          </div>
-        </Section>
-
-        <Section title="Systems — test them, don't assume">
-          {SYSTEMS.map(([key, label, hint]) => (
-            <Check
-              hint={hint}
-              key={key}
-              label={label}
-              on={Boolean(draft.systems[key])}
-              onClick={() => toggle("systems", key)}
-            />
-          ))}
-        </Section>
-
-        <Section title="Condition">
-          {CONDITION.map(([key, label, hint]) => (
-            <Check
-              hint={hint}
-              key={key}
-              label={label}
-              on={Boolean(draft.condition[key])}
-              onClick={() => toggle("condition", key)}
-            />
-          ))}
-        </Section>
-
-        <Section title="Signs someone was living here">
-          {OCCUPANCY.map(([key, label]) => (
-            <Check
-              key={key}
-              label={label}
-              on={Boolean(draft.occupancy_flags[key])}
-              onClick={() => toggle("occupancy_flags", key)}
-            />
-          ))}
-          <div className="p-4">
-            {/* Always visible - he needs this before he touches anything, not
-                after. Emphasised once something is actually ticked. */}
-            <p
-              className={`mb-3 flex items-start gap-2 rounded-xl border-l-4 px-3 py-2.5 text-[15px] font-medium leading-snug ${
-                occupied
-                  ? "border-[#D95717] bg-[#FFE9DC] text-[#8A3A10]"
-                  : "border-[#D95717] bg-[#FFF8F4] text-[#733614]"
-              }`}
-            >
-                <TriangleAlertIcon
-                  className="mt-0.5 shrink-0"
-                  size={16}
-                  strokeWidth={2.5}
-                />
-                If you check anything above: take a picture of it, leave
-                everything exactly where it is, and text Raj before anyone else
-                goes in. Do not clean the unit out.
+            <p className="text-[15px] text-[#8291A5]">
+              Filed as {profile?.full_name ?? "you"}.
             </p>
-            <div className="space-y-3">
-              <Field
-                label="Last tenant, if you know"
-                onChange={(v) => set("last_tenant", v)}
-                value={draft.last_tenant}
-              />
-              <Field
-                label="About when it went empty"
-                onChange={(v) => set("went_empty_approx", v)}
-                placeholder="e.g. sometime in June"
-                value={draft.went_empty_approx}
-              />
-            </div>
           </div>
-        </Section>
-
-        <Section title="Keys">
-          {KEYS.map(([key, label]) => (
-            <Check
-              key={key}
-              label={label}
-              on={Boolean(draft.keys[key])}
-              onClick={() => pickOne("keys", key)}
-            />
-          ))}
         </Section>
 
         {/* Two sets, two buttons, two colours. Not a dropdown he can miss. */}
@@ -926,36 +753,6 @@ export function ZoInspect() {
           </div>
         </Section>
 
-        <Section title="Work needed & notes">
-          <div className="space-y-3 p-4">
-            <label className="block">
-              <textarea
-                className="w-full rounded-xl border border-[#DCE4EE] px-3 py-3 text-[17px] text-[#0F1E33] placeholder:text-[#A3B0C0] focus:border-[#418BFF] focus:outline-none"
-                onChange={(e) => set("notes", e.target.value)}
-                placeholder="What needs doing before someone can move in?"
-                rows={4}
-                value={draft.notes}
-              />
-            </label>
-            <div className="grid grid-cols-2 gap-3">
-              <Field
-                label="Cost to make ready $"
-                mode="decimal"
-                onChange={(v) => set("est_cost_to_ready", v)}
-                value={draft.est_cost_to_ready}
-              />
-              <Field
-                label="Days to make ready"
-                mode="numeric"
-                onChange={(v) => set("days_to_ready", v)}
-                value={draft.days_to_ready}
-              />
-            </div>
-            <p className="text-[15px] text-[#8291A5]">
-              Filed as {profile?.full_name ?? "you"}.
-            </p>
-          </div>
-        </Section>
       </div>
 
       {/* Sticky footer, same as the standalone form */}
@@ -970,7 +767,7 @@ export function ZoInspect() {
               {draft.unit_number ? `Unit ${draft.unit_number}` : "No unit yet"}
             </p>
             <p className="text-[13px] text-[#8291A5]">
-              {checkedCount} boxes checked
+              {draft.status ? STATUS_WORD[draft.status] : "No status yet"}
               {pendingPhotos > 0 ? ` · ${pendingPhotos} photos queued` : ""}
             </p>
           </div>
