@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Able Ops Cockpit</title>
+<!--
+  Able Ops Cockpit - Raj's desk (Dev #27, 11 Oct 2026).
+  Live tiles read Able OS through the "Able OS Cockpit" integration
+  (GET /api/mcp?tool=...). Malli adds the key server-side: there is NO key,
+  token or password in this page, and Able OS never returns names.
+  The scoreboard, Morby gates and pipeline still come from Malli's own
+  Able-Ops-Cockpit database (pipeline labelled "manual").
+
+  When pasting into Malli, the page's tool_grants must include BOTH:
+    "database_query"  and  "integration_call"
+-->
+<style>
+:root {
+  --bg: #0D0D0F; --card: #111112; --card2: #161617; --border: #25221D;
+  --ink: #F5F5F4; --muted: #9CA3AF; --green: #B8E986; --purple: #D580FF;
+  --warn: #F59E0B; --red: #EF4444;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  background: var(--bg); color: var(--ink); line-height: 1.45;
+  padding: 1rem 1rem 2.5rem; max-width: 32rem; margin: 0 auto;
+}
+header { margin-bottom: 1.25rem; padding-bottom: 0.85rem; border-bottom: 1px solid var(--border); }
+h1 { font-size: 1.35rem; font-weight: 700; letter-spacing: -0.02em; }
+.sub { font-size: 0.75rem; color: var(--muted); margin-top: 0.35rem; }
+.row { display: flex; gap: 0.65rem; flex-wrap: wrap; margin-bottom: 0.75rem; align-items: center; }
+.btn { font-size: 0.72rem; font-weight: 600; padding: 0.5rem 0.75rem; border-radius: 8px;
+  border: 1px solid var(--border); background: var(--card2); color: var(--ink); cursor: pointer; }
+.btn.primary { background: var(--green); color: #0D0D0F; border-color: transparent; }
+.card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 1rem; margin-bottom: 0.65rem; }
+.card h2 { font-size: 0.65rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em;
+  color: var(--purple); margin-bottom: 0.5rem; display: flex; justify-content: space-between; gap: 0.5rem; }
+.card h2 .asof { color: var(--muted); font-weight: 500; text-transform: none; letter-spacing: 0; }
+.big { font-size: 1.6rem; font-weight: 700; letter-spacing: -0.02em; }
+.big small { font-size: 0.8rem; font-weight: 500; color: var(--muted); margin-left: 0.3rem; }
+.line { font-size: 0.78rem; color: var(--muted); margin-top: 0.25rem; }
+.metric { display: flex; justify-content: space-between; align-items: baseline; padding: 0.45rem 0;
+  border-bottom: 1px solid var(--border); font-size: 0.85rem; }
+.metric:last-child { border-bottom: none; }
+.metric .val { font-weight: 700; font-size: 1rem; }
+.bar-wrap { margin-top: 0.45rem; height: 6px; background: var(--card2); border-radius: 99px; overflow: hidden; }
+.bar { height: 100%; background: var(--green); border-radius: 99px; width: 0%; transition: width 0.3s ease; }
+.gates { display: grid; grid-template-columns: 1fr 1fr; gap: 0.4rem; font-size: 0.72rem; }
+.gate { background: var(--card2); border-radius: 8px; padding: 0.45rem 0.5rem; color: var(--muted); }
+.gate strong { color: var(--ink); display: block; font-size: 0.78rem; }
+.job, .deal { padding: 0.5rem 0; border-bottom: 1px solid var(--border); font-size: 0.8rem; }
+.job:last-child, .deal:last-child { border-bottom: none; }
+.job .name, .deal .name { font-weight: 600; }
+.job .meta, .deal .meta, .meta { color: var(--muted); font-size: 0.72rem; margin-top: 0.2rem; }
+.pill { display: inline-block; font-size: 0.6rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em;
+  padding: 0.12rem 0.4rem; border-radius: 4px; margin-left: 0.35rem; vertical-align: middle;
+  background: rgba(245, 158, 11, 0.15); color: var(--warn); }
+.pill.red { background: rgba(239, 68, 68, 0.15); color: var(--red); }
+.pill.grey { background: var(--card2); color: var(--muted); }
+.na { color: var(--muted); font-size: 0.85rem; }
+.err { color: var(--red); font-size: 0.78rem; padding: 0.5rem 0; }
+.foot { font-size: 0.68rem; color: var(--muted); text-align: center; margin-top: 1rem; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Able Ops Cockpit</h1>
+  <p class="sub">Hometown Meadows live from Able OS &#183; scoreboard and pipeline from Malli</p>
+</header>
+
+<div class="row">
+  <button type="button" class="btn primary" id="refreshBtn">Refresh</button>
+  <span class="meta" id="loadedAt"></span>
+</div>
+<div id="err" class="err" hidden></div>
+
+<section class="card"><h2>Occupancy <span class="asof" id="occAsOf"></span></h2><div id="occ"><p class="na">Loading&#8230;</p></div></section>
+<section class="card"><h2>Rent this month <span class="asof" id="rentAsOf"></span></h2><div id="rent"><p class="na">Loading&#8230;</p></div></section>
+<section class="card"><h2>Past grace <span class="asof" id="graceAsOf"></span></h2><div id="grace"><p class="na">Loading&#8230;</p></div></section>
+<section class="card"><h2>Open work orders <span class="asof" id="jobsAsOf"></span></h2><div id="jobs"><p class="na">Loading&#8230;</p></div></section>
+
+<section class="card">
+  <h2>Scoreboard <span class="asof">manual</span></h2>
+  <div id="metrics"><p class="na">Loading&#8230;</p></div>
+</section>
+<section class="card">
+  <h2>Morby pass / fail</h2>
+  <div class="gates">
+    <div class="gate"><strong>DSCR &#8805; 1.25</strong>In-place actuals</div>
+    <div class="gate"><strong>$5k/mo net</strong>After all debt &amp; ops</div>
+    <div class="gate"><strong>$750/door</strong>Floor</div>
+    <div class="gate"><strong>Seller 2nd</strong>Required</div>
+  </div>
+</section>
+<section class="card">
+  <h2>Pipeline <span class="asof">manual</span></h2>
+  <div id="pipeline"><p class="na">Loading&#8230;</p></div>
+</section>
+
+<p class="foot">Read-only. Live numbers come from Able OS each time this page opens; to change anything, use the cockpit at cockpit.ablebuyshomes.com.</p>
+
+<script>
+/* ---------- settings ---------- */
+const DB = 'Able-Ops-Cockpit';            // Malli's own database (scoreboard + pipeline)
+const INTEGRATION_ID = 'able_os_cockpit'; // the connected "Able OS Cockpit" integration
+const NA = 'Not available';
+
+/* ---------- small helpers ---------- */
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '\u0027' }[c];
+  });
+}
+function money(n) {
+  const v = Number(n);
+  return isFinite(v) ? '$' + v.toLocaleString('en-US', { maximumFractionDigits: 0 }) : '\u2014';
+}
+function pct(num, den) { return !den || den <= 0 ? 0 : Math.min(100, Math.round((num / den) * 100)); }
+function central(iso) {
+  if (!iso) return '';
+  if (String(iso).length === 10) {
+    const day = new Date(iso + 'T12:00:00Z');
+    return isNaN(day) ? '' : 'as of ' + day.toLocaleDateString('en-US', { timeZone: 'UTC', month: 'short', day: 'numeric' });
+  }
+  const d = new Date(iso);
+  if (isNaN(d)) return '';
+  return 'as of ' + d.toLocaleString('en-US', { timeZone: 'America/Chicago', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) + ' CT';
+}
+function setTile(id, html, asOf) {
+  document.getElementById(id).innerHTML = html;
+  const a = document.getElementById(id + 'AsOf');
+  if (a) a.textContent = asOf || '';
+}
+function failTile(id) { setTile(id, '<p class="na">' + NA + '</p>', ''); }
+
+/* Find the Able OS answer inside whatever envelope Malli wraps it in. */
+function unwrap(res, tool) {
+  let seen = 0;
+  function walk(x) {
+    if (seen++ > 2000 || x == null) return null;
+    if (typeof x === 'string') {
+      const t = x.trim();
+      if (t[0] === '{' || t[0] === '[') { try { return walk(JSON.parse(t)); } catch (e) { return null; } }
+      return null;
+    }
+    if (typeof x !== 'object') return null;
+    if (x.tool === tool && x.data && typeof x.data === 'object') return x.data;
+    if (x.error && x.tool === tool) throw new Error(x.error);
+    if (x.structuredContent && typeof x.structuredContent === 'object') return x.structuredContent;
+    for (const k of ['data', 'body', 'result', 'response', 'content', 'output']) {
+      if (k in x) { const r = walk(x[k]); if (r) return r; }
+    }
+    if (Array.isArray(x)) { for (const v of x) { const r = walk(v); if (r) return r; } }
+    return null;
+  }
+  return walk(res);
+}
+
+/* One read from Able OS through Malli's integration. Tries the likely call
+   shapes in turn; the first that answers is remembered for the rest. */
+let workingShape = null;
+const SHAPES = [
+  function (tool) { return { integration_id: INTEGRATION_ID, tool: 'able.read_tool', arguments: { tool: tool } }; },
+  function (tool) { return { integration_id: INTEGRATION_ID, tool: 'able.read_tool', params: { tool: tool } }; },
+  function (tool) { return { integration_id: INTEGRATION_ID, tool: 'read_tool', arguments: { tool: tool } }; },
+  function (tool) { return { integration_id: INTEGRATION_ID, operation_id: 'read_tool', params: { tool: tool } }; },
+  function (tool) { return { integration_id: INTEGRATION_ID, method: 'GET', path: '/api/mcp', query: { tool: tool } }; },
+];
+async function ableRead(tool) {
+  const order = workingShape != null ? [workingShape] : SHAPES.map(function (_, i) { return i; });
+  let lastErr = null;
+  for (const i of order) {
+    try {
+      const res = await window.malli.callTool('integration_call', SHAPES[i](tool));
+      const data = unwrap(res, tool);
+      if (data) { workingShape = i; return data; }
+      lastErr = new Error('No data in the answer');
+    } catch (e) { lastErr = e; }
+  }
+  throw lastErr || new Error('Could not reach Able OS');
+}
+
+/* ---------- live tiles ---------- */
+async function loadOccupancy() {
+  try {
+    const o = await ableRead('occupancy_status');
+    let html = '<div class="big">' + esc(o.occupied) + '<small>of ' + esc(o.doors) + ' homes lived in</small></div>';
+    html += '<div class="bar-wrap"><div class="bar" style="width:' + pct(o.occupied, o.doors) + '%"></div></div>';
+    const s = o.by_status || {};
+    const bits = [];
+    if (s.ready) bits.push(s.ready + ' ready to rent');
+    if (s.verify) bits.push(s.verify + ' need checking');
+    if (s.moving_out) bits.push(s.moving_out + ' moving out');
+    if (s.needs_repair) bits.push(s.needs_repair + ' need repair');
+    if (s.full_rehab) bits.push(s.full_rehab + ' in full rehab');
+    html += '<p class="line">' + esc(bits.join(' \u00b7 ')) + '</p>';
+    if (o.inspections_overdue) html += '<p class="line"><span class="pill red">' + esc(o.inspections_overdue) + ' home checks overdue</span></p>';
+    setTile('occ', html, central(o.as_of));
+  } catch (e) { failTile('occ'); throw e; }
+}
+
+async function loadRent() {
+  try {
+    const r = await ableRead('rent_status');
+    const rate = r.collection_rate_pct != null ? r.collection_rate_pct : pct(r.collected, r.charged);
+    let html = '<div class="big">' + money(r.collected) + '<small>collected of ' + money(r.charged) + '</small></div>';
+    html += '<div class="bar-wrap"><div class="bar" style="width:' + Math.min(100, rate) + '%"></div></div>';
+    html += '<p class="line">' + esc(rate) + '% collected \u00b7 ' + money(r.outstanding) + ' still to collect \u00b7 ' + esc(r.payments_received) + ' payments</p>';
+    setTile('rent', html, central(r.as_of));
+
+    let g = '<div class="big">' + esc(r.lots_past_grace) + '<small>lots past their grace period</small>';
+    if (r.late_fees_paused) g += '<span class="pill">Late fees paused</span>';
+    g += '</div>';
+    g += '<p class="line">' + (r.late_fees_paused
+      ? 'Shown for follow-up only. No late fees are charged while the pause is on.'
+      : 'A $75 late fee applies once per month after the 5-day grace.') + '</p>';
+    setTile('grace', g, central(r.as_of));
+  } catch (e) { failTile('rent'); failTile('grace'); throw e; }
+}
+
+async function loadJobs() {
+  try {
+    const w = await ableRead('work_order_list');
+    const jobs = (w.jobs || []).slice();
+    const rank = { emergency: 0, urgent: 1, routine: 2 };
+    jobs.sort(function (a, b) { return (rank[a.priority] ?? 3) - (rank[b.priority] ?? 3) || Number(a.lot) - Number(b.lot); });
+    const urgent = jobs.filter(function (j) { return j.priority === 'emergency' || j.priority === 'urgent'; }).length;
+    let html = '<div class="big">' + esc(w.count != null ? w.count : jobs.length) + '<small>open' + (urgent ? ' \u00b7 ' + urgent + ' urgent' : '') + '</small></div>';
+    jobs.forEach(function (j) {
+      const pill = j.priority === 'emergency' ? '<span class="pill red">Emergency</span>' : j.priority === 'urgent' ? '<span class="pill">Urgent</span>' : '';
+      html += '<div class="job"><span class="name">Lot ' + esc(j.lot) + ' \u2014 ' + esc(j.title) + '</span>' + pill +
+        '<div class="meta">' + esc(String(j.status || '').replace('_', ' ')) + ' \u00b7 ' + esc(j.days_open) + ' days open' +
+        ((j.parts_awaited || []).length ? ' \u00b7 waiting on parts' : '') + '</div></div>';
+    });
+    setTile('jobs', html, central(w.as_of));
+  } catch (e) { failTile('jobs'); throw e; }
+}
+
+/* ---------- Malli's own database: scoreboard + pipeline (manual) ---------- */
+function metricRow(label, value, extra, bar) {
+  const barHtml = bar != null ? '<div class="bar-wrap"><div class="bar" style="width:' + bar + '%"></div></div>' : '';
+  return '<div class="metric"><span>' + esc(label) + '</span><span class="val">' + esc(value) +
+    (extra ? ' <span style="font-weight:500;color:var(--muted);font-size:0.75rem">' + esc(extra) + '</span>' : '') + '</span></div>' + barHtml;
+}
+function parseNum(s) { const m = String(s || '').replace(/[^0-9.]/g, ''); return m ? parseFloat(m) : 0; }
+function rowsOf(res) { return (res && res.rows) ? res.rows : (res && res.data && res.data.rows) ? res.data.rows : []; }
+
+async function loadManual() {
+  try {
+    const mRes = await window.malli.callTool('database_query', { slug: DB, sql: 'SELECT key, label, value, unit FROM metrics ORDER BY sort_order' });
+    const map = {};
+    rowsOf(mRes).forEach(function (r) { map[r.key] = r; });
+    const doors = parseNum(map.doors_ytd && map.doors_ytd.value);
+    const goal = parseNum(map.doors_goal && map.doors_goal.value) || 200;
+    const lub = parseNum(map.lubbock_rented && map.lubbock_rented.value);
+    let html = '';
+    html += metricRow('Doors YTD', doors, '/ ' + goal, pct(doors, goal));
+    html += metricRow('Lubbock 5-pack', lub, '/ 5', pct(lub, 5));
+    if (map.net_goal) html += metricRow('Net target', map.net_goal.value, map.net_goal.unit || '');
+    document.getElementById('metrics').innerHTML = html;
+  } catch (e) { document.getElementById('metrics').innerHTML = '<p class="na">' + NA + '</p>'; }
+
+  try {
+    const pRes = await window.malli.callTool('database_query', { slug: DB, sql: 'SELECT name, market, status, blocker FROM pipeline_deals ORDER BY sort_order' });
+    const deals = rowsOf(pRes);
+    let phtml = deals.length ? '' : '<p class="meta">No active deals logged.</p>';
+    deals.forEach(function (d) {
+      phtml += '<div class="deal"><span class="name">' + esc(d.name) + '</span><span class="pill grey">' + esc(d.status) + '</span>' +
+        '<div class="meta">' + esc(d.market || '') + (d.blocker ? ' \u00b7 ' + esc(d.blocker) : '') + '</div></div>';
+    });
+    document.getElementById('pipeline').innerHTML = phtml;
+  } catch (e) { document.getElementById('pipeline').innerHTML = '<p class="na">' + NA + '</p>'; }
+}
+
+/* ---------- load everything; one tile failing never blanks the others ---------- */
+async function load() {
+  const err = document.getElementById('err');
+  err.hidden = true;
+  if (!window.malli || typeof window.malli.callTool !== 'function') {
+    err.textContent = 'Open this page from Malli Pro while logged in.';
+    err.hidden = false;
+    ['occ', 'rent', 'grace', 'jobs'].forEach(failTile);
+    return;
+  }
+  const results = await Promise.allSettled([loadOccupancy(), loadRent(), loadJobs(), loadManual()]);
+  const failed = results.slice(0, 3).filter(function (r) { return r.status === 'rejected'; });
+  if (failed.length) {
+    err.textContent = 'Some Able OS numbers could not be loaded (' + esc(failed[0].reason && failed[0].reason.message || 'no answer') +
+      '). Check that this page is granted "integration_call" and the Able OS Cockpit integration is connected.';
+    err.hidden = false;
+  }
+  document.getElementById('loadedAt').textContent = 'Loaded ' + new Date().toLocaleTimeString('en-US', { timeZone: 'America/Chicago', hour: 'numeric', minute: '2-digit' }) + ' CT';
+}
+document.getElementById('refreshBtn').addEventListener('click', load);
+load();
+</script>
+</body>
+</html>

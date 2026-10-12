@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ellery's Overview</title>
+<!--
+  Ellery's overview (Dev #31, 11 Oct 2026). Counts only, no per-applicant
+  rows; test applicants are already excluded by Able OS. The work itself
+  stays in Able OS. Needs Dev #26 (ellery_desk, applicant_queue,
+  documents_and_dates).
+  Reads Able OS through the "Able OS Cockpit" integration (GET read_tool).
+  Malli adds the key server-side: NO key, token or password in this page,
+  and Able OS never returns names. When pasting into Malli, grant this
+  page "integration_call".
+-->
+<style>
+:root {
+  --bg: #0D0D0F; --card: #111112; --card2: #161617; --border: #25221D;
+  --ink: #F5F5F4; --muted: #9CA3AF; --green: #B8E986; --purple: #D580FF;
+  --warn: #F59E0B; --red: #EF4444;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  background: var(--bg); color: var(--ink); line-height: 1.45;
+  padding: 1rem 1rem 2.5rem; max-width: 32rem; margin: 0 auto;
+}
+header { margin-bottom: 1.25rem; padding-bottom: 0.85rem; border-bottom: 1px solid var(--border); }
+h1 { font-size: 1.35rem; font-weight: 700; letter-spacing: -0.02em; }
+.sub { font-size: 0.75rem; color: var(--muted); margin-top: 0.35rem; }
+.row { display: flex; gap: 0.65rem; flex-wrap: wrap; margin-bottom: 0.75rem; align-items: center; }
+.btn { font-size: 0.72rem; font-weight: 600; padding: 0.5rem 0.75rem; border-radius: 8px;
+  border: 1px solid var(--border); background: var(--card2); color: var(--ink); cursor: pointer; }
+.btn.primary { background: var(--green); color: #0D0D0F; border-color: transparent; }
+.card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 1rem; margin-bottom: 0.65rem; }
+.card h2 { font-size: 0.65rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em;
+  color: var(--purple); margin-bottom: 0.5rem; display: flex; justify-content: space-between; gap: 0.5rem; }
+.card h2 .asof { color: var(--muted); font-weight: 500; text-transform: none; letter-spacing: 0; }
+.big { font-size: 1.6rem; font-weight: 700; letter-spacing: -0.02em; }
+.big small { font-size: 0.8rem; font-weight: 500; color: var(--muted); margin-left: 0.3rem; }
+.line { font-size: 0.78rem; color: var(--muted); margin-top: 0.25rem; }
+.metric { display: flex; justify-content: space-between; align-items: baseline; padding: 0.45rem 0;
+  border-bottom: 1px solid var(--border); font-size: 0.85rem; }
+.metric:last-child { border-bottom: none; }
+.metric .val { font-weight: 700; font-size: 1rem; }
+.bar-wrap { margin-top: 0.45rem; height: 6px; background: var(--card2); border-radius: 99px; overflow: hidden; }
+.bar { height: 100%; background: var(--green); border-radius: 99px; width: 0%; transition: width 0.3s ease; }
+.gates { display: grid; grid-template-columns: 1fr 1fr; gap: 0.4rem; font-size: 0.72rem; }
+.gate { background: var(--card2); border-radius: 8px; padding: 0.45rem 0.5rem; color: var(--muted); }
+.gate strong { color: var(--ink); display: block; font-size: 0.78rem; }
+.job, .deal { padding: 0.5rem 0; border-bottom: 1px solid var(--border); font-size: 0.8rem; }
+.job:last-child, .deal:last-child { border-bottom: none; }
+.job .name, .deal .name { font-weight: 600; }
+.job .meta, .deal .meta, .meta { color: var(--muted); font-size: 0.72rem; margin-top: 0.2rem; }
+.pill { display: inline-block; font-size: 0.6rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em;
+  padding: 0.12rem 0.4rem; border-radius: 4px; margin-left: 0.35rem; vertical-align: middle;
+  background: rgba(245, 158, 11, 0.15); color: var(--warn); }
+.pill.red { background: rgba(239, 68, 68, 0.15); color: var(--red); }
+.pill.grey { background: var(--card2); color: var(--muted); }
+.na { color: var(--muted); font-size: 0.85rem; }
+.err { color: var(--red); font-size: 0.78rem; padding: 0.5rem 0; }
+.foot { font-size: 0.68rem; color: var(--muted); text-align: center; margin-top: 1rem; }
+</style>
+<style>
+.lot { display:flex; justify-content:space-between; gap:0.5rem; padding:0.45rem 0; border-bottom:1px solid var(--border); font-size:0.85rem; }
+.lot:last-child { border-bottom:none; }
+.ok { color: var(--green); font-weight:700; }
+.due { color: var(--warn); font-weight:700; }
+.grid2 { display:grid; grid-template-columns: 1fr 1fr; gap:0.4rem; }
+.stat { background: var(--card2); border-radius: 8px; padding: 0.55rem 0.6rem; font-size: 0.78rem; color: var(--muted); }
+.stat strong { display:block; color: var(--ink); font-size: 1.25rem; }
+a.btn { text-decoration:none; display:inline-block; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Ellery's Overview</h1>
+  <p class="sub">Leasing &#183; counts only &#183; no applicant names</p>
+</header>
+<div class="row">
+  <button type="button" class="btn primary" id="refreshBtn">Refresh</button>
+  <span class="meta" id="loadedAt"></span>
+</div>
+<div id="err" class="err" hidden></div>
+<div class="row"><a class="btn" href="https://cockpit.ablebuyshomes.com/ellery/applicants" target="_blank" rel="noopener">Open Able OS queue</a></div>
+<section class="card"><h2>Applicant queue <span class="asof" id="queueAsOf"></span></h2><div id="queue"><p class="na">Loading&#8230;</p></div></section>
+<section class="card"><h2>AHTX vacancy <span class="asof" id="ahtxAsOf"></span></h2><div id="ahtx"><p class="na">Loading&#8230;</p></div></section>
+<section class="card"><h2>Dates due <span class="asof" id="datesAsOf"></span></h2><div id="dates"><p class="na">Loading&#8230;</p></div></section>
+<p class="foot">Counts only. Screening and decisions happen in Able OS.</p>
+<script>
+const INTEGRATION_ID = 'able_os_cockpit';
+const NA = 'Not available';
+/* ---------- small helpers ---------- */
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '\u0027' }[c];
+  });
+}
+function money(n) {
+  const v = Number(n);
+  return isFinite(v) ? '$' + v.toLocaleString('en-US', { maximumFractionDigits: 0 }) : '\u2014';
+}
+function pct(num, den) { return !den || den <= 0 ? 0 : Math.min(100, Math.round((num / den) * 100)); }
+function central(iso) {
+  if (!iso) return '';
+  if (String(iso).length === 10) {
+    const day = new Date(iso + 'T12:00:00Z');
+    return isNaN(day) ? '' : 'as of ' + day.toLocaleDateString('en-US', { timeZone: 'UTC', month: 'short', day: 'numeric' });
+  }
+  const d = new Date(iso);
+  if (isNaN(d)) return '';
+  return 'as of ' + d.toLocaleString('en-US', { timeZone: 'America/Chicago', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) + ' CT';
+}
+function setTile(id, html, asOf) {
+  document.getElementById(id).innerHTML = html;
+  const a = document.getElementById(id + 'AsOf');
+  if (a) a.textContent = asOf || '';
+}
+function failTile(id) { setTile(id, '<p class="na">' + NA + '</p>', ''); }
+
+/* Find the Able OS answer inside whatever envelope Malli wraps it in. */
+function unwrap(res, tool) {
+  let seen = 0;
+  function walk(x) {
+    if (seen++ > 2000 || x == null) return null;
+    if (typeof x === 'string') {
+      const t = x.trim();
+      if (t[0] === '{' || t[0] === '[') { try { return walk(JSON.parse(t)); } catch (e) { return null; } }
+      return null;
+    }
+    if (typeof x !== 'object') return null;
+    if (x.tool === tool && x.data && typeof x.data === 'object') return x.data;
+    if (x.error && x.tool === tool) throw new Error(x.error);
+    if (x.structuredContent && typeof x.structuredContent === 'object') return x.structuredContent;
+    for (const k of ['data', 'body', 'result', 'response', 'content', 'output']) {
+      if (k in x) { const r = walk(x[k]); if (r) return r; }
+    }
+    if (Array.isArray(x)) { for (const v of x) { const r = walk(v); if (r) return r; } }
+    return null;
+  }
+  return walk(res);
+}
+
+/* One read from Able OS through Malli's integration. Tries the likely call
+   shapes in turn; the first that answers is remembered for the rest. */
+let workingShape = null;
+const SHAPES = [
+  function (tool) { return { integration_id: INTEGRATION_ID, tool: 'able.read_tool', arguments: { tool: tool } }; },
+  function (tool) { return { integration_id: INTEGRATION_ID, tool: 'able.read_tool', params: { tool: tool } }; },
+  function (tool) { return { integration_id: INTEGRATION_ID, tool: 'read_tool', arguments: { tool: tool } }; },
+  function (tool) { return { integration_id: INTEGRATION_ID, operation_id: 'read_tool', params: { tool: tool } }; },
+  function (tool) { return { integration_id: INTEGRATION_ID, method: 'GET', path: '/api/mcp', query: { tool: tool } }; },
+];
+async function ableRead(tool) {
+  const order = workingShape != null ? [workingShape] : SHAPES.map(function (_, i) { return i; });
+  let lastErr = null;
+  for (const i of order) {
+    try {
+      const res = await window.malli.callTool('integration_call', SHAPES[i](tool));
+      const data = unwrap(res, tool);
+      if (data) { workingShape = i; return data; }
+      lastErr = new Error('No data in the answer');
+    } catch (e) { lastErr = e; }
+  }
+  throw lastErr || new Error('Could not reach Able OS');
+}
+
+
+
+const TILES = ['queue', 'ahtx', 'dates'];
+async function loadQueue() {
+  try {
+    const [d, q] = await Promise.all([ableRead('ellery_desk'), ableRead('applicant_queue')]);
+    const a = d.applicants || {};
+    const waiting3 = (q.applicants || []).filter(function (x) { const n = Number(x.days_waiting ?? x.days_waited ?? x.days); return isFinite(n) && n > 3; }).length;
+    setTile('queue', '<div class="grid2">' +
+      '<div class="stat"><strong>' + esc(a.awaiting_decision || 0) + '</strong>awaiting a decision</div>' +
+      '<div class="stat"><strong>' + esc(a.fee_unpaid || 0) + '</strong>fee not paid</div>' +
+      '<div class="stat"><strong>' + esc(a.screening_not_ordered || 0) + '</strong>screening not ordered</div>' +
+      '<div class="stat"><strong style="color:' + (waiting3 ? 'var(--warn)' : 'var(--ink)') + '">' + waiting3 + '</strong>waiting more than 3 days</div>' +
+      '</div>', central(a.as_of || d.as_of));
+  } catch (e) { failTile('queue'); throw e; }
+}
+async function loadAhtx() {
+  try {
+    const d = await ableRead('ellery_desk');
+    const props = (d.ahtx && d.ahtx.properties) || [];
+    const doors = props.reduce(function (s, p) { return s + (p.doors || 0); }, 0);
+    const vacant = props.reduce(function (s, p) { return s + (p.vacant || 0); }, 0);
+    const unknown = props.reduce(function (s, p) { return s + (p.status_unknown || 0); }, 0);
+    let html = '<div class="big">' + vacant + '<small>vacant of ' + doors + ' doors</small></div>';
+    if (unknown) html += '<p class="line">' + unknown + ' door(s) with status unknown.</p>';
+    props.filter(function (p) { return p.vacant; }).forEach(function (p) { html += '<div class="lot"><span>' + esc(p.name) + '</span><span class="due">Vacant</span></div>'; });
+    setTile('ahtx', html, central(d.as_of));
+  } catch (e) { failTile('ahtx'); throw e; }
+}
+async function loadDates() {
+  try {
+    const dd = await ableRead('documents_and_dates');
+    const cd = dd.critical_dates || {};
+    const docs = dd.documents || {};
+    setTile('dates', '<div class="grid2">' +
+      '<div class="stat"><strong style="color:' + (cd.overdue ? 'var(--red)' : 'var(--ink)') + '">' + esc(cd.overdue || 0) + '</strong>dates overdue</div>' +
+      '<div class="stat"><strong>' + esc(cd.due_this_week || 0) + '</strong>due this week</div>' +
+      '<div class="stat"><strong>' + esc(docs.total || 0) + '</strong>documents open<div class="meta">' + esc(docs.overdue || 0) + ' overdue</div></div>' +
+      '</div>', central(dd.as_of));
+  } catch (e) { failTile('dates'); throw e; }
+}
+const LOADERS = [loadQueue, loadAhtx, loadDates];
+
+async function load() {
+  const err = document.getElementById('err');
+  err.hidden = true;
+  if (!window.malli || typeof window.malli.callTool !== 'function') {
+    err.textContent = 'Open this page from Malli Pro while logged in.';
+    err.hidden = false;
+    TILES.forEach(failTile);
+    return;
+  }
+  const results = await Promise.allSettled(LOADERS.map(function (f) { return f(); }));
+  const failed = results.filter(function (r) { return r.status === 'rejected'; });
+  if (failed.length) {
+    err.textContent = 'Some Able OS numbers could not be loaded (' + (failed[0].reason && failed[0].reason.message || 'no answer') +
+      '). Check that this page is granted "integration_call" and the Able OS Cockpit integration is connected.';
+    err.hidden = false;
+  }
+  document.getElementById('loadedAt').textContent = 'Loaded ' + new Date().toLocaleTimeString('en-US', { timeZone: 'America/Chicago', hour: 'numeric', minute: '2-digit' }) + ' CT';
+}
+document.getElementById('refreshBtn').addEventListener('click', load);
+load();
+</script>
+</body>
+</html>

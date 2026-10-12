@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Zo's Desk</title>
+<!--
+  Zo's Desk - Hometown Meadows daily overview (Dev #29, 11 Oct 2026).
+  Read-only. Lot numbers only - no names, phones or codes. Zo still logs
+  payments and work in Able OS; the buttons link there.
+  Reads Able OS through the "Able OS Cockpit" integration (GET read_tool).
+  Uses only tools Malli's key already has: occupancy_status, lot_roll,
+  work_order_list, dates_list. Malli adds the key itself - none in this page.
+  When pasting into Malli, grant this page: "integration_call".
+-->
+<style>
+:root {
+  --bg: #0D0D0F; --card: #111112; --card2: #161617; --border: #25221D;
+  --ink: #F5F5F4; --muted: #9CA3AF; --green: #B8E986; --purple: #D580FF;
+  --warn: #F59E0B; --red: #EF4444;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  background: var(--bg); color: var(--ink); line-height: 1.45;
+  padding: 1rem 1rem 2.5rem; max-width: 32rem; margin: 0 auto;
+}
+header { margin-bottom: 1.25rem; padding-bottom: 0.85rem; border-bottom: 1px solid var(--border); }
+h1 { font-size: 1.35rem; font-weight: 700; letter-spacing: -0.02em; }
+.sub { font-size: 0.75rem; color: var(--muted); margin-top: 0.35rem; }
+.row { display: flex; gap: 0.65rem; flex-wrap: wrap; margin-bottom: 0.75rem; align-items: center; }
+.btn { font-size: 0.72rem; font-weight: 600; padding: 0.5rem 0.75rem; border-radius: 8px;
+  border: 1px solid var(--border); background: var(--card2); color: var(--ink); cursor: pointer; }
+.btn.primary { background: var(--green); color: #0D0D0F; border-color: transparent; }
+.card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 1rem; margin-bottom: 0.65rem; }
+.card h2 { font-size: 0.65rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em;
+  color: var(--purple); margin-bottom: 0.5rem; display: flex; justify-content: space-between; gap: 0.5rem; }
+.card h2 .asof { color: var(--muted); font-weight: 500; text-transform: none; letter-spacing: 0; }
+.big { font-size: 1.6rem; font-weight: 700; letter-spacing: -0.02em; }
+.big small { font-size: 0.8rem; font-weight: 500; color: var(--muted); margin-left: 0.3rem; }
+.line { font-size: 0.78rem; color: var(--muted); margin-top: 0.25rem; }
+.metric { display: flex; justify-content: space-between; align-items: baseline; padding: 0.45rem 0;
+  border-bottom: 1px solid var(--border); font-size: 0.85rem; }
+.metric:last-child { border-bottom: none; }
+.metric .val { font-weight: 700; font-size: 1rem; }
+.bar-wrap { margin-top: 0.45rem; height: 6px; background: var(--card2); border-radius: 99px; overflow: hidden; }
+.bar { height: 100%; background: var(--green); border-radius: 99px; width: 0%; transition: width 0.3s ease; }
+.gates { display: grid; grid-template-columns: 1fr 1fr; gap: 0.4rem; font-size: 0.72rem; }
+.gate { background: var(--card2); border-radius: 8px; padding: 0.45rem 0.5rem; color: var(--muted); }
+.gate strong { color: var(--ink); display: block; font-size: 0.78rem; }
+.job, .deal { padding: 0.5rem 0; border-bottom: 1px solid var(--border); font-size: 0.8rem; }
+.job:last-child, .deal:last-child { border-bottom: none; }
+.job .name, .deal .name { font-weight: 600; }
+.job .meta, .deal .meta, .meta { color: var(--muted); font-size: 0.72rem; margin-top: 0.2rem; }
+.pill { display: inline-block; font-size: 0.6rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em;
+  padding: 0.12rem 0.4rem; border-radius: 4px; margin-left: 0.35rem; vertical-align: middle;
+  background: rgba(245, 158, 11, 0.15); color: var(--warn); }
+.pill.red { background: rgba(239, 68, 68, 0.15); color: var(--red); }
+.pill.grey { background: var(--card2); color: var(--muted); }
+.na { color: var(--muted); font-size: 0.85rem; }
+.err { color: var(--red); font-size: 0.78rem; padding: 0.5rem 0; }
+.foot { font-size: 0.68rem; color: var(--muted); text-align: center; margin-top: 1rem; }
+</style>
+<style>
+.lot { display:flex; justify-content:space-between; gap:0.5rem; padding:0.4rem 0; border-bottom:1px solid var(--border); font-size:0.8rem; }
+.lot:last-child { border-bottom:none; }
+.lot .owed { font-weight:700; }
+.lot .owed.zero { color: var(--muted); font-weight:500; }
+.grid2 { display:grid; grid-template-columns: 1fr 1fr; gap:0.4rem; }
+.stat { background: var(--card2); border-radius: 8px; padding: 0.45rem 0.55rem; font-size: 0.75rem; color: var(--muted); }
+.stat strong { display:block; color: var(--ink); font-size: 1.05rem; }
+a.btn { text-decoration:none; display:inline-block; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Zo's Desk</h1>
+  <p class="sub">Hometown Meadows &#183; live from Able OS &#183; lot numbers only</p>
+</header>
+
+<div class="row">
+  <button type="button" class="btn primary" id="refreshBtn">Refresh</button>
+  <a class="btn" href="https://cockpit.ablebuyshomes.com/zo/collections" target="_blank" rel="noopener">Log a payment in Able OS</a>
+  <a class="btn" href="https://cockpit.ablebuyshomes.com/zo" target="_blank" rel="noopener">Open Able OS</a>
+</div>
+<p class="meta" id="loadedAt"></p>
+<div id="err" class="err" hidden></div>
+
+<section class="card"><h2>Lots by status <span class="asof" id="statusAsOf"></span></h2><div id="status"><p class="na">Loading&#8230;</p></div></section>
+<section class="card"><h2>Rent by lot <span class="asof" id="rentAsOf"></span></h2><div id="rent"><p class="na">Loading&#8230;</p></div></section>
+<section class="card"><h2>Open work orders <span class="asof" id="jobsAsOf"></span></h2><div id="jobs"><p class="na">Loading&#8230;</p></div></section>
+<section class="card"><h2>Home checks and dates <span class="asof" id="datesAsOf"></span></h2><div id="dates"><p class="na">Loading&#8230;</p></div></section>
+
+<p class="foot">Read-only. To log a payment, a job or a home check, use Able OS.</p>
+
+<script>
+/* ---------- settings ---------- */
+const INTEGRATION_ID = 'able_os_cockpit';
+const NA = 'Not available';
+const WORD = { occupied: 'Lived in', ready: 'Ready to rent', verify: 'Needs checking', moving_out: 'Moving out',
+  needs_repair: 'Needs repair', full_rehab: 'Full rehab', vacant: 'Vacant', common_area: 'Common area' };
+const ORDER = ['occupied', 'ready', 'verify', 'moving_out', 'needs_repair', 'full_rehab', 'vacant', 'common_area'];
+
+/* ---------- small helpers ---------- */
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '\u0027' }[c];
+  });
+}
+function money(n) {
+  const v = Number(n);
+  return isFinite(v) ? '$' + v.toLocaleString('en-US', { maximumFractionDigits: 0 }) : '\u2014';
+}
+function pct(num, den) { return !den || den <= 0 ? 0 : Math.min(100, Math.round((num / den) * 100)); }
+function central(iso) {
+  if (!iso) return '';
+  if (String(iso).length === 10) {
+    const day = new Date(iso + 'T12:00:00Z');
+    return isNaN(day) ? '' : 'as of ' + day.toLocaleDateString('en-US', { timeZone: 'UTC', month: 'short', day: 'numeric' });
+  }
+  const d = new Date(iso);
+  if (isNaN(d)) return '';
+  return 'as of ' + d.toLocaleString('en-US', { timeZone: 'America/Chicago', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) + ' CT';
+}
+function setTile(id, html, asOf) {
+  document.getElementById(id).innerHTML = html;
+  const a = document.getElementById(id + 'AsOf');
+  if (a) a.textContent = asOf || '';
+}
+function failTile(id) { setTile(id, '<p class="na">' + NA + '</p>', ''); }
+
+/* Find the Able OS answer inside whatever envelope Malli wraps it in. */
+function unwrap(res, tool) {
+  let seen = 0;
+  function walk(x) {
+    if (seen++ > 2000 || x == null) return null;
+    if (typeof x === 'string') {
+      const t = x.trim();
+      if (t[0] === '{' || t[0] === '[') { try { return walk(JSON.parse(t)); } catch (e) { return null; } }
+      return null;
+    }
+    if (typeof x !== 'object') return null;
+    if (x.tool === tool && x.data && typeof x.data === 'object') return x.data;
+    if (x.error && x.tool === tool) throw new Error(x.error);
+    if (x.structuredContent && typeof x.structuredContent === 'object') return x.structuredContent;
+    for (const k of ['data', 'body', 'result', 'response', 'content', 'output']) {
+      if (k in x) { const r = walk(x[k]); if (r) return r; }
+    }
+    if (Array.isArray(x)) { for (const v of x) { const r = walk(v); if (r) return r; } }
+    return null;
+  }
+  return walk(res);
+}
+
+/* One read from Able OS through Malli's integration. Tries the likely call
+   shapes in turn; the first that answers is remembered for the rest. */
+let workingShape = null;
+const SHAPES = [
+  function (tool) { return { integration_id: INTEGRATION_ID, tool: 'able.read_tool', arguments: { tool: tool } }; },
+  function (tool) { return { integration_id: INTEGRATION_ID, tool: 'able.read_tool', params: { tool: tool } }; },
+  function (tool) { return { integration_id: INTEGRATION_ID, tool: 'read_tool', arguments: { tool: tool } }; },
+  function (tool) { return { integration_id: INTEGRATION_ID, operation_id: 'read_tool', params: { tool: tool } }; },
+  function (tool) { return { integration_id: INTEGRATION_ID, method: 'GET', path: '/api/mcp', query: { tool: tool } }; },
+];
+async function ableRead(tool) {
+  const order = workingShape != null ? [workingShape] : SHAPES.map(function (_, i) { return i; });
+  let lastErr = null;
+  for (const i of order) {
+    try {
+      const res = await window.malli.callTool('integration_call', SHAPES[i](tool));
+      const data = unwrap(res, tool);
+      if (data) { workingShape = i; return data; }
+      lastErr = new Error('No data in the answer');
+    } catch (e) { lastErr = e; }
+  }
+  throw lastErr || new Error('Could not reach Able OS');
+}
+
+
+function byLot(a, b) {
+  const na = Number(a.lot), nb = Number(b.lot);
+  if (isFinite(na) && isFinite(nb)) return na - nb;
+  return String(a.lot).localeCompare(String(b.lot));
+}
+
+/* ---------- tiles ---------- */
+async function loadLots() {
+  let occ = null;
+  try { occ = await ableRead('occupancy_status'); } catch (e) { /* the roll can still show */ }
+  try {
+    const roll = await ableRead('lot_roll');
+    const lots = (roll.lots || []).slice().sort(byLot);
+
+    // Lots by status, counted from the roll and checked against occupancy_status.
+    const groups = {};
+    lots.forEach(function (l) { (groups[l.home] = groups[l.home] || []).push(l.lot); });
+    let html = '<div class="grid2">';
+    ORDER.concat(Object.keys(groups).filter(function (k) { return ORDER.indexOf(k) < 0; })).forEach(function (k) {
+      if (!groups[k]) return;
+      html += '<div class="stat"><strong>' + groups[k].length + '</strong>' + esc(WORD[k] || k) +
+        '<div class="meta">' + (groups[k].length === 1 ? 'Lot ' : 'Lots ') + esc(groups[k].join(', ')) + '</div></div>';
+    });
+    html += '</div>';
+    if (occ && occ.by_status) {
+      const mismatch = Object.keys(occ.by_status).some(function (k) { return (groups[k] || []).length !== occ.by_status[k]; });
+      if (mismatch) html += '<p class="line"><span class="pill red">Counts differ from the occupancy summary - refresh</span></p>';
+    }
+    setTile('status', html, central((occ && occ.as_of) || roll.as_of));
+
+    // Rent by lot: lived-in lots, lot number only.
+    const billed = lots.filter(function (l) { return l.occupied || Number(l.owed_today) > 0; });
+    let r = '';
+    let total = 0;
+    billed.forEach(function (l) {
+      const owed = Number(l.owed_today) || 0;
+      total += owed;
+      r += '<div class="lot"><span>Lot ' + esc(l.lot) + (l.monthly_rent ? ' \u00b7 ' + money(l.monthly_rent) + '/mo' : '') +
+        (l.due_day ? ' \u00b7 due the ' + esc(l.due_day) + (['1','21','31'].indexOf(String(l.due_day)) >= 0 ? 'st' : ['2','22'].indexOf(String(l.due_day)) >= 0 ? 'nd' : ['3','23'].indexOf(String(l.due_day)) >= 0 ? 'rd' : 'th') : '') +
+        (l.home !== 'occupied' ? ' <span class="pill grey">' + esc(WORD[l.home] || l.home) + '</span>' : '') + '</span>' +
+        '<span class="owed' + (owed > 0 ? '' : ' zero') + '">' + (owed > 0 ? money(owed) + ' owed' : 'Paid') + '</span></div>';
+    });
+    if (!billed.length) r = '<p class="na">No lots billed this month.</p>';
+    else r = '<div class="big">' + money(total) + '<small>owed across ' + billed.filter(function (l) { return Number(l.owed_today) > 0; }).length + ' lots</small></div>' + r;
+    setTile('rent', r, central(roll.as_of));
+  } catch (e) { failTile('status'); failTile('rent'); throw e; }
+}
+
+async function loadJobs() {
+  try {
+    const w = await ableRead('work_order_list');
+    const rank = { emergency: 0, urgent: 1, routine: 2 };
+    const jobs = (w.jobs || []).slice().sort(function (a, b) { return (rank[a.priority] ?? 3) - (rank[b.priority] ?? 3) || byLot(a, b); });
+    let html = '<div class="big">' + jobs.length + '<small>open</small></div>';
+    jobs.forEach(function (j) {
+      const pill = j.priority === 'emergency' ? '<span class="pill red">Emergency</span>' : j.priority === 'urgent' ? '<span class="pill">Urgent</span>' : '';
+      html += '<div class="job"><span class="name">Lot ' + esc(j.lot) + ' \u2014 ' + esc(j.title) + '</span>' + pill +
+        '<div class="meta">' + esc(String(j.status || '').replace('_', ' ')) + ' \u00b7 ' + esc(j.days_open) + ' days open' +
+        ((j.parts_awaited || []).length ? ' \u00b7 waiting on parts' : '') + '</div></div>';
+    });
+    if (!jobs.length) html = '<p class="na">No open work orders.</p>';
+    setTile('jobs', html, central(w.as_of));
+  } catch (e) { failTile('jobs'); throw e; }
+}
+
+async function loadDates() {
+  try {
+    const d = await ableRead('dates_list');
+    const rows = [];
+    (d.scheduled_inspections || []).forEach(function (i) { rows.push({ what: 'Home check \u00b7 Lot ' + i.lot, due: i.due_on, overdue: i.overdue }); });
+    (d.critical_dates || []).forEach(function (c) { rows.push({ what: c.what || 'Date', due: c.due_on, overdue: c.overdue }); });
+    (d.open_documents || []).forEach(function (o) { rows.push({ what: [o.type, o.stage].filter(Boolean).join(' - ') || 'Document', due: o.due_on, overdue: o.overdue }); });
+    rows.sort(function (a, b) { return (b.overdue ? 1 : 0) - (a.overdue ? 1 : 0) || String(a.due || '9999').localeCompare(String(b.due || '9999')); });
+    let html = '';
+    rows.forEach(function (r) {
+      html += '<div class="lot"><span>' + esc(r.what) + (r.overdue ? '<span class="pill red">Overdue</span>' : '') + '</span>' +
+        '<span class="' + (r.overdue ? 'owed' : 'owed zero') + '" style="' + (r.overdue ? 'color:var(--red)' : '') + '">' + esc(r.due || 'No date') + '</span></div>';
+    });
+    if (!rows.length) html = '<p class="na">Nothing late, due or coming.</p>';
+    setTile('dates', html, central(d.as_of));
+  } catch (e) { failTile('dates'); throw e; }
+}
+
+async function load() {
+  const err = document.getElementById('err');
+  err.hidden = true;
+  if (!window.malli || typeof window.malli.callTool !== 'function') {
+    err.textContent = 'Open this page from Malli Pro while logged in.';
+    err.hidden = false;
+    ['status', 'rent', 'jobs', 'dates'].forEach(failTile);
+    return;
+  }
+  const results = await Promise.allSettled([loadLots(), loadJobs(), loadDates()]);
+  const failed = results.filter(function (r) { return r.status === 'rejected'; });
+  if (failed.length) {
+    err.textContent = 'Some Able OS numbers could not be loaded (' + (failed[0].reason && failed[0].reason.message || 'no answer') +
+      '). Check that this page is granted "integration_call" and the Able OS Cockpit integration is connected.';
+    err.hidden = false;
+  }
+  document.getElementById('loadedAt').textContent = 'Loaded ' + new Date().toLocaleTimeString('en-US', { timeZone: 'America/Chicago', hour: 'numeric', minute: '2-digit' }) + ' CT';
+}
+document.getElementById('refreshBtn').addEventListener('click', load);
+load();
+</script>
+</body>
+</html>

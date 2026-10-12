@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Manita's Desk</title>
+<!--
+  Manita's owner desk (Dev #28, 11 Oct 2026). Mirrors Able OS /manita.
+  Read-only: no approve buttons, no screening data, no personal details.
+  Needs Dev #26 (work_order_status, documents_and_dates, qbo_sync_status).
+  Reads Able OS through the "Able OS Cockpit" integration (GET read_tool).
+  Malli adds the key server-side: NO key, token or password in this page,
+  and Able OS never returns names. When pasting into Malli, grant this
+  page "integration_call".
+-->
+<style>
+:root {
+  --bg: #0D0D0F; --card: #111112; --card2: #161617; --border: #25221D;
+  --ink: #F5F5F4; --muted: #9CA3AF; --green: #B8E986; --purple: #D580FF;
+  --warn: #F59E0B; --red: #EF4444;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  background: var(--bg); color: var(--ink); line-height: 1.45;
+  padding: 1rem 1rem 2.5rem; max-width: 32rem; margin: 0 auto;
+}
+header { margin-bottom: 1.25rem; padding-bottom: 0.85rem; border-bottom: 1px solid var(--border); }
+h1 { font-size: 1.35rem; font-weight: 700; letter-spacing: -0.02em; }
+.sub { font-size: 0.75rem; color: var(--muted); margin-top: 0.35rem; }
+.row { display: flex; gap: 0.65rem; flex-wrap: wrap; margin-bottom: 0.75rem; align-items: center; }
+.btn { font-size: 0.72rem; font-weight: 600; padding: 0.5rem 0.75rem; border-radius: 8px;
+  border: 1px solid var(--border); background: var(--card2); color: var(--ink); cursor: pointer; }
+.btn.primary { background: var(--green); color: #0D0D0F; border-color: transparent; }
+.card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 1rem; margin-bottom: 0.65rem; }
+.card h2 { font-size: 0.65rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em;
+  color: var(--purple); margin-bottom: 0.5rem; display: flex; justify-content: space-between; gap: 0.5rem; }
+.card h2 .asof { color: var(--muted); font-weight: 500; text-transform: none; letter-spacing: 0; }
+.big { font-size: 1.6rem; font-weight: 700; letter-spacing: -0.02em; }
+.big small { font-size: 0.8rem; font-weight: 500; color: var(--muted); margin-left: 0.3rem; }
+.line { font-size: 0.78rem; color: var(--muted); margin-top: 0.25rem; }
+.metric { display: flex; justify-content: space-between; align-items: baseline; padding: 0.45rem 0;
+  border-bottom: 1px solid var(--border); font-size: 0.85rem; }
+.metric:last-child { border-bottom: none; }
+.metric .val { font-weight: 700; font-size: 1rem; }
+.bar-wrap { margin-top: 0.45rem; height: 6px; background: var(--card2); border-radius: 99px; overflow: hidden; }
+.bar { height: 100%; background: var(--green); border-radius: 99px; width: 0%; transition: width 0.3s ease; }
+.gates { display: grid; grid-template-columns: 1fr 1fr; gap: 0.4rem; font-size: 0.72rem; }
+.gate { background: var(--card2); border-radius: 8px; padding: 0.45rem 0.5rem; color: var(--muted); }
+.gate strong { color: var(--ink); display: block; font-size: 0.78rem; }
+.job, .deal { padding: 0.5rem 0; border-bottom: 1px solid var(--border); font-size: 0.8rem; }
+.job:last-child, .deal:last-child { border-bottom: none; }
+.job .name, .deal .name { font-weight: 600; }
+.job .meta, .deal .meta, .meta { color: var(--muted); font-size: 0.72rem; margin-top: 0.2rem; }
+.pill { display: inline-block; font-size: 0.6rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em;
+  padding: 0.12rem 0.4rem; border-radius: 4px; margin-left: 0.35rem; vertical-align: middle;
+  background: rgba(245, 158, 11, 0.15); color: var(--warn); }
+.pill.red { background: rgba(239, 68, 68, 0.15); color: var(--red); }
+.pill.grey { background: var(--card2); color: var(--muted); }
+.na { color: var(--muted); font-size: 0.85rem; }
+.err { color: var(--red); font-size: 0.78rem; padding: 0.5rem 0; }
+.foot { font-size: 0.68rem; color: var(--muted); text-align: center; margin-top: 1rem; }
+</style>
+<style>
+.lot { display:flex; justify-content:space-between; gap:0.5rem; padding:0.45rem 0; border-bottom:1px solid var(--border); font-size:0.85rem; }
+.lot:last-child { border-bottom:none; }
+.ok { color: var(--green); font-weight:700; }
+.due { color: var(--warn); font-weight:700; }
+.grid2 { display:grid; grid-template-columns: 1fr 1fr; gap:0.4rem; }
+.stat { background: var(--card2); border-radius: 8px; padding: 0.55rem 0.6rem; font-size: 0.78rem; color: var(--muted); }
+.stat strong { display:block; color: var(--ink); font-size: 1.25rem; }
+a.btn { text-decoration:none; display:inline-block; }
+</style>
+<style>body{font-size:1.1rem;max-width:36rem}.big{font-size:2.1rem}.line,.lot{font-size:1rem}.card h2{font-size:0.8rem}.stat strong{font-size:1.6rem}.stat{font-size:0.95rem}</style>
+</head>
+<body>
+<header>
+  <h1>Manita's Desk</h1>
+  <p class="sub">Hometown Meadows &#183; read-only &#183; no names</p>
+</header>
+<div class="row">
+  <button type="button" class="btn primary" id="refreshBtn">Refresh</button>
+  <span class="meta" id="loadedAt"></span>
+</div>
+<div id="err" class="err" hidden></div>
+<section class="card"><h2>Homes <span class="asof" id="homesAsOf"></span></h2><div id="homes"><p class="na">Loading&#8230;</p></div></section>
+<section class="card"><h2>Rent this month <span class="asof" id="moneyAsOf"></span></h2><div id="money"><p class="na">Loading&#8230;</p></div></section>
+<section class="card"><h2>QuickBooks <span class="asof" id="qboAsOf"></span></h2><div id="qbo"><p class="na">Loading&#8230;</p></div></section>
+<section class="card"><h2>Rent by lot <span class="asof" id="bylotAsOf"></span></h2><div id="bylot"><p class="na">Loading&#8230;</p></div></section>
+<section class="card"><h2>Repairs <span class="asof" id="repairsAsOf"></span></h2><div id="repairs"><p class="na">Loading&#8230;</p></div></section>
+<section class="card"><h2>Home checks, dates and paperwork <span class="asof" id="datesAsOf"></span></h2><div id="dates"><p class="na">Loading&#8230;</p></div></section>
+<p class="foot">Read-only. Nothing on this page can change anything.</p>
+<script>
+const INTEGRATION_ID = 'able_os_cockpit';
+const NA = 'Not available';
+/* ---------- small helpers ---------- */
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '\u0027' }[c];
+  });
+}
+function money(n) {
+  const v = Number(n);
+  return isFinite(v) ? '$' + v.toLocaleString('en-US', { maximumFractionDigits: 0 }) : '\u2014';
+}
+function pct(num, den) { return !den || den <= 0 ? 0 : Math.min(100, Math.round((num / den) * 100)); }
+function central(iso) {
+  if (!iso) return '';
+  if (String(iso).length === 10) {
+    const day = new Date(iso + 'T12:00:00Z');
+    return isNaN(day) ? '' : 'as of ' + day.toLocaleDateString('en-US', { timeZone: 'UTC', month: 'short', day: 'numeric' });
+  }
+  const d = new Date(iso);
+  if (isNaN(d)) return '';
+  return 'as of ' + d.toLocaleString('en-US', { timeZone: 'America/Chicago', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) + ' CT';
+}
+function setTile(id, html, asOf) {
+  document.getElementById(id).innerHTML = html;
+  const a = document.getElementById(id + 'AsOf');
+  if (a) a.textContent = asOf || '';
+}
+function failTile(id) { setTile(id, '<p class="na">' + NA + '</p>', ''); }
+
+/* Find the Able OS answer inside whatever envelope Malli wraps it in. */
+function unwrap(res, tool) {
+  let seen = 0;
+  function walk(x) {
+    if (seen++ > 2000 || x == null) return null;
+    if (typeof x === 'string') {
+      const t = x.trim();
+      if (t[0] === '{' || t[0] === '[') { try { return walk(JSON.parse(t)); } catch (e) { return null; } }
+      return null;
+    }
+    if (typeof x !== 'object') return null;
+    if (x.tool === tool && x.data && typeof x.data === 'object') return x.data;
+    if (x.error && x.tool === tool) throw new Error(x.error);
+    if (x.structuredContent && typeof x.structuredContent === 'object') return x.structuredContent;
+    for (const k of ['data', 'body', 'result', 'response', 'content', 'output']) {
+      if (k in x) { const r = walk(x[k]); if (r) return r; }
+    }
+    if (Array.isArray(x)) { for (const v of x) { const r = walk(v); if (r) return r; } }
+    return null;
+  }
+  return walk(res);
+}
+
+/* One read from Able OS through Malli's integration. Tries the likely call
+   shapes in turn; the first that answers is remembered for the rest. */
+let workingShape = null;
+const SHAPES = [
+  function (tool) { return { integration_id: INTEGRATION_ID, tool: 'able.read_tool', arguments: { tool: tool } }; },
+  function (tool) { return { integration_id: INTEGRATION_ID, tool: 'able.read_tool', params: { tool: tool } }; },
+  function (tool) { return { integration_id: INTEGRATION_ID, tool: 'read_tool', arguments: { tool: tool } }; },
+  function (tool) { return { integration_id: INTEGRATION_ID, operation_id: 'read_tool', params: { tool: tool } }; },
+  function (tool) { return { integration_id: INTEGRATION_ID, method: 'GET', path: '/api/mcp', query: { tool: tool } }; },
+];
+async function ableRead(tool) {
+  const order = workingShape != null ? [workingShape] : SHAPES.map(function (_, i) { return i; });
+  let lastErr = null;
+  for (const i of order) {
+    try {
+      const res = await window.malli.callTool('integration_call', SHAPES[i](tool));
+      const data = unwrap(res, tool);
+      if (data) { workingShape = i; return data; }
+      lastErr = new Error('No data in the answer');
+    } catch (e) { lastErr = e; }
+  }
+  throw lastErr || new Error('Could not reach Able OS');
+}
+
+
+
+const TILES = ['homes', 'money', 'qbo', 'bylot', 'repairs', 'dates'];
+function byLot(a, b) { const x = Number(a.lot), y = Number(b.lot); return isFinite(x) && isFinite(y) ? x - y : String(a.lot).localeCompare(String(b.lot)); }
+
+async function loadHomes() {
+  try {
+    const o = await ableRead('occupancy_status');
+    const empty = (o.doors || 0) - (o.occupied || 0);
+    setTile('homes', '<div class="big">' + esc(o.occupied) + '<small>homes lived in</small></div>' +
+      '<p class="line">' + esc(empty) + ' homes nobody lives in yet (being repaired, checked or readied).</p>', central(o.as_of));
+  } catch (e) { failTile('homes'); throw e; }
+}
+async function loadRollAndMoney() {
+  try {
+    const [roll, r] = await Promise.all([ableRead('lot_roll'), ableRead('rent_status')]);
+    const lived = (roll.lots || []).filter(function (l) { return l.occupied; }).sort(byLot);
+    const stillToCollect = lived.reduce(function (s, l) { return s + (Number(l.owed_today) || 0); }, 0);
+    setTile('money', '<div class="big">' + money(r.collected) + '<small>collected</small></div>' +
+      '<div class="big" style="margin-top:0.4rem">' + money(stillToCollect) + '<small>still to collect from the homes below</small></div>' +
+      (r.late_fees_paused ? '<p class="line">Late fees are paused.</p>' : ''), central(r.as_of));
+    let html = '';
+    lived.forEach(function (l) {
+      const owed = Number(l.owed_today) || 0;
+      html += '<div class="lot"><span>Lot ' + esc(l.lot) + '</span>' + (owed > 0 ? '<span class="due">Not paid yet \u00b7 ' + money(owed) + '</span>' : '<span class="ok">Paid</span>') + '</div>';
+    });
+    html += '<div class="lot"><span><strong>Total still to collect</strong></span><span class="due">' + money(stillToCollect) + '</span></div>';
+    setTile('bylot', lived.length ? html : '<p class="na">No homes billed this month.</p>', central(roll.as_of));
+  } catch (e) { failTile('money'); failTile('bylot'); throw e; }
+}
+async function loadQbo() {
+  try {
+    const q = await ableRead('qbo_sync_status');
+    const w = q.waiting_to_post || {};
+    const waiting = (w.payments || 0) + (w.rent_invoices || 0) + (w.application_fees || 0);
+    const errors = (q.errors || []).length;
+    const ok = errors === 0;
+    setTile('qbo', '<div class="big">' + (ok ? '<span class="ok">Up to date</span>' : '<span style="color:var(--red)">Needs attention</span>') + '</div>' +
+      '<p class="line">' + (errors ? errors + ' sync problem(s). ' : '') + waiting + ' item(s) waiting for the next hourly sync. Status only.</p>',
+      central(q.last_payment_synced_at));
+  } catch (e) { failTile('qbo'); throw e; }
+}
+async function loadRepairs() {
+  try {
+    const w = await ableRead('work_order_status');
+    const p = w.by_priority || {};
+    setTile('repairs', '<div class="big">' + esc(w.open) + '<small>repairs open</small></div>' +
+      '<p class="line">' + esc(w.emergencies_open || 0) + ' emergencies \u00b7 ' + esc(p.urgent || 0) + ' urgent \u00b7 ' + esc(w.jobs_waiting_on_parts || 0) + ' waiting on parts</p>', central(w.as_of));
+  } catch (e) { failTile('repairs'); throw e; }
+}
+async function loadDates() {
+  try {
+    const [d, dd] = await Promise.all([ableRead('dates_list'), ableRead('documents_and_dates')]);
+    const overdueChecks = (d.scheduled_inspections || []).filter(function (i) { return i.overdue; });
+    const cd = (dd.critical_dates || {});
+    const docs = (dd.documents || {});
+    let html = '<div class="grid2">' +
+      '<div class="stat"><strong style="color:' + (overdueChecks.length ? 'var(--red)' : 'var(--ink)') + '">' + overdueChecks.length + '</strong>home checks overdue' +
+      (overdueChecks.length ? '<div class="meta">Lots ' + esc(overdueChecks.map(function (i) { return i.lot; }).join(', ')) + '</div>' : '') + '</div>' +
+      '<div class="stat"><strong>' + esc(cd.overdue || 0) + '</strong>important dates overdue<div class="meta">' + esc(cd.due_this_week || 0) + ' due this week</div></div>' +
+      '<div class="stat"><strong>' + esc(docs.total || 0) + '</strong>papers in progress<div class="meta">' + esc(docs.overdue || 0) + ' overdue</div></div>' +
+      '</div>';
+    setTile('dates', html, central(dd.as_of || d.as_of));
+  } catch (e) { failTile('dates'); throw e; }
+}
+const LOADERS = [loadHomes, loadRollAndMoney, loadQbo, loadRepairs, loadDates];
+
+async function load() {
+  const err = document.getElementById('err');
+  err.hidden = true;
+  if (!window.malli || typeof window.malli.callTool !== 'function') {
+    err.textContent = 'Open this page from Malli Pro while logged in.';
+    err.hidden = false;
+    TILES.forEach(failTile);
+    return;
+  }
+  const results = await Promise.allSettled(LOADERS.map(function (f) { return f(); }));
+  const failed = results.filter(function (r) { return r.status === 'rejected'; });
+  if (failed.length) {
+    err.textContent = 'Some Able OS numbers could not be loaded (' + (failed[0].reason && failed[0].reason.message || 'no answer') +
+      '). Check that this page is granted "integration_call" and the Able OS Cockpit integration is connected.';
+    err.hidden = false;
+  }
+  document.getElementById('loadedAt').textContent = 'Loaded ' + new Date().toLocaleTimeString('en-US', { timeZone: 'America/Chicago', hour: 'numeric', minute: '2-digit' }) + ' CT';
+}
+document.getElementById('refreshBtn').addEventListener('click', load);
+load();
+</script>
+</body>
+</html>
