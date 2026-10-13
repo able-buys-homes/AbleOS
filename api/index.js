@@ -57,6 +57,7 @@ import tasks from "../routes/tasks.js";
 import socialQueue from "../routes/social-queue.js";
 import unitInspectionDrive from "../routes/unit-inspection-drive.js";
 import unitInspections from "../routes/unit-inspections.js";
+import htmCallback from "../routes/htm-callback.js";
 import stripeRent from "../routes/stripe-rent.js";
 import qboAuth from "../routes/qbo-auth.js";
 import qboSync from "../routes/qbo-sync.js"; 
@@ -119,6 +120,7 @@ const ROUTES = {
     "social-queue": socialQueue,
     "unit-inspection-drive": unitInspectionDrive,
     "unit-inspections": unitInspections,
+    "htm-callback": htmCallback,
 };
 
 export default async function handler(req, res) {
