@@ -42,14 +42,18 @@ function getClient() {
  * time to anyone patient enough to measure the response.
  */
 function secretMatches(supplied) {
-    const expected = process.env.DEAL_INTAKE_SECRET;
-    if (!expected || typeof supplied !== "string") return false;
+    if (typeof supplied !== "string" || !supplied) return false;
 
-    const a = Buffer.from(supplied);
-    const b = Buffer.from(expected);
-    if (a.length !== b.length) return false;
+    // Two keys, so each caller can be revoked on its own: n8n uses
+    // DEAL_INTAKE_SECRET, Grok's deal routine uses GROK_INTAKE_SECRET (14 Oct).
+    const keys = [process.env.DEAL_INTAKE_SECRET, process.env.GROK_INTAKE_SECRET]
+        .filter((k) => typeof k === "string" && k.length > 0);
 
-    return timingSafeEqual(a, b);
+    const given = Buffer.from(supplied);
+    return keys.some((key) => {
+        const expected = Buffer.from(key);
+        return given.length === expected.length && timingSafeEqual(given, expected);
+    });
 }
 
 function clean(value, max) {
