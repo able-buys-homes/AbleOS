@@ -59,6 +59,7 @@ import unitInspectionDrive from "../routes/unit-inspection-drive.js";
 import unitInspections from "../routes/unit-inspections.js";
 import htmCallback from "../routes/htm-callback.js";
 import stripeWebhook from "../routes/stripe-webhook.js";
+import htmApply from "../routes/htm-apply.js";
 import stripeRent from "../routes/stripe-rent.js";
 import qboAuth from "../routes/qbo-auth.js";
 import qboSync from "../routes/qbo-sync.js"; 
@@ -123,6 +124,7 @@ const ROUTES = {
     "unit-inspections": unitInspections,
     "htm-callback": htmCallback,
     "stripe-webhook": stripeWebhook,
+    "htm-apply": htmApply,
 };
 
 export default async function handler(req, res) {
