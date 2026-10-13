@@ -144,6 +144,36 @@ function isNoise(from) {
     return NOISE_LOCAL_PARTS.some((p) => (local ?? "").startsWith(p));
 }
 
+/**
+ * Grok structured intake (14 Oct 2026). Grok's deal routine may send what it already pulled
+ * out of the email as req.body.extracted. Only the known fields are kept and
+ * each is type-checked, so a malformed object can't put junk on a deal. If
+ * nothing usable is left, the caller falls back to reading the email itself.
+ */
+function givenExtraction(value) {
+    if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+    const str = (v, max) => (typeof v === "string" && v.trim() ? v.trim().slice(0, max) : null);
+    const n = (v) => {
+        const x = Number(typeof v === "string" ? v.replace(/[^0-9.]/g, "") : v);
+        return v !== null && v !== "" && Number.isFinite(x) && x >= 0 ? x : null;
+    };
+    const conf = Number(value.confidence);
+    const out = {
+        is_deal: typeof value.is_deal === "boolean" ? value.is_deal : null,
+        confidence: Number.isFinite(conf) && conf >= 0 && conf <= 1 ? conf : null,
+        deal_name: str(value.deal_name, 200),
+        address: str(value.address, 300),
+        source: str(value.source, 100),
+        notes: str(value.notes, 2000),
+        purchase_price: n(value.purchase_price),
+        monthly_cash_flow: n(value.monthly_cash_flow),
+        dscr: n(value.dscr),
+        extracted_by: "grok",
+    };
+    const useful = out.is_deal !== null || out.deal_name || out.address || out.purchase_price !== null;
+    return useful ? out : null;
+}
+
 /** Keep what we already had; only fill gaps. */
 function fill(existing, incoming) {
     if (existing !== null && existing !== undefined && existing !== "") {
@@ -202,7 +232,9 @@ export default async function handler(req, res) {
         /* ---- 2. What is it? ---- */
         // A null means the call failed. Store the email unfilled rather than
         // lose it - an outage should never cost a deal.
-        const read = await extractDeal({ from, subject, body });
+        const read =
+            givenExtraction(req.body?.extracted) ??
+            (await extractDeal({ from, subject, body }));
         const addressKey = addressKeyFor(read?.address);
         const nameKey = nameKeyFor(clean(read?.deal_name, 200) || subject || "");
 
