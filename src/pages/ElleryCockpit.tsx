@@ -11,6 +11,7 @@ import { ElleryTabBar } from "../components/ElleryTabBar";
 import { UserMenu } from "../components/UserMenu";
 import { useEffect, useState } from "react";
 import { apiFetch } from "../lib/apiFetch";
+import { CrmLinkCard } from "../components/CrmLinkCard";
 
 type DateEntry = { kind: string; what: string; book: string | null; due_on: string | null; overdue: boolean };
 
@@ -140,6 +141,10 @@ export function ElleryCockpit() {
         </>
       }
     >
+      {/* T-15 AHTX CRM link */}
+      <div className="pt-2">
+        <CrmLinkCard />
+      </div>
       <DatesList />
 
       <footer className="pt-10 text-center text-[16px] font-medium tracking-[0.12em] text-[#8291A5]">

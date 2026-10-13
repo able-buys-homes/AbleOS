@@ -9,6 +9,7 @@
 import React from "react";
 import { apiFetch } from "../lib/apiFetch";
 import { useAuth } from "../lib/AuthProvider";
+import { CrmLinkCard } from "../components/CrmLinkCard";
 
 type Lot = { lot: string; home: string; occupied: boolean; monthly_rent: number | null; owed_today: number; open_jobs: number; next_inspection: string | null };
 type Desk = {
@@ -228,6 +229,12 @@ export function ManitaCockpit() {
             </Section>
           </>
         )}
+
+        {/* T-15 AHTX CRM link - always shown, even if the page data fails to load. */}
+        <section className="mt-8">
+          <h2 className="mb-3 text-[24px] font-extrabold text-[#14213D]">AHTX customer list</h2>
+          <CrmLinkCard large />
+        </section>
 
         <div className="mt-10 grid grid-cols-1 gap-4 sm:grid-cols-2">
           <button
