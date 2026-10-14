@@ -169,9 +169,10 @@ function givenExtraction(value) {
         address: str(value.address, 300),
         source: str(value.source, 100),
         notes: str(value.notes, 2000),
-        purchase_price: n(value.purchase_price),
+        // 0 means unknown: Grok sends 0 for a price or DSCR it could not find.
+        purchase_price: n(value.purchase_price) || null,
         monthly_cash_flow: n(value.monthly_cash_flow),
-        dscr: n(value.dscr),
+        dscr: n(value.dscr) || null,
         extracted_by: "grok",
     };
     const useful = out.is_deal !== null || out.deal_name || out.address || out.purchase_price !== null;
