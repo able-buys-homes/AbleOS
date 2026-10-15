@@ -962,8 +962,10 @@ async function activityReport(supabase) {
             q.gte("received_at", month),
         ),
         all(supabase, "work_orders", "opened_at, completed_at", (q) => q.gte("opened_at", month)),
+        // Finished in the window counts by completion date, whenever the task
+        // was created (a task made in August and ticked off today counts today).
         all(supabase, "daily_tasks", "completed_on, created_on", (q) =>
-            q.is("deleted_at", null).gte("created_on", month),
+            q.is("deleted_at", null).or(`created_on.gte.${month},completed_on.gte.${month}`),
         ),
         all(supabase, "applicants", "arrived_at", (q) => q.gte("arrived_at", month)),
         all(supabase, "unit_inspections", "inspected_at", (q) => q.gte("inspected_at", month)),
@@ -972,6 +974,19 @@ async function activityReport(supabase) {
     ]);
 
     const livePayments = payments.filter((p) => !p.reverses_id);
+
+    // Assigned tasks (the "tasks" table) and all-time totals, so this report
+    // agrees with the boards people look at.
+    const assignedTasks = await all(supabase, "tasks", "created_at, completed_at");
+    const dailyDoneAllTime = await all(supabase, "daily_tasks", "completed_on", (q) =>
+        q.is("deleted_at", null).not("completed_on", "is", null),
+    );
+    const finishedAll = [
+        ...daily.map((t) => ({ at: t.completed_on })),
+        ...assignedTasks.map((t) => ({ at: t.completed_at })),
+    ];
+    const lastFinished = [...dailyDoneAllTime.map((t) => t.completed_on), ...assignedTasks.map((t) => t.completed_at)]
+        .filter(Boolean).map((d) => String(d).slice(0, 10)).sort().pop() ?? null;
 
     return {
         window: { today, week_from: week, month_from: month },
@@ -991,8 +1006,17 @@ async function activityReport(supabase) {
         },
         work_orders_opened: windows(jobs, "opened_at"),
         work_orders_closed: windows(jobs, "completed_at"),
-        tasks_finished: windows(daily, "completed_on"),
+        tasks_finished: windows(finishedAll, "at"),
+        tasks_finished_daily_board: windows(daily, "completed_on"),
+        tasks_finished_assigned: windows(assignedTasks, "completed_at"),
+        tasks_finished_all_time: {
+            daily_board: dailyDoneAllTime.length,
+            assigned: assignedTasks.filter((t) => t.completed_at).length,
+            last_finished_on: lastFinished,
+        },
         tasks_created: windows(daily, "created_on"),
+        tasks_note:
+            "Since late September most finished work is recorded in the build log (build_log_entries / project_log), not on the task boards.",
         applicants_arrived: windows(applicants, "arrived_at"),
         inspections_done: windows(inspections, "inspected_at"),
         build_log_entries: windows(log, "occurred_on"),
