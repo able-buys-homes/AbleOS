@@ -130,7 +130,9 @@ export default async function handler(req, res) {
             .select("id, lot_id, period, charge_type, amount, due_date, qbo_txn_id")
             // Past-due balances Zo copied from QuickBooks are already invoiced
             // there. Posting them again would double what the resident owes.
-            .neq("charge_type", "prior_balance")
+            // T-25 Part 3: returned payments and their fee stay out of QuickBooks
+            // until Sofi says go - the bounce is recorded there by hand.
+            .not("charge_type", "in", "(prior_balance,returned_payment,returned_payment_fee)")
             .gte("created_at", cut ? cut.iso : "1970-01-01T00:00:00Z")
             .is("qbo_txn_id", null)
             .gt("amount", 0)

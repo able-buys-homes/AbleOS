@@ -127,6 +127,8 @@ const CHARGE_LABEL = {
     late_fee: "Late fee",
     other: "Other charge",
     prior_balance: "Overdue balance",
+    returned_payment: "Returned payment",
+    returned_payment_fee: "Returned payment fee",
 };
 
 // The portal is served from its own origin, so it has to be named here. Listed
