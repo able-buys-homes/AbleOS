@@ -596,6 +596,10 @@ export function ZoCollections() {
                   <Btn onClick={() => navigate("/zo/returned-payment")}>
                     Payment came back
                   </Btn>
+                  {/* ZoPaperApplications - upload a paper application */}
+                  <Btn onClick={() => navigate("/zo/paper-applications")}>
+                    Upload paper application
+                  </Btn>
                 </div>
               </div>
 

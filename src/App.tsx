@@ -24,6 +24,7 @@ import { ZoMap } from "./pages/ZoMap";
 import { ZoMoveIn } from "./pages/ZoMoveIn";
 import { Deposits } from "./pages/Deposits";
 import { ZoReturnedPayment } from "./pages/ZoReturnedPayment";
+import { ZoPaperApplications } from "./pages/ZoPaperApplications";
 import { ManitaCockpit } from "./pages/ManitaCockpit";
 import { MfaGate } from "./components/MfaGate";
 import { RajApprovals } from "./pages/RajApprovals";
@@ -126,6 +127,15 @@ export function App() {
             element={
               <ProtectedRoute cockpit="zo">
                 <Deposits portfolio="htm" />
+              </ProtectedRoute>
+            }
+          />
+          {/* Paper applications (Coco's spec, 15 Oct): Zo, Manita, Raj. */}
+          <Route
+            path="/zo/paper-applications"
+            element={
+              <ProtectedRoute cockpit="zo">
+                <ZoPaperApplications />
               </ProtectedRoute>
             }
           />
