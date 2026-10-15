@@ -111,7 +111,9 @@ export default async function handler(req, res) {
             if (error) throw error;
             if (!row || !row.uploaded_at) return res.status(404).json({ error: "Not found" });
             const { data: link, error: linkError } = await supabase.storage
-                .from(BUCKET).createSignedUrl(row.storage_path, VIEW_TTL_SECONDS, { download: row.file_name });
+                // No "download" option: the file opens in the browser tab instead of
+                // being saved, so copies of these forms don't pile up in Downloads.
+                .from(BUCKET).createSignedUrl(row.storage_path, VIEW_TTL_SECONDS);
             if (linkError) throw linkError;
             return res.status(200).json({ url: link.signedUrl, file_name: row.file_name });
         }
