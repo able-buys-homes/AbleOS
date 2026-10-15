@@ -23,6 +23,7 @@ import { ZoNotices } from "./pages/ZoNotices";
 import { ZoMap } from "./pages/ZoMap";
 import { ZoMoveIn } from "./pages/ZoMoveIn";
 import { Deposits } from "./pages/Deposits";
+import { ZoReturnedPayment } from "./pages/ZoReturnedPayment";
 import { ManitaCockpit } from "./pages/ManitaCockpit";
 import { MfaGate } from "./components/MfaGate";
 import { RajApprovals } from "./pages/RajApprovals";
@@ -125,6 +126,15 @@ export function App() {
             element={
               <ProtectedRoute cockpit="zo">
                 <Deposits portfolio="htm" />
+              </ProtectedRoute>
+            }
+          />
+          {/* T-25 Part 3: a payment that came back. Off until RETURNED_PAYMENTS_ON. */}
+          <Route
+            path="/zo/returned-payment"
+            element={
+              <ProtectedRoute cockpit="zo">
+                <ZoReturnedPayment />
               </ProtectedRoute>
             }
           />

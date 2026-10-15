@@ -85,6 +85,32 @@ export default async function handler(req, res) {
         const supabase = getClient();
 
         /* ---- Preview: what would happen. Never writes. ---- */
+        /* ---- A lot's recent payments, for Zo's screen. Never writes. ---- */
+        if (req.method === "GET" && req.query?.lot) {
+            const lotNumber = String(req.query.lot).trim();
+            if (!/^\d{1,4}$/.test(lotNumber)) return res.status(400).json({ error: "Which lot?" });
+            const { data: lot, error: lotErr } = await supabase
+                .from("lots").select("id").eq("property", HTM).eq("lot_number", lotNumber).maybeSingle();
+            if (lotErr) throw lotErr;
+            if (!lot) return res.status(404).json({ error: "No such lot at Hometown Meadows" });
+            const since = new Date(Date.now() - 90 * 86400000).toISOString();
+            const { data: pays, error: payErr } = await supabase
+                .from("payments").select("id, amount, received_at, method")
+                .eq("lot_id", lot.id).is("reverses_id", null).gte("received_at", since)
+                .order("received_at", { ascending: false }).limit(50);
+            if (payErr) throw payErr;
+            const ids = (pays ?? []).map((p) => p.id);
+            const { data: returned, error: retErr } = ids.length
+                ? await supabase.from("rent_ledger").select("returned_payment_id").in("returned_payment_id", ids)
+                : { data: [], error: null };
+            if (retErr) throw retErr;
+            const done = new Set((returned ?? []).map((r) => r.returned_payment_id));
+            return res.status(200).json({
+                switched_on: process.env.RETURNED_PAYMENTS_ON === "true",
+                payments: (pays ?? []).map((p) => ({ ...p, amount: money(p.amount), already_returned: done.has(p.id) })),
+            });
+        }
+
         if (req.method === "GET") {
             const paymentId = String(req.query?.payment_id || "");
             if (!isUuid(paymentId)) return res.status(400).json({ error: "Which payment?" });

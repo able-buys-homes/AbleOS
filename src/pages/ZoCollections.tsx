@@ -592,6 +592,10 @@ export function ZoCollections() {
                   <Btn onClick={() => navigate("/zo/deposits")} variant="navy">
                     Open deposits
                   </Btn>
+                  {/* ZoReturnedPayment - T-25 Part 3 */}
+                  <Btn onClick={() => navigate("/zo/returned-payment")}>
+                    Payment came back
+                  </Btn>
                 </div>
               </div>
 
