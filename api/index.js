@@ -62,6 +62,7 @@ import stripeWebhook from "../routes/stripe-webhook.js";
 import htmApply from "../routes/htm-apply.js";
 import returnedPayments from "../routes/returned-payments.js";
 import paperApplications from "../routes/paper-applications.js";
+import qboRepost from "../routes/qbo-repost.js";
 import stripeRent from "../routes/stripe-rent.js";
 import qboAuth from "../routes/qbo-auth.js";
 import qboSync from "../routes/qbo-sync.js"; 
@@ -129,6 +130,7 @@ const ROUTES = {
     "htm-apply": htmApply,
     "returned-payments": returnedPayments,
     "paper-applications": paperApplications,
+    "qbo-repost": qboRepost,
 };
 
 export default async function handler(req, res) {
